@@ -26,17 +26,18 @@ wfLoadExtension( 'LabkiPackManager' );
 3. Configure the content repository URLs (raw file host):
 
 ```php
-$wgLabkiContentManifestURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.json';
+$wgLabkiContentManifestURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.yml';
 $wgLabkiContentBaseURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/';
 ```
 
-4. Ensure your admin role (`sysop`) has the `labki-import` right (default provided by the extension).
+4. Ensure your admin role (`sysop`) has the `labkipackmanager-manage` right (default provided by the extension).
 
 Usage
 -----
 
 - Visit `Special:LabkiPackManager` as an admin
-- View available packs from the manifest and import selected packs (implementation in progress)
+- The extension will fetch a YAML `manifest.yml` at the repo root, parse available packs, and list them for selection (implementation in progress)
+- Each selected pack corresponds to a folder under `packs/<id>/` with its own `manifest.yml` and a `pages/` directory containing `.wiki` files whose names are the page titles
 
 Development
 -----------
@@ -46,6 +47,13 @@ Development
 - Strings and aliases: `i18n/`
 
 Run PHPUnit and PHPCS via MediaWiki’s composer setup in the MediaWiki root.
+
+Labki content repo expectations
+-------------------------------
+
+- Root `manifest.yml` lists packs with `id`, `path`, `version`, `description`
+- Each pack has `packs/<id>/manifest.yml` with `name`, `id`, `version`, `description`, `dependencies`, and `contents`
+- Pages live under `packs/<id>/pages/` as `.wiki` files (e.g., `Template:Publication.wiki`, `Form:Publication.wiki`)
 
 License
 -------

@@ -35,11 +35,11 @@
     }
   },
   "AvailableRights": [
-    "labki-import"
+    "labkipackmanager-manage"
   ],
   "GroupPermissions": {
     "sysop": {
-      "labki-import": true
+      "labkipackmanager-manage": true
     }
   }
 }

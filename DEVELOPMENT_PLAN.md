@@ -10,9 +10,9 @@ Key objectives:
 
 - Create a minimal MediaWiki extension structure that loads (visible on `Special:Version`).
 - Add a special page `Special:LabkiPackManager` for admins to initiate imports.
-- Fetch a manifest from a remote content pack repository (GitHub) to list available packs.
+- Fetch a YAML manifest (`manifest.yml`) from a remote content pack repository (GitHub) to list available packs.
 - Import `.wiki` files into pages (bypassing XML; parse and save text directly).
-- Define a `labki-import` right to restrict usage.
+- Define a `labkipackmanager-manage` right to restrict usage.
 - Plan future export of content back to the repo via pull requests.
 
 Content Pack Repository Structure (Planned)
@@ -20,21 +20,34 @@ Content Pack Repository Structure (Planned)
 
 labki-content/
 
-- manifest.json            (lists available packs)
-- layouts/
-  - standard_lab_layout.wiki
-- templates/
-  - ExperimentPack.wiki
+- manifest.yml             (lists available packs)
+- packs/
+  - publication/
+    - manifest.yml
+    - pages/
+      - Template:Publication.wiki
+      - Form:Publication.wiki
+      - Category:Publication.wiki
+      - Property:Has author.wiki
+  - onboarding/
+    - manifest.yml
+    - pages/
+      - Template:Onboarding.wiki
+      - Form:Onboarding.wiki
+      - Category:Onboarding.wiki
 
-Manifest example:
+Top-level manifest example (manifest.yml):
 
-```json
-{
-  "packs": [
-    { "id": "standard_lab_layout", "type": "layout", "file": "layouts/standard_lab_layout.wiki", "description": "Standard lab layout pages" },
-    { "id": "ExperimentPack", "type": "template", "file": "templates/ExperimentPack.wiki", "description": "Experimental forms and templates" }
-  ]
-}
+```yaml
+packs:
+  - id: publication
+    path: packs/publication
+    version: 1.0.0
+    description: Templates and forms for managing publications
+  - id: onboarding
+    path: packs/onboarding
+    version: 1.1.0
+    description: Standardized onboarding checklists
 ```
 
 Step 1: Bare-Bones Extension
@@ -56,8 +69,8 @@ Step 3: Fetch Manifest
 ----------------------
 
 - Config: `LabkiContentManifestURL` in `extension.json` (exposed as `$wgLabkiContentManifestURL`).
-- Use MediaWiki HTTP facilities to fetch manifest JSON.
-- Parse JSON and handle errors.
+- Use MediaWiki HTTP facilities to fetch YAML.
+- Parse YAML and handle errors.
 
 Step 4: List Packs (UI)
 -----------------------
@@ -69,16 +82,14 @@ Step 5: Import `.wiki` Packs
 ----------------------------
 
 - Config: `LabkiContentBaseURL` to construct raw file URLs.
-- For each selected pack, fetch `.wiki` file content.
-- For each logical page in the pack:
-  - Since packs are `.wiki` not XML, define a simple delimiter format within `.wiki` files (e.g., `=== Page: Title ===` followed by wikitext) or restrict to single-page packs initially.
-  - Create or update the target page via `WikiPageFactory` / `PageUpdater` with the fetched wikitext.
+- For each selected pack, fetch the pack-level `manifest.yml` under `packs/<id>/` to enumerate contents, then fetch the corresponding `.wiki` files under `packs/<id>/pages/`.
+- Create or update each target page via `WikiPageFactory` / `PageUpdater` with the fetched wikitext.
 - Provide success/error feedback per pack.
 
 Step 6: Permissions & Security
 ------------------------------
 
-- Define `labki-import` right; grant to `sysop` by default.
+- Define `labkipackmanager-manage` right; grant to `sysop` by default.
 - Restrict `Special:LabkiPackManager` to users with this right.
 - Validate POST token and selected IDs against fetched manifest.
 
