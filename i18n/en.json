@@ -1,0 +1,10 @@
+{
+  "@metadata": {
+    "authors": ["Aharoni-Lab"]
+  },
+  "labkipackmanager-desc": "Import Labki .wiki content packs from a Git repository.",
+  "specialpages-group-labki": "Labki",
+  "labkipackmanager-special-title": "LabkiPackManager",
+  "labkipackmanager-special-placeholder": "This is a placeholder for LabkiPackManager import UI."
+}
+

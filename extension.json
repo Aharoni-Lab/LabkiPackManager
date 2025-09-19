@@ -1,0 +1,46 @@
+{
+  "name": "LabkiPackManager",
+  "type": "extension",
+  "version": "0.1.0",
+  "author": ["Aharoni-Lab"],
+  "url": "https://github.com/Aharoni-Lab/LabkiPackManager",
+  "descriptionmsg": "labkipackmanager-desc",
+  "license-name": "GPL-2.0-or-later",
+  "requires": {
+    "MediaWiki": ">= 1.44"
+  },
+  "manifest_version": 2,
+  "MessagesDirs": {
+    "LabkiPackManager": [
+      "i18n"
+    ]
+  },
+  "ExtensionMessagesFiles": {
+    "LabkiPackManagerAlias": "LabkiPackManager.alias.php"
+  },
+  "AutoloadNamespaces": {
+    "LabkiPackManager\\": "includes/"
+  },
+  "SpecialPages": {
+    "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
+  },
+  "config": {
+    "LabkiContentManifestURL": {
+      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.json",
+      "description": "URL to the labki-content manifest JSON"
+    },
+    "LabkiContentBaseURL": {
+      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/",
+      "description": "Base URL prefix for raw .wiki files referenced by the manifest"
+    }
+  },
+  "AvailableRights": [
+    "labki-import"
+  ],
+  "GroupPermissions": {
+    "sysop": {
+      "labki-import": true
+    }
+  }
+}
+
