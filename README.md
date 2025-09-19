@@ -32,6 +32,13 @@ $wgLabkiContentBaseURL = 'https://raw.githubusercontent.com/YourOrg/labki-conten
 
 4. Ensure your admin role (`sysop`) has the `labkipackmanager-manage` right (default provided by the extension).
 
+5. Install PHP dependencies (YAML parser):
+
+```bash
+cd extensions/LabkiPackManager
+composer install --no-dev --prefer-dist --no-progress --no-interaction
+```
+
 Usage
 -----
 
@@ -42,11 +49,37 @@ Usage
 Development
 -----------
 
-- Namespace: `LabkiPackManager\\`
+- Namespace: `LabkiPackManager\`
 - Special page: `Special:LabkiPackManager`
 - Strings and aliases: `i18n/`
 
 Run PHPUnit and PHPCS via MediaWiki’s composer setup in the MediaWiki root.
+
+Unit tests (no MediaWiki required)
+----------------------------------
+
+Local Composer:
+```bash
+cd extensions/LabkiPackManager
+composer install --no-dev --prefer-dist --no-progress --no-interaction
+composer install --dev --no-progress --no-interaction
+composer test
+```
+
+Docker (Composer image):
+```powershell
+# Install deps (including dev)
+docker run --rm -v "C:\Users\dbaha\Documents\Projects\LabkiPackManager:/app" -w /app composer:2 install --prefer-dist --no-progress --no-interaction
+
+# Run tests
+docker run --rm -v "C:\Users\dbaha\Documents\Projects\LabkiPackManager:/app" -w /app composer:2 vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+Notes:
+- In production (inside the MediaWiki image), install without dev deps: `composer install --no-dev ...`
+- Dev-only packages (like phpunit) are only installed when you include `--dev` or omit `--no-dev`.
+
+This runs PHPUnit against the pure PHP parser located at `includes/Parser/ManifestParser.php`.
 
 Labki content repo expectations
 -------------------------------

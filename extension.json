@@ -10,6 +10,7 @@
     "MediaWiki": ">= 1.44"
   },
   "manifest_version": 2,
+  "load_composer_autoloader": true,
   "MessagesDirs": {
     "LabkiPackManager": [
       "i18n"
@@ -26,7 +27,7 @@
   },
   "config": {
     "LabkiContentManifestURL": {
-      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.json",
+      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.yml",
       "description": "URL to the labki-content manifest JSON"
     },
     "LabkiContentBaseURL": {
