@@ -27,11 +27,11 @@
   },
   "config": {
     "LabkiContentManifestURL": {
-      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.yml",
+      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
       "description": "URL to the labki-content manifest JSON"
     },
     "LabkiContentBaseURL": {
-      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/",
+      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/",
       "description": "Base URL prefix for raw .wiki files referenced by the manifest"
     }
   },
