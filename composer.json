@@ -12,6 +12,11 @@
       "LabkiPackManager\\": "includes/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "MediaWiki\\": "tests/Support/MediaWiki/"
+    }
+  },
   "require-dev": {
     "phpunit/phpunit": "^10.5"
   },
