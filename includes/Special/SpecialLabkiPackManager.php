@@ -23,7 +23,7 @@ class SpecialLabkiPackManager extends SpecialPage {
         $this->checkPermissions();
 
         $output = $this->getOutput();
-        $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' ) );
+        $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' )->text() );
 
         $request = $this->getRequest();
         $token = $request->getVal( 'token' );
@@ -35,7 +35,7 @@ class SpecialLabkiPackManager extends SpecialPage {
         $statusNote = '';
 
         if ( $request->wasPosted() && $doRefresh ) {
-            if ( $this->getUser()->matchEditToken( $token ) ) {
+            if ( $this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
                 $fetcher = new ManifestFetcher();
                 $status = $fetcher->fetchRootManifest();
                 if ( $status->isOK() ) {
@@ -64,7 +64,7 @@ class SpecialLabkiPackManager extends SpecialPage {
         }
 
         $html = '<form method="post" style="margin-bottom:12px">';
-        $html .= \Html::hidden( 'token', $this->getUser()->getEditToken() );
+        $html .= \Html::hidden( 'token', $this->getContext()->getCsrfTokenSet()->getToken() );
         $html .= '<button class="mw-htmlform-submit" type="submit" name="refresh" value="1">' .
             htmlspecialchars( $this->msg( 'labkipackmanager-button-refresh' )->text() ) . '</button>';
         $html .= '</form>';
@@ -75,7 +75,7 @@ class SpecialLabkiPackManager extends SpecialPage {
         }
 
         $html = '<form method="post">';
-        $html .= \Html::hidden( 'token', $this->getUser()->getEditToken() );
+        $html .= \Html::hidden( 'token', $this->getContext()->getCsrfTokenSet()->getToken() );
         foreach ( $packs as $p ) {
             $id = htmlspecialchars( $p['id'] );
             $desc = htmlspecialchars( $p['description'] );
