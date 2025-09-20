@@ -46,6 +46,25 @@ Usage
 - The extension will fetch a YAML `manifest.yml` at the repo root, parse available packs, and list them for selection (implementation in progress)
 - Each selected pack corresponds to a folder under `packs/<id>/` with its own `manifest.yml` and a `pages/` directory containing `.wiki` files whose names are the page titles
 
+Demo without MediaWiki
+----------------------
+
+You can preview the rendered list UI without running MediaWiki by using the demo script. It reads `tests/fixtures/manifest.yml`, parses it, and generates a static HTML file.
+
+PowerShell (Windows):
+```powershell
+docker run --rm -v "${PWD}:/app" -w /app composer:2 php scripts/demo-render-packs.php > demo.html
+Start-Process demo.html
+```
+
+Bash (macOS/Linux):
+```bash
+docker run --rm -v "$PWD:/app" -w /app composer:2 php scripts/demo-render-packs.php > demo.html
+xdg-open demo.html || open demo.html
+```
+
+This uses `includes/Special/PackListRenderer.php` to render the same list layout the special page uses. The HTML is self-contained and safe to view locally.
+
 Development
 -----------
 
