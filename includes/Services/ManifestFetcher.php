@@ -3,7 +3,6 @@
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
-use MediaWiki\Status\StatusValue;
 use LabkiPackManager\Parser\ManifestParser;
 
 class ManifestFetcher {
@@ -12,7 +11,7 @@ class ManifestFetcher {
      *
      * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
      */
-    public function fetchRootManifest() : StatusValue {
+    public function fetchRootManifest() {
         $config = MediaWikiServices::getInstance()->getMainConfig();
         $url = $config->get( 'LabkiContentManifestURL' );
 
@@ -20,13 +19,19 @@ class ManifestFetcher {
         $req = $httpFactory->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
         $status = $req->execute();
         if ( !$status->isOK() ) {
-            return StatusValue::newFatal( 'labkipackmanager-error-fetch' );
+            $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
+                ? '\\MediaWiki\\Status\\StatusValue'
+                : '\\StatusValue';
+            return $statusClass::newFatal( 'labkipackmanager-error-fetch' );
         }
 
         $code = $req->getStatus();
         $body = $req->getContent();
         if ( $code !== 200 || $body === '' ) {
-            return StatusValue::newFatal( 'labkipackmanager-error-fetch' );
+            $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
+                ? '\\MediaWiki\\Status\\StatusValue'
+                : '\\StatusValue';
+            return $statusClass::newFatal( 'labkipackmanager-error-fetch' );
         }
 
         $parser = new ManifestParser();
@@ -34,10 +39,16 @@ class ManifestFetcher {
             $packs = $parser->parseRoot( $body );
         } catch ( \InvalidArgumentException $e ) {
             $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
-            return StatusValue::newFatal( $msg );
+            $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
+                ? '\\MediaWiki\\Status\\StatusValue'
+                : '\\StatusValue';
+            return $statusClass::newFatal( $msg );
         }
 
-        return StatusValue::newGood( $packs );
+        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
+            ? '\\MediaWiki\\Status\\StatusValue'
+            : '\\StatusValue';
+        return $statusClass::newGood( $packs );
     }
 }
 
