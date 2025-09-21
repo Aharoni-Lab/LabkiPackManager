@@ -5,6 +5,15 @@
   "labkipackmanager-desc": "Import Labki .wiki content packs from a Git repository.",
   "specialpages-group-labki": "Labki",
   "labkipackmanager-special-title": "LabkiPackManager",
-  "labkipackmanager-special-placeholder": "This is a placeholder for LabkiPackManager import UI."
+  "labkipackmanager-special-placeholder": "This is a placeholder for LabkiPackManager import UI.",
+  "labkipackmanager-list-title": "Available Content Packs",
+  "labkipackmanager-list-empty": "No packs found in the manifest.",
+  "labkipackmanager-error-fetch": "Failed to fetch content pack manifest.",
+  "labkipackmanager-error-parse": "Failed to parse content pack manifest (YAML error).",
+  "labkipackmanager-error-schema": "Manifest format is invalid or missing required fields.",
+  "labkipackmanager-button-refresh": "Grab Manifest",
+  "labkipackmanager-status-using-cache": "Showing cached manifest.",
+  "labkipackmanager-status-fetched": "Manifest fetched successfully.",
+  "labkipackmanager-status-missing": "No cached manifest found. Click 'Grab Manifest' to fetch."
 }
 

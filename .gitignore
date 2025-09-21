@@ -6,3 +6,20 @@ node_modules/
 *.log
 *.DS_Store
 
+# PHPUnit cache and artifacts
+.phpunit.result.cache
+.phpunit.cache/
+coverage/
+coverage.xml
+
+# Generated demo output
+/demo.html
+
+# OS/editor junk
+Thumbs.db
+ehthumbs.db
+*.swp
+*.swo
+*~
+*.tmp
+

@@ -10,6 +10,7 @@
     "MediaWiki": ">= 1.44"
   },
   "manifest_version": 2,
+  "load_composer_autoloader": true,
   "MessagesDirs": {
     "LabkiPackManager": [
       "i18n"
@@ -26,20 +27,20 @@
   },
   "config": {
     "LabkiContentManifestURL": {
-      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.json",
+      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
       "description": "URL to the labki-content manifest JSON"
     },
     "LabkiContentBaseURL": {
-      "value": "https://raw.githubusercontent.com/YourOrg/labki-content/main/",
+      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/",
       "description": "Base URL prefix for raw .wiki files referenced by the manifest"
     }
   },
   "AvailableRights": [
-    "labki-import"
+    "labkipackmanager-manage"
   ],
   "GroupPermissions": {
     "sysop": {
-      "labki-import": true
+      "labkipackmanager-manage": true
     }
   }
 }

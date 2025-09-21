@@ -26,26 +26,86 @@ wfLoadExtension( 'LabkiPackManager' );
 3. Configure the content repository URLs (raw file host):
 
 ```php
-$wgLabkiContentManifestURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.json';
+$wgLabkiContentManifestURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.yml';
 $wgLabkiContentBaseURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/';
 ```
 
-4. Ensure your admin role (`sysop`) has the `labki-import` right (default provided by the extension).
+4. Ensure your admin role (`sysop`) has the `labkipackmanager-manage` right (default provided by the extension).
+
+5. Install PHP dependencies (YAML parser):
+
+```bash
+cd extensions/LabkiPackManager
+composer install --no-dev --prefer-dist --no-progress --no-interaction
+```
 
 Usage
 -----
 
 - Visit `Special:LabkiPackManager` as an admin
-- View available packs from the manifest and import selected packs (implementation in progress)
+- The extension will fetch a YAML `manifest.yml` at the repo root, parse available packs, and list them for selection (implementation in progress)
+- Each selected pack corresponds to a folder under `packs/<id>/` with its own `manifest.yml` and a `pages/` directory containing `.wiki` files whose names are the page titles
+
+Demo without MediaWiki
+----------------------
+
+You can preview the rendered list UI without running MediaWiki by using the demo script. It reads `tests/fixtures/manifest.yml`, parses it, and generates a static HTML file.
+
+PowerShell (Windows):
+```powershell
+docker run --rm -v "${PWD}:/app" -w /app composer:2 php scripts/demo-render-packs.php > demo.html
+Start-Process demo.html
+```
+
+Bash (macOS/Linux):
+```bash
+docker run --rm -v "$PWD:/app" -w /app composer:2 php scripts/demo-render-packs.php > demo.html
+xdg-open demo.html || open demo.html
+```
+
+This uses `includes/Special/PackListRenderer.php` to render the same list layout the special page uses. The HTML is self-contained and safe to view locally.
 
 Development
 -----------
 
-- Namespace: `LabkiPackManager\\`
+- Namespace: `LabkiPackManager\`
 - Special page: `Special:LabkiPackManager`
 - Strings and aliases: `i18n/`
 
 Run PHPUnit and PHPCS via MediaWiki’s composer setup in the MediaWiki root.
+
+Unit tests (no MediaWiki required)
+----------------------------------
+
+Local Composer:
+```bash
+cd extensions/LabkiPackManager
+composer install --no-dev --prefer-dist --no-progress --no-interaction
+composer install --dev --no-progress --no-interaction
+composer test
+```
+
+Docker (Composer image):
+```powershell
+# Install deps (including dev)
+docker run --rm -v "C:\Users\dbaha\Documents\Projects\LabkiPackManager:/app" -w /app composer:2 install --prefer-dist --no-progress --no-interaction
+
+# Run tests
+docker run --rm -v "C:\Users\dbaha\Documents\Projects\LabkiPackManager:/app" -w /app composer:2 vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+Notes:
+- In production (inside the MediaWiki image), install without dev deps: `composer install --no-dev ...`
+- Dev-only packages (like phpunit) are only installed when you include `--dev` or omit `--no-dev`.
+
+This runs PHPUnit against the pure PHP parser located at `includes/Parser/ManifestParser.php`.
+
+Labki content repo expectations
+-------------------------------
+
+- Root `manifest.yml` lists packs with `id`, `path`, `version`, `description`
+- Each pack has `packs/<id>/manifest.yml` with `name`, `id`, `version`, `description`, `dependencies`, and `contents`
+- Pages live under `packs/<id>/pages/` as `.wiki` files (e.g., `Template:Publication.wiki`, `Form:Publication.wiki`)
 
 License
 -------
