@@ -49,7 +49,8 @@ jobs:
         working-directory: mediawiki
         run: |
           if [ -d "extensions/LabkiPackManager/tests/phpunit/unit" ]; then
-            composer phpunit:unit -- extensions/LabkiPackManager/tests/phpunit/unit
+
+          composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit
           else
             echo "No unit tests directory found; skipping."
           fi

@@ -7,10 +7,16 @@ namespace LabkiPackManager\Tests\Parser;
 use LabkiPackManager\Parser\ManifestParser;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @coversDefaultClass \LabkiPackManager\Parser\ManifestParser
+ */
 class ManifestParserTest extends TestCase {
     /**
      * Verifies that valid YAML with a packs list is parsed into a
      * normalized array of packs with expected fields.
+     */
+    /**
+     * @covers ::parseRoot
      */
     public function testParseRootSuccess(): void {
         $yaml = <<<YAML
@@ -39,6 +45,9 @@ YAML;
      * Ensures an InvalidArgumentException is thrown when the YAML
      * is syntactically invalid and cannot be parsed.
      */
+    /**
+     * @covers ::parseRoot
+     */
     public function testParseRootInvalidYaml(): void {
         $this->expectException( \InvalidArgumentException::class );
         $parser = new ManifestParser();
@@ -48,6 +57,9 @@ YAML;
     /**
      * Ensures an InvalidArgumentException is thrown when the YAML
      * parses but lacks the required 'packs' key/structure.
+     */
+    /**
+     * @covers ::parseRoot
      */
     public function testParseRootMissingPacks(): void {
         $this->expectException( \InvalidArgumentException::class );

@@ -7,13 +7,33 @@ use LabkiPackManager\Parser\ManifestParser;
 
 class ManifestFetcher {
     /**
+     * Optional HTTP request factory for testability. When null, resolves via MediaWikiServices.
+     * @var object|null
+     */
+    private $httpRequestFactory;
+    /** @var array<string,mixed>|null */
+    private ?array $configuredSources = null;
+
+    public function __construct( $httpRequestFactory = null, ?array $sources = null ) {
+        $this->httpRequestFactory = $httpRequestFactory;
+        $this->configuredSources = $sources;
+    }
+    /**
      * Fetch and parse the root YAML manifest from the configured URL.
      *
      * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
      */
     public function fetchRootManifest() {
-        $config = MediaWikiServices::getInstance()->getMainConfig();
-        $sources = $config->get( 'LabkiContentSources' );
+        // Prefer explicitly provided sources (tests) → global → MW services
+        $sources = $this->configuredSources ?? ( $GLOBALS['wgLabkiContentSources'] ?? null );
+        if ( $sources === null && class_exists( '\MediaWiki\MediaWikiServices' ) ) {
+            try {
+                $config = MediaWikiServices::getInstance()->getMainConfig();
+                $sources = $config->get( 'LabkiContentSources' );
+            } catch ( \LogicException $e ) {
+                // Unit tests without MW service container; keep $sources as null
+            }
+        }
         if ( is_array( $sources ) && $sources ) {
             $first = reset( $sources );
             $url = $first['manifestUrl'] ?? '';
@@ -31,8 +51,8 @@ class ManifestFetcher {
      * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
      */
     public function fetchManifestFromUrl( string $url ) {
-        $httpFactory = MediaWikiServices::getInstance()->getHttpRequestFactory();
-        $req = $httpFactory->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
+        $factory = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
+        $req = $factory->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
         $status = $req->execute();
         if ( !$status->isOK() ) {
             return $this->newFatal( 'labkipackmanager-error-fetch' );

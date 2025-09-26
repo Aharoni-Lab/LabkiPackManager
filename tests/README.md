@@ -2,7 +2,7 @@
 
 ### Overview
 
-This project uses PHPUnit to test the extension code without requiring a full MediaWiki environment. The tests run against lightweight MediaWiki "stubs" included in this repo so you can develop and run unit tests locally or in a container.
+This project runs PHPUnit tests inside a real MediaWiki environment using MediaWiki’s test runner. Unit tests that touch MediaWiki services are implemented as integration tests.
 
 ### What you can test now
 
@@ -13,83 +13,40 @@ Future work can add real MediaWiki integration tests that run inside a MediaWiki
 
 ## Directory structure
 
-- `tests/bootstrap.php`: Test bootstrap. Loads Composer autoloader and registers a PSR-4 autoloader for our MediaWiki stubs.
 - `tests/phpunit/`:
-  - `unit/`: Unit tests (no real MW environment required)
-  - Example: `tests/phpunit/unit/ManifestFetcherTest.php`
+  - `unit/`: Pure PHP unit tests (no MW services)
+  - `integration/`: MediaWiki integration tests (extend `MediaWikiIntegrationTestCase`)
 - `tests/phpunit/unit/ManifestParserTest.php`: Parser unit tests
-- `tests/Support/MediaWiki/`: Lightweight MediaWiki service stubs used by unit tests
-  - `MediaWikiServices.php`: A minimal service locator with config, HTTP, and cache
-  - `Services/HttpRequestFactory.php`: Fake HTTP client returning controlled responses
-  - `Status/StatusValue.php`: Minimal `StatusValue` with error message key support
-  - `Cache/WANObjectCache.php`: Ephemeral in-memory cache
-- (Optional) `tests/fixtures/`: Place sample YAML or JSON files for tests you write later
+- (Optional) `tests/fixtures/`: Sample YAML or JSON files for tests
 
-## How the stubs work
+## Integration tests and services
 
-- `MediaWiki\MediaWikiServices::getInstance()` returns a test services singleton with:
-  - `getMainConfig()`: Exposes `get( $key )` for reading config values you set via `setConfigForTests([ key => value ])`
-  - `getHttpRequestFactory()`: Returns a stub HTTP factory. Use `setNextResponse($code, $body, $ok)` to control the next request
-  - `getMainWANObjectCache()`: Returns an in-memory cache with `get/set/delete`
-- `MediaWiki\Status\StatusValue` mimics the OK/fatal result pattern used by MediaWiki. In tests you can assert on `isOK()`, `getValue()`, and `getMessage()->getKey()`
-
-These stubs are sufficient for testing classes like `LabkiPackManager\Services\ManifestFetcher` and anything that depends on simple config, HTTP, or cache behavior.
+Integration tests can inject fakes or mocks through constructors or by overriding services via MediaWiki’s testing utilities. Prefer constructor injection for HTTP clients.
 
 ## PHPUnit configuration
 
-- `phpunit.xml.dist` points bootstrap to `tests/bootstrap.php`
-- The entire `tests/` folder is included as the testsuite
+- MediaWiki provides the bootstrap; use MediaWiki’s entrypoint to run tests.
 
 ## Running tests
 
-### Using Docker (recommended, consistent environment)
+### Running tests inside MediaWiki
 
-PowerShell (Windows):
-```powershell
-docker run --rm -v "${PWD}:/app" -w /app composer:2 install --prefer-dist --no-progress --no-interaction
-docker run --rm -v "${PWD}:/app" -w /app composer:2 vendor/bin/phpunit -c phpunit.xml.dist
+From the MediaWiki root, with this extension under `extensions/LabkiPackManager`:
+```bash
+composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/
 ```
 
-Bash (macOS/Linux):
+### Running a single test
 ```bash
-docker run --rm -v "$PWD:/app" -w /app composer:2 install --prefer-dist --no-progress --no-interaction
-docker run --rm -v "$PWD:/app" -w /app composer:2 vendor/bin/phpunit -c phpunit.xml.dist
-```
-
-Notes:
-- The first command installs Composer dependencies into `vendor/`
-- The second command runs PHPUnit using the vendor binary
-
-### Running locally (no Docker)
-
-Make sure you have PHP (≥ 8.1) and Composer installed locally, then:
-```bash
-composer install
-vendor/bin/phpunit -c phpunit.xml.dist
+composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration/ManifestFetcherTest.php
 ```
 
 ## Writing tests
 
 ### Unit tests
 
-- Place tests under `tests/phpunit/unit/`
+- Place pure PHP tests under `tests/phpunit/unit/`
 - Extend `PHPUnit\Framework\TestCase`
-- If your code needs config or HTTP, prepare the stubs:
-```php
-use MediaWiki\MediaWikiServices;
-
-MediaWikiServices::resetForTests();
-$services = MediaWikiServices::getInstance();
-$services->setConfigForTests([
-    'LabkiContentSources' => [
-        'Default' => [
-            'manifestUrl' => 'http://example.test/manifest.yml'
-        ]
-    ],
-]);
-$services->getHttpRequestFactory()->setNextResponse(200, $yamlBody, true);
-```
-- Create the subject-under-test and assert on the results
 
 Example assertions with `StatusValue`:
 ```php
@@ -130,16 +87,9 @@ vendor/bin/phpunit -c phpunit.xml.dist --filter testFetchRootManifest_Success
 - Ensure `composer install` ran successfully and `vendor/` exists
 - If classes are not found, confirm `tests/bootstrap.php` is being used (phpunit.xml.dist) and paths are correct
 
-## MediaWiki integration tests (future)
+## MediaWiki integration tests
 
-When you want to test against a real MediaWiki environment:
-- Install this extension into a MediaWiki checkout under `extensions/LabkiPackManager`
-- Use MediaWiki’s PHPUnit entrypoint from the MediaWiki root:
-```bash
-composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/
-```
-
-In those tests, you can extend `MediaWiki\IntegrationTestCase` classes and use real services and DBs provided by MW’s test runner. Keep integration tests separate from the unit tests above.
+Extend `MediaWikiIntegrationTestCase` and run via the entrypoint above.
 
 ## Updating dependencies and autoloaders
 

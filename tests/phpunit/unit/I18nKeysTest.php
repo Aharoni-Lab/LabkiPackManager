@@ -6,6 +6,9 @@ namespace LabkiPackManager\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @coversNothing
+ */
 class I18nKeysTest extends TestCase {
     /**
      * Ensures critical i18n keys referenced in code exist in en.json.

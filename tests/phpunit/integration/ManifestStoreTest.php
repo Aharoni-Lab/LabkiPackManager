@@ -2,14 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Unit;
+namespace LabkiPackManager\Tests\Integration;
 
 use LabkiPackManager\Services\ManifestStore;
-use PHPUnit\Framework\TestCase;
 
-class ManifestStoreTest extends TestCase {
+/**
+ * @coversDefaultClass \LabkiPackManager\Services\ManifestStore
+ */
+class ManifestStoreTest extends \MediaWikiIntegrationTestCase {
     /**
-     * Saving packs makes them retrievable via the same URL-based store.
+     * @covers ::savePacks
+     * @covers ::getPacksOrNull
      */
     public function testSaveAndGetPacks(): void {
         $url = 'http://example.test/manifest.yml';
@@ -22,7 +25,7 @@ class ManifestStoreTest extends TestCase {
     }
 
     /**
-     * Clearing removes the cached packs for that URL.
+     * @covers ::clear
      */
     public function testClearRemovesCachedPacks(): void {
         $store = new ManifestStore( 'http://example.test/manifest.yml' );
@@ -34,7 +37,8 @@ class ManifestStoreTest extends TestCase {
     }
 
     /**
-     * Different manifest URLs do not collide in cache.
+     * @covers ::savePacks
+     * @covers ::getPacksOrNull
      */
     public function testDifferentUrlsHaveSeparateEntries(): void {
         $store1 = new ManifestStore( 'http://example.test/a.yml' );
