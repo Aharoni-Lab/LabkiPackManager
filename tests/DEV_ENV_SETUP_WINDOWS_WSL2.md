@@ -91,13 +91,14 @@ Open `http://localhost:8080` to confirm the wiki is live.
 
 ### C. Attach your extension without polluting core
 
-We will want our extension cloned repo to live in WSL just like the MW instance. We can clone into something like ~/dev/LabkiPackManager. We will need the WSL plugin in VS Code.
+We will want our extension's cloned repo to live in WSL just like the MW instance. We can clone into something like ~/dev/LabkiPackManager. We will need the WSL plugin in VS Code.
 
 Keep your extension in its own repo outside core, for example:
 
 ```
 ~/dev/YourExtension
 ```
+You will need to install gh and auth your account to be able to clone and work with the .git.
 
 Mount your extension into the container with an override file. Create `mediawiki/docker-compose.override.yml`:
 
