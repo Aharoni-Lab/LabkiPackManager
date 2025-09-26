@@ -81,7 +81,11 @@ use MediaWiki\MediaWikiServices;
 MediaWikiServices::resetForTests();
 $services = MediaWikiServices::getInstance();
 $services->setConfigForTests([
-    'LabkiContentManifestURL' => 'http://example.test/manifest.yml',
+    'LabkiContentSources' => [
+        'Default' => [
+            'manifestUrl' => 'http://example.test/manifest.yml'
+        ]
+    ],
 ]);
 $services->getHttpRequestFactory()->setNextResponse(200, $yamlBody, true);
 ```

@@ -26,13 +26,13 @@
     "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
   },
   "config": {
-    "LabkiContentManifestURL": {
-      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
-      "description": "URL to the labki-content manifest JSON"
-    },
-    "LabkiContentBaseURL": {
-      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/",
-      "description": "Base URL prefix for raw .wiki files referenced by the manifest"
+    "LabkiContentSources": {
+      "value": {
+        "Lab Packs (Default)": {
+          "manifestUrl": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml"
+        }
+      },
+      "description": "Associative array of content pack repositories (label => {manifestUrl})."
     }
   },
   "AvailableRights": [

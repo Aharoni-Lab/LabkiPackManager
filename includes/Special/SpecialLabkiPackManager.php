@@ -26,18 +26,31 @@ class SpecialLabkiPackManager extends SpecialPage {
         $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' )->text() );
 
         $request = $this->getRequest();
-        $token = $request->getVal( 'token' );
-        $doRefresh = $request->getCheck( 'refresh' );
+		$token = $request->getVal( 'token' );
+		$doRefresh = $request->getCheck( 'refresh' );
 
-        $configUrl = $this->getConfig()->get( 'LabkiContentManifestURL' );
-        $store = new ManifestStore( $configUrl );
+		// Resolve content sources (required)
+		$sources = $this->getConfig()->get( 'LabkiContentSources' );
+		if ( !is_array( $sources ) || !$sources ) {
+			$output->addHTML( '<div class="mw-message-box mw-message-box-error">' .
+				htmlspecialchars( $this->msg( 'labkipackmanager-error-no-sources' )->text() ) . '</div>' );
+			return;
+		}
+
+		$repoLabel = $request->getVal( 'repo' );
+		if ( !$repoLabel || !isset( $sources[$repoLabel] ) ) {
+			$repoLabel = array_key_first( $sources );
+		}
+		$manifestUrl = $sources[$repoLabel]['manifestUrl'] ?? '';
+
+		$store = new ManifestStore( $manifestUrl );
         $packs = null;
         $statusNote = '';
 
-        if ( $request->wasPosted() && $doRefresh ) {
+		if ( $request->wasPosted() && $doRefresh ) {
             if ( $this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
-                $fetcher = new ManifestFetcher();
-                $status = $fetcher->fetchRootManifest();
+				$fetcher = new ManifestFetcher();
+				$status = $fetcher->fetchManifestFromUrl( $manifestUrl );
                 if ( $status->isOK() ) {
                     $packs = $status->getValue();
                     $store->savePacks( $packs );
@@ -58,13 +71,27 @@ class SpecialLabkiPackManager extends SpecialPage {
             }
         }
 
-        $output->addWikiTextAsInterface( '== ' . $this->msg( 'labkipackmanager-list-title' )->text() . ' ==' );
+		// Source selector (GET form)
+		$selector = '<form method="get" style="margin-bottom:12px">';
+		$selector .= '<label style="margin-right:8px">' . htmlspecialchars( $this->msg( 'labkipackmanager-repo-select-label' )->text() ) . '</label>';
+		$selector .= '<select name="repo">';
+		foreach ( $sources as $label => $info ) {
+			$selected = $label === $repoLabel ? ' selected' : '';
+			$selector .= '<option value="' . htmlspecialchars( $label ) . '"' . $selected . '>' . htmlspecialchars( $label ) . '</option>';
+		}
+		$selector .= '</select> ';
+		$selector .= '<button class="mw-htmlform-submit" type="submit" name="load" value="1">' . htmlspecialchars( $this->msg( 'labkipackmanager-button-load' )->text() ) . '</button>';
+		$selector .= '</form>';
+		$output->addHTML( $selector );
+
+		$output->addWikiTextAsInterface( '== ' . $this->msg( 'labkipackmanager-list-title' )->text() . ' ==' );
         if ( $statusNote !== '' ) {
             $output->addHTML( '<div class="mw-message-box mw-message-box-notice">' . $statusNote . '</div>' );
         }
 
-        $html = '<form method="post" style="margin-bottom:12px">';
+		$html = '<form method="post" style="margin-bottom:12px">';
         $html .= \MediaWiki\Html\Html::hidden( 'token', $this->getContext()->getCsrfTokenSet()->getToken() );
+		$html .= \MediaWiki\Html\Html::hidden( 'repo', $repoLabel );
         $html .= '<button class="mw-htmlform-submit" type="submit" name="refresh" value="1">' .
             htmlspecialchars( $this->msg( 'labkipackmanager-button-refresh' )->text() ) . '</button>';
         $html .= '</form>';
@@ -74,8 +101,9 @@ class SpecialLabkiPackManager extends SpecialPage {
             return;
         }
 
-        $html = '<form method="post">';
+		$html = '<form method="post">';
         $html .= \MediaWiki\Html\Html::hidden( 'token', $this->getContext()->getCsrfTokenSet()->getToken() );
+		$html .= \MediaWiki\Html\Html::hidden( 'repo', $repoLabel );
         foreach ( $packs as $p ) {
             $id = htmlspecialchars( $p['id'] );
             $desc = htmlspecialchars( $p['description'] );

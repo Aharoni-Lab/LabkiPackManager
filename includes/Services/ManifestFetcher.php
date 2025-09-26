@@ -13,8 +13,27 @@ class ManifestFetcher {
      */
     public function fetchRootManifest() {
         $config = MediaWikiServices::getInstance()->getMainConfig();
-        $url = $config->get( 'LabkiContentManifestURL' );
+        $sources = $config->get( 'LabkiContentSources' );
+        if ( is_array( $sources ) && $sources ) {
+            $first = reset( $sources );
+            $url = $first['manifestUrl'] ?? '';
+            if ( $url !== '' ) {
+                return $this->fetchManifestFromUrl( $url );
+            }
+        }
+        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
+            ? '\\MediaWiki\\Status\\StatusValue'
+            : '\\StatusValue';
+        return $statusClass::newFatal( 'labkipackmanager-error-no-sources' );
+    }
 
+    /**
+     * Fetch and parse the root YAML manifest from a specific URL.
+     *
+     * @param string $url
+     * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
+     */
+    public function fetchManifestFromUrl( string $url ) {
         $httpFactory = MediaWikiServices::getInstance()->getHttpRequestFactory();
         $req = $httpFactory->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
         $status = $req->execute();
@@ -37,7 +56,7 @@ class ManifestFetcher {
         $parser = new ManifestParser();
         try {
             $packs = $parser->parseRoot( $body );
-        } catch ( \InvalidArgumentException $e ) {
+        } catch ( \\InvalidArgumentException $e ) {
             $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
             $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
                 ? '\\MediaWiki\\Status\\StatusValue'

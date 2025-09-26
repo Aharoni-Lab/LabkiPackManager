@@ -14,6 +14,10 @@
   "labkipackmanager-button-refresh": "Grab Manifest",
   "labkipackmanager-status-using-cache": "Showing cached manifest.",
   "labkipackmanager-status-fetched": "Manifest fetched successfully.",
-  "labkipackmanager-status-missing": "No cached manifest found. Click 'Grab Manifest' to fetch."
+  "labkipackmanager-status-missing": "No cached manifest found. Click 'Grab Manifest' to fetch.",
+  "labkipackmanager-repo-select-label": "Repository",
+  "labkipackmanager-button-load": "Load Packs",
+  "labkipackmanager-error-no-sources": "No content sources configured.",
+  "labkipackmanager-status-loaded-from": "Loaded packs from ‘$1’."
 }
 

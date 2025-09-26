@@ -23,11 +23,18 @@ git clone https://github.com/Aharoni-Lab/LabkiPackManager.git LabkiPackManager
 wfLoadExtension( 'LabkiPackManager' );
 ```
 
-3. Configure the content repository URLs (raw file host):
+3. Configure content sources (raw file hosts):
 
 ```php
-$wgLabkiContentManifestURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/manifest.yml';
-$wgLabkiContentBaseURL = 'https://raw.githubusercontent.com/YourOrg/labki-content/main/';
+$wgLabkiContentSources = [
+    'Lab Packs (Default)' => [
+        'manifestUrl' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
+    ],
+    // Add more sources as needed
+    'Custom Packs Repo' => [
+        'manifestUrl' => 'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
+    ],
+];
 ```
 
 4. Ensure your admin role (`sysop`) has the `labkipackmanager-manage` right (default provided by the extension).
@@ -43,7 +50,7 @@ Usage
 -----
 
 - Visit `Special:LabkiPackManager` as an admin
-- The extension will fetch a YAML `manifest.yml` at the repo root, parse available packs, and list them for selection (implementation in progress)
+- The extension will fetch a YAML `manifest.yml` from the selected source, parse available packs, and list them for selection
 - Each selected pack corresponds to a folder under `packs/<id>/` with its own `manifest.yml` and a `pages/` directory containing `.wiki` files whose names are the page titles
 
 Demo without MediaWiki

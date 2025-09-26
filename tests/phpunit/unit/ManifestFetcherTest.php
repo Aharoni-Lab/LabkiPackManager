@@ -12,9 +12,11 @@ class ManifestFetcherTest extends TestCase {
 	private function setUpSuccessResponse( string $body, int $code = 200 ) : void {
 		MediaWikiServices::resetForTests();
 		$services = MediaWikiServices::getInstance();
-		$services->setConfigForTests( [
-			'LabkiContentManifestURL' => 'http://example.test/manifest.yml',
-		] );
+        $services->setConfigForTests( [
+            'LabkiContentSources' => [
+                'Default' => [ 'manifestUrl' => 'http://example.test/manifest.yml' ],
+            ],
+        ] );
 		$services->getHttpRequestFactory()->setNextResponse( $code, $body, true );
 	}
 
@@ -72,7 +74,11 @@ YAML;
 	public function testFetchRootManifest_HttpExecuteError_ReturnsFetchError(): void {
 		MediaWikiServices::resetForTests();
 		$services = MediaWikiServices::getInstance();
-		$services->setConfigForTests( [ 'LabkiContentManifestURL' => 'http://example.test/manifest.yml' ] );
+        $services->setConfigForTests( [
+            'LabkiContentSources' => [
+                'Default' => [ 'manifestUrl' => 'http://example.test/manifest.yml' ],
+            ],
+        ] );
 		$services->getHttpRequestFactory()->setNextResponse( 0, '', false );
 
 		$fetcher = new ManifestFetcher();
