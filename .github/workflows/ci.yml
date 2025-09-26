@@ -1,6 +1,14 @@
 name: tests
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: phpunit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   phpunit:
