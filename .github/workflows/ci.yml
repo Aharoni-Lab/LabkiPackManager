@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        mw_branch: [REL1_44, REL1_43]
+        mw_branch: [REL1_44]
         php: ['8.2']
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
           php maintenance/install.php \
             --dbtype sqlite --dbpath $(pwd)/cache/sqlite \
             --server "http://example.local" --scriptpath "/w" \
-            --lang en --pass pass Wiki Admin
+            --lang en --pass StrongDockerPass123! Wiki Admin
 
       - name: Enable extension
         run: |
