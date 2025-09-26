@@ -17,7 +17,7 @@ class SpecialLabkiPackManager extends SpecialPage {
     }
 
     public function getRestriction() {
-        return '';
+        return 'labkipackmanager-manage';
     }
 
     public function execute( $subPage ) {
