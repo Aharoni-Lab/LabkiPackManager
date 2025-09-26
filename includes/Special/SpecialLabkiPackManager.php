@@ -29,6 +29,7 @@ class SpecialLabkiPackManager extends SpecialPage {
         $request = $this->getRequest();
         $token = $request->getVal( 'token' );
         $doRefresh = $request->getCheck( 'refresh' );
+        $doLoad = $request->getCheck( 'load' );
 
         // Resolve content sources (required)
         $sources = ContentSourceHelper::getSources();
@@ -41,7 +42,7 @@ class SpecialLabkiPackManager extends SpecialPage {
         $repoLabel = ContentSourceHelper::resolveSelectedRepoLabel( $sources, $request->getVal( 'repo' ) );
         $manifestUrl = ContentSourceHelper::getManifestUrlForLabel( $sources, $repoLabel );
 
-		$store = new ManifestStore( $manifestUrl );
+        $store = new ManifestStore( $manifestUrl );
         $packs = null;
         $statusNote = '';
 
@@ -65,6 +66,28 @@ class SpecialLabkiPackManager extends SpecialPage {
                     }
                     return;
                 }
+            }
+        }
+
+        // If user clicked "Load" (GET) and nothing fetched yet, do a fetch now
+        if ( !$request->wasPosted() && $doLoad && $packs === null ) {
+            $fetcher = new ManifestFetcher();
+            $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
+            if ( $status->isOK() ) {
+                $packs = $status->getValue();
+                $store->savePacks( $packs );
+                $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
+            } else {
+                $key = null;
+                if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+                    $key = $status->getMessage()->getKey();
+                } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+                    $key = $status->getMessageValue()->getKey();
+                }
+                if ( $key ) {
+                    $this->getOutput()->addWikiTextAsInterface( $this->msg( $key )->text() );
+                }
+                return;
             }
         }
 

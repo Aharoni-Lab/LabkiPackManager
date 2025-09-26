@@ -39,8 +39,7 @@ class ManifestFetcherTest extends \MediaWikiIntegrationTestCase {
     public function testFetchRootManifest_Success(): void {
         $yaml = <<<YAML
 packs:
-  - id: publication
-    path: packs/publication
+  publication:
     version: 1.0.0
     description: Templates and forms for managing publications
 YAML;
@@ -52,7 +51,7 @@ YAML;
         $this->assertIsArray( $packs );
         $this->assertCount( 1, $packs );
         $this->assertSame( 'publication', $packs[0]['id'] );
-        $this->assertSame( 'packs/publication', $packs[0]['path'] );
+        $this->assertArrayHasKey( 'version', $packs[0] );
     }
 
     /**
@@ -139,10 +138,14 @@ YAML;
         $this->assertTrue( $status->isOK() );
         $packs = $status->getValue();
         $this->assertIsArray( $packs );
-        $this->assertCount( 3, $packs );
-        $this->assertSame( 'publication', $packs[0]['id'] );
-        $this->assertSame( 'onboarding', $packs[1]['id'] );
-        $this->assertSame( 'meeting_notes', $packs[2]['id'] );
+        $this->assertCount( 6, $packs );
+        $ids = array_map( static function ( $p ) { return $p['id'] ?? ''; }, $packs );
+        $this->assertContains( 'publication', $ids );
+        $this->assertContains( 'meeting_notes', $ids );
+        $this->assertContains( 'onboarding', $ids );
+        $this->assertContains( 'shared_base', $ids );
+        $this->assertContains( 'meta_pack', $ids );
+        $this->assertContains( 'app', $ids );
     }
 }
 

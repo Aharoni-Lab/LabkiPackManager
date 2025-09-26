@@ -34,7 +34,7 @@ class PackListRenderer {
      */
     public function renderPacksList( array $packs, string $csrfToken, ?string $repoLabel = null ) : string {
         if ( !is_array( $packs ) || !$packs ) {
-            return '';
+            return '<div>No packs available for the selected source.</div>';
         }
         $html = '<form method="post">';
         $html .= '<input type="hidden" name="token" value="' . htmlspecialchars( $csrfToken ) . '">';

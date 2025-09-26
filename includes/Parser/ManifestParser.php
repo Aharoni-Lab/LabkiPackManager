@@ -24,26 +24,21 @@ class ManifestParser {
         if ( !is_array( $parsed ) || !isset( $parsed['packs'] ) || !is_array( $parsed['packs'] ) ) {
             throw new \InvalidArgumentException( 'Invalid schema: missing packs' );
         }
-        $packs = [];
-        foreach ( $parsed['packs'] as $pack ) {
-            if ( !is_array( $pack ) ) {
+        // New schema: packs is an object mapping id => metadata; pages is a registry
+        $normalized = [];
+        foreach ( $parsed['packs'] as $packId => $meta ) {
+            if ( !is_string( $packId ) || !is_array( $meta ) ) {
                 continue;
             }
-            $id = $pack['id'] ?? null;
-            $path = $pack['path'] ?? null;
-            $version = $pack['version'] ?? '';
-            $description = $pack['description'] ?? '';
-            if ( !$id || !$path ) {
-                continue;
-            }
-            $packs[] = [
-                'id' => (string)$id,
-                'path' => (string)$path,
-                'version' => (string)$version,
-                'description' => (string)$description,
+            $version = (string)( $meta['version'] ?? '' );
+            $description = (string)( $meta['description'] ?? '' );
+            $normalized[] = [
+                'id' => $packId,
+                'version' => $version,
+                'description' => $description,
             ];
         }
-        return $packs;
+        return $normalized;
     }
 }
 
