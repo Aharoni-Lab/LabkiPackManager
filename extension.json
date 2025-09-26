@@ -22,6 +22,14 @@
   "AutoloadNamespaces": {
     "LabkiPackManager\\": "includes/"
   },
+  "ResourceModules": {
+    "ext.LabkiPackManager.styles": {
+      "styles": [],
+      "dependencies": [
+        "codex.styles"
+      ]
+    }
+  },
   "SpecialPages": {
     "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
   },

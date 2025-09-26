@@ -17,7 +17,7 @@ class SpecialLabkiPackManager extends SpecialPage {
     }
 
     public function getRestriction() {
-        return 'labkipackmanager-manage';
+        return '';
     }
 
     public function execute( $subPage ) {
@@ -25,6 +25,7 @@ class SpecialLabkiPackManager extends SpecialPage {
 
         $output = $this->getOutput();
         $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' )->text() );
+        $output->addModules( [ 'ext.LabkiPackManager.styles' ] );
 
         $request = $this->getRequest();
         $token = $request->getVal( 'token' );
@@ -46,7 +47,12 @@ class SpecialLabkiPackManager extends SpecialPage {
         $packs = null;
         $statusNote = '';
 
-		if ( $request->wasPosted() && $doRefresh ) {
+        if ( $request->wasPosted() && $doRefresh ) {
+            if ( !$this->getUser()->isAllowed( 'labkipackmanager-manage' ) ) {
+                $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--warning"><span class="cdx-message__content">' .
+                    htmlspecialchars( $this->msg( 'labkipackmanager-error-permission' )->text() ) . '</span></div>' );
+                return;
+            }
             if ( $this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
 				$fetcher = new ManifestFetcher();
 				$status = $fetcher->fetchManifestFromUrl( $manifestUrl );
@@ -71,6 +77,11 @@ class SpecialLabkiPackManager extends SpecialPage {
 
         // If user clicked "Load" (GET) and nothing fetched yet, do a fetch now
         if ( !$request->wasPosted() && $doLoad && $packs === null ) {
+            if ( !$this->getUser()->isAllowed( 'labkipackmanager-manage' ) ) {
+                $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--warning"><span class="cdx-message__content">' .
+                    htmlspecialchars( $this->msg( 'labkipackmanager-error-permission' )->text() ) . '</span></div>' );
+                return;
+            }
             $fetcher = new ManifestFetcher();
             $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
             if ( $status->isOK() ) {
@@ -106,7 +117,7 @@ class SpecialLabkiPackManager extends SpecialPage {
 
 		$output->addWikiTextAsInterface( '== ' . $this->msg( 'labkipackmanager-list-title' )->text() . ' ==' );
         if ( $statusNote !== '' ) {
-            $output->addHTML( '<div class="mw-message-box mw-message-box-notice">' . $statusNote . '</div>' );
+            $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--notice"><span class="cdx-message__content">' . $statusNote . '</span></div>' );
         }
 
 		$output->addHTML( $renderer->renderRefreshForm( $this->getContext()->getCsrfTokenSet()->getToken(), $this->msg( 'labkipackmanager-button-refresh' )->text(), $repoLabel ) );

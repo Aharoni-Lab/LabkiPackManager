@@ -3,6 +3,7 @@
     "authors": ["Aharoni-Lab"]
   },
   "labkipackmanager-desc": "Import Labki .wiki content packs from a Git repository.",
+  "labkipackmanager": "Manage Labki content packs",
   "specialpages-group-labki": "Labki",
   "labkipackmanager-special-title": "LabkiPackManager",
   "labkipackmanager-special-placeholder": "This is a placeholder for LabkiPackManager import UI.",
@@ -18,6 +19,7 @@
   "labkipackmanager-repo-select-label": "Repository",
   "labkipackmanager-button-load": "Load Packs",
   "labkipackmanager-error-no-sources": "No content sources configured.",
-  "labkipackmanager-status-loaded-from": "Loaded packs from ‘$1’."
+  "labkipackmanager-status-loaded-from": "Loaded packs from ‘$1’.",
+  "labkipackmanager-error-permission": "You do not have permission to manage Labki packs."
 }
 
