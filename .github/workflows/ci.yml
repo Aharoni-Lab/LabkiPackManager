@@ -5,14 +5,11 @@ on:
     branches: [ main, master, develop, feat/**, fix/** ]
   pull_request:
     branches: [ '**' ]
-  schedule:
-    - cron: '0 3 * * *'
 
 jobs:
   phpunit:
     name: PHPUnit (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || matrix.php == '8.2'
     strategy:
       fail-fast: false
       matrix:
