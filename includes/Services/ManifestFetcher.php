@@ -56,7 +56,7 @@ class ManifestFetcher {
         $parser = new ManifestParser();
         try {
             $packs = $parser->parseRoot( $body );
-        } catch ( \\InvalidArgumentException $e ) {
+        } catch ( \InvalidArgumentException $e ) {
             $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
             $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
                 ? '\\MediaWiki\\Status\\StatusValue'
