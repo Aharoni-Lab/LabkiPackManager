@@ -34,7 +34,7 @@ class ManifestFetcherTest extends \MediaWikiIntegrationTestCase {
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_Success(): void {
         $yaml = <<<YAML
@@ -44,7 +44,7 @@ packs:
     description: Templates and forms for managing publications
 YAML;
         $fetcher = $this->makeFetcherWithSources( $yaml );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
 
         $this->assertTrue( $status->isOK() );
         $packs = $status->getValue();
@@ -55,11 +55,11 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_InvalidYaml_ReturnsParseError(): void {
         $fetcher = $this->makeFetcherWithSources( 'not: [ yaml: ' );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-parse', $status->getMessage()->getKey() );
@@ -69,12 +69,12 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_MissingPacks_ReturnsSchemaError(): void {
         $yaml = "key: value";
         $fetcher = $this->makeFetcherWithSources( $yaml );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-schema', $status->getMessage()->getKey() );
@@ -84,12 +84,12 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_HttpExecuteError_ReturnsFetchError(): void {
         $factory = $this->newFactory( 0, '', false );
         $fetcher = new ManifestFetcher( $factory, [ 'Default' => 'http://example.test/manifest.yml' ] );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
@@ -99,11 +99,11 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_Non200_ReturnsFetchError(): void {
         $fetcher = $this->makeFetcherWithSources( '', 500 );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
@@ -113,11 +113,11 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_EmptyBody_ReturnsFetchError(): void {
         $fetcher = $this->makeFetcherWithSources( '', 200 );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
@@ -127,14 +127,14 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_FromFixtureFile(): void {
         $fixturePath = __DIR__ . '/../../fixtures/manifest.yml';
         $this->assertFileExists( $fixturePath );
         $yaml = file_get_contents( $fixturePath );
         $fetcher = $this->makeFetcherWithSources( $yaml );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertTrue( $status->isOK() );
         $packs = $status->getValue();
         $this->assertIsArray( $packs );

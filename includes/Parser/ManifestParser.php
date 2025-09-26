@@ -6,13 +6,13 @@ use Symfony\Component\Yaml\Yaml;
 
 class ManifestParser {
     /**
-     * Parse a root YAML manifest string to a normalized packs array.
+     * Parse a manifest YAML string to a normalized packs array.
      *
      * @param string $yaml
-     * @return array packs: [ [id, path, version, description], ... ]
+     * @return array packs: [ [id, version, description], ... ]
      * @throws \InvalidArgumentException when YAML is invalid or schema is wrong
      */
-    public function parseRoot( string $yaml ) : array {
+    public function parse( string $yaml ) : array {
         if ( trim( $yaml ) === '' ) {
             throw new \InvalidArgumentException( 'Empty YAML' );
         }

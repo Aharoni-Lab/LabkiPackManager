@@ -16,7 +16,7 @@ class ManifestParserTest extends TestCase {
      * normalized array of packs with expected fields.
      */
     /**
-     * @covers ::parseRoot
+     * @covers ::parse
      */
     public function testParseRootSuccess(): void {
         $yaml = <<<YAML
@@ -30,7 +30,7 @@ packs:
 YAML;
 
         $parser = new ManifestParser();
-        $packs = $parser->parseRoot( $yaml );
+        $packs = $parser->parse( $yaml );
 
         $this->assertCount( 2, $packs );
         $this->assertSame( 'publication', $packs[0]['id'] );
@@ -43,12 +43,12 @@ YAML;
      * is syntactically invalid and cannot be parsed.
      */
     /**
-     * @covers ::parseRoot
+     * @covers ::parse
      */
     public function testParseRootInvalidYaml(): void {
         $this->expectException( \InvalidArgumentException::class );
         $parser = new ManifestParser();
-        $parser->parseRoot( "::: not yaml :::" );
+        $parser->parse( "::: not yaml :::" );
     }
 
     /**
@@ -56,12 +56,12 @@ YAML;
      * parses but lacks the required 'packs' key/structure.
      */
     /**
-     * @covers ::parseRoot
+     * @covers ::parse
      */
     public function testParseRootMissingPacks(): void {
         $this->expectException( \InvalidArgumentException::class );
         $parser = new ManifestParser();
-        $parser->parseRoot( "key: value" );
+        $parser->parse( "key: value" );
     }
 }
 

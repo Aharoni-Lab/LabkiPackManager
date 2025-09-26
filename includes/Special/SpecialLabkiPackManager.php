@@ -55,7 +55,7 @@ class SpecialLabkiPackManager extends SpecialPage {
             }
             if ( $this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
 				$fetcher = new ManifestFetcher();
-				$status = $fetcher->fetchManifestFromUrl( $manifestUrl );
+                $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
                 if ( $status->isOK() ) {
                     $packs = $status->getValue();
                     $store->savePacks( $packs );

@@ -19,11 +19,11 @@ class ManifestFetcher {
         $this->configuredSources = $sources;
     }
     /**
-     * Fetch and parse the root YAML manifest from the configured URL.
+     * Fetch and parse the manifest from the configured URL.
      *
      * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
      */
-    public function fetchRootManifest() {
+    public function fetchManifest() {
         // Prefer explicitly provided sources (tests) → global → MW services
         $sources = $this->configuredSources ?? ( $GLOBALS['wgLabkiContentSources'] ?? null );
         if ( $sources === null && class_exists( '\MediaWiki\MediaWikiServices' ) ) {
@@ -66,7 +66,7 @@ class ManifestFetcher {
 
         $parser = new ManifestParser();
         try {
-            $packs = $parser->parseRoot( $body );
+            $packs = $parser->parse( $body );
         } catch ( \InvalidArgumentException $e ) {
             $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
             return $this->newFatal( $msg );
