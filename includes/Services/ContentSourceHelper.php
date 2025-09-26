@@ -6,7 +6,7 @@ use MediaWiki\MediaWikiServices;
 
 class ContentSourceHelper {
     /**
-     * @return array<string,array{manifestUrl:string}>
+     * @return array<string,string> Mapping of label => manifest URL
      */
     public static function getSources(): array {
         $config = MediaWikiServices::getInstance()->getMainConfig();
@@ -23,7 +23,7 @@ class ContentSourceHelper {
     }
 
     public static function getManifestUrlForLabel( array $sources, string $label ): string {
-        return (string)( $sources[$label]['manifestUrl'] ?? '' );
+        return (string)( $sources[$label] ?? '' );
     }
 }
 

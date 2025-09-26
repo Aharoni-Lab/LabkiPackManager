@@ -29,7 +29,7 @@ class ManifestFetcherTest extends \MediaWikiIntegrationTestCase {
 
     private function makeFetcherWithSources( string $body, int $code = 200 ) : ManifestFetcher {
         $factory = $this->newFactory( $code, $body, $code === 200 );
-        $sources = [ 'Default' => [ 'manifestUrl' => 'http://example.test/manifest.yml' ] ];
+        $sources = [ 'Default' => 'http://example.test/manifest.yml' ];
         return new ManifestFetcher( $factory, $sources );
     }
 
@@ -89,7 +89,7 @@ YAML;
      */
     public function testFetchRootManifest_HttpExecuteError_ReturnsFetchError(): void {
         $factory = $this->newFactory( 0, '', false );
-        $fetcher = new ManifestFetcher( $factory, [ 'Default' => [ 'manifestUrl' => 'http://example.test/manifest.yml' ] ] );
+        $fetcher = new ManifestFetcher( $factory, [ 'Default' => 'http://example.test/manifest.yml' ] );
         $status = $fetcher->fetchRootManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {

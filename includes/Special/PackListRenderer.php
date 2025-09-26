@@ -67,7 +67,7 @@ class PackListRenderer {
     /**
      * Render the repository selector (GET form).
      *
-     * @param array<string,array{manifestUrl:string}> $sources
+     * @param array<string,string> $sources Mapping label => URL
      */
     public function renderRepoSelector( array $sources, string $selectedLabel, string $buttonLabel ) : string {
         $html = '<form method="get" style="margin-bottom:12px">';

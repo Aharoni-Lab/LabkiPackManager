@@ -54,7 +54,15 @@ class SpecialLabkiPackManager extends SpecialPage {
                     $store->savePacks( $packs );
                     $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
                 } else {
-                    $output->addWikiTextAsInterface( $this->msg( $status->getMessage()->getKey() )->text() );
+                    $key = null;
+                    if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+                        $key = $status->getMessage()->getKey();
+                    } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+                        $key = $status->getMessageValue()->getKey();
+                    }
+                    if ( $key ) {
+                        $output->addWikiTextAsInterface( $this->msg( $key )->text() );
+                    }
                     return;
                 }
             }

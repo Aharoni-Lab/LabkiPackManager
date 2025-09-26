@@ -27,13 +27,9 @@ wfLoadExtension( 'LabkiPackManager' );
 
 ```php
 $wgLabkiContentSources = [
-    'Lab Packs (Default)' => [
-        'manifestUrl' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
-    ],
+    'Lab Packs (Default)' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
     // Add more sources as needed
-    'Custom Packs Repo' => [
-        'manifestUrl' => 'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
-    ],
+    'Custom Packs Repo' => 'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
 ];
 ```
 

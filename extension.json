@@ -28,11 +28,10 @@
   "config": {
     "LabkiContentSources": {
       "value": {
-        "Lab Packs (Default)": {
-          "manifestUrl": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml"
-        }
+        "Lab Packs (Default)": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
+        "Test Packs": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/tests/fixtures/basic_repo/manifest.yml"
       },
-      "description": "Associative array of content pack repositories (label => {manifestUrl})."
+      "description": "Associative array of content pack repositories (label => manifestUrl)."
     }
   },
   "AvailableRights": [

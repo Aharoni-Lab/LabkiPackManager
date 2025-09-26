@@ -36,7 +36,7 @@ class ManifestFetcher {
         }
         if ( is_array( $sources ) && $sources ) {
             $first = reset( $sources );
-            $url = $first['manifestUrl'] ?? '';
+            $url = (string)$first;
             if ( $url !== '' ) {
                 return $this->fetchManifestFromUrl( $url );
             }
