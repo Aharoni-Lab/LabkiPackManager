@@ -5,6 +5,7 @@ namespace LabkiPackManager\Special;
 use SpecialPage;
 use LabkiPackManager\Services\ManifestFetcher;
 use LabkiPackManager\Services\ManifestStore;
+use LabkiPackManager\Services\ContentSourceHelper;
 
 class SpecialLabkiPackManager extends SpecialPage {
     public function __construct() {
@@ -24,28 +25,80 @@ class SpecialLabkiPackManager extends SpecialPage {
 
         $output = $this->getOutput();
         $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' )->text() );
+        $output->addModules( [ 'ext.LabkiPackManager.styles' ] );
 
         $request = $this->getRequest();
         $token = $request->getVal( 'token' );
         $doRefresh = $request->getCheck( 'refresh' );
+        $doLoad = $request->getCheck( 'load' );
 
-        $configUrl = $this->getConfig()->get( 'LabkiContentManifestURL' );
-        $store = new ManifestStore( $configUrl );
+        // Resolve content sources (required)
+        $sources = ContentSourceHelper::getSources();
+        if ( !$sources ) {
+            $output->addHTML( '<div class="mw-message-box mw-message-box-error">' .
+                htmlspecialchars( $this->msg( 'labkipackmanager-error-no-sources' )->text() ) . '</div>' );
+            return;
+        }
+
+        $repoLabel = ContentSourceHelper::resolveSelectedRepoLabel( $sources, $request->getVal( 'repo' ) );
+        $manifestUrl = ContentSourceHelper::getManifestUrlForLabel( $sources, $repoLabel );
+
+        $store = new ManifestStore( $manifestUrl );
         $packs = null;
         $statusNote = '';
 
         if ( $request->wasPosted() && $doRefresh ) {
+            if ( !$this->getUser()->isAllowed( 'labkipackmanager-manage' ) ) {
+                $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--warning"><span class="cdx-message__content">' .
+                    htmlspecialchars( $this->msg( 'labkipackmanager-error-permission' )->text() ) . '</span></div>' );
+                return;
+            }
             if ( $this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
-                $fetcher = new ManifestFetcher();
-                $status = $fetcher->fetchRootManifest();
+				$fetcher = new ManifestFetcher();
+				$status = $fetcher->fetchManifestFromUrl( $manifestUrl );
                 if ( $status->isOK() ) {
                     $packs = $status->getValue();
                     $store->savePacks( $packs );
                     $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
                 } else {
-                    $output->addWikiTextAsInterface( $this->msg( $status->getMessage()->getKey() )->text() );
+                    $key = null;
+                    if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+                        $key = $status->getMessage()->getKey();
+                    } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+                        $key = $status->getMessageValue()->getKey();
+                    }
+                    if ( $key ) {
+                        $output->addWikiTextAsInterface( $this->msg( $key )->text() );
+                    }
                     return;
                 }
+            }
+        }
+
+        // If user clicked "Load" (GET) and nothing fetched yet, do a fetch now
+        if ( !$request->wasPosted() && $doLoad && $packs === null ) {
+            if ( !$this->getUser()->isAllowed( 'labkipackmanager-manage' ) ) {
+                $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--warning"><span class="cdx-message__content">' .
+                    htmlspecialchars( $this->msg( 'labkipackmanager-error-permission' )->text() ) . '</span></div>' );
+                return;
+            }
+            $fetcher = new ManifestFetcher();
+            $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
+            if ( $status->isOK() ) {
+                $packs = $status->getValue();
+                $store->savePacks( $packs );
+                $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
+            } else {
+                $key = null;
+                if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+                    $key = $status->getMessage()->getKey();
+                } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+                    $key = $status->getMessageValue()->getKey();
+                }
+                if ( $key ) {
+                    $this->getOutput()->addWikiTextAsInterface( $this->msg( $key )->text() );
+                }
+                return;
             }
         }
 
@@ -58,42 +111,22 @@ class SpecialLabkiPackManager extends SpecialPage {
             }
         }
 
-        $output->addWikiTextAsInterface( '== ' . $this->msg( 'labkipackmanager-list-title' )->text() . ' ==' );
+		// Source selector (GET form) via renderer
+		$renderer = new PackListRenderer();
+		$output->addHTML( $renderer->renderRepoSelector( $sources, $repoLabel, $this->msg( 'labkipackmanager-button-load' )->text() ) );
+
+		$output->addWikiTextAsInterface( '== ' . $this->msg( 'labkipackmanager-list-title' )->text() . ' ==' );
         if ( $statusNote !== '' ) {
-            $output->addHTML( '<div class="mw-message-box mw-message-box-notice">' . $statusNote . '</div>' );
+            $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--notice"><span class="cdx-message__content">' . $statusNote . '</span></div>' );
         }
 
-        $html = '<form method="post" style="margin-bottom:12px">';
-        $html .= \MediaWiki\Html\Html::hidden( 'token', $this->getContext()->getCsrfTokenSet()->getToken() );
-        $html .= '<button class="mw-htmlform-submit" type="submit" name="refresh" value="1">' .
-            htmlspecialchars( $this->msg( 'labkipackmanager-button-refresh' )->text() ) . '</button>';
-        $html .= '</form>';
-        $output->addHTML( $html );
+		$output->addHTML( $renderer->renderRefreshForm( $this->getContext()->getCsrfTokenSet()->getToken(), $this->msg( 'labkipackmanager-button-refresh' )->text(), $repoLabel ) );
 
         if ( !is_array( $packs ) || !$packs ) {
             return;
         }
 
-        $html = '<form method="post">';
-        $html .= \MediaWiki\Html\Html::hidden( 'token', $this->getContext()->getCsrfTokenSet()->getToken() );
-        foreach ( $packs as $p ) {
-            $id = htmlspecialchars( $p['id'] );
-            $desc = htmlspecialchars( $p['description'] );
-            $version = htmlspecialchars( $p['version'] );
-            $html .= '<div><label>';
-            $html .= '<input type="checkbox" name="packs[]" value="' . $id . '"> ';
-            $html .= '<b>' . $id . '</b>';
-            if ( $version !== '' ) {
-                $html .= ' <span style="color:#666">(' . $version . ')</span>';
-            }
-            if ( $desc !== '' ) {
-                $html .= ' – ' . $desc;
-            }
-            $html .= '</label></div>';
-        }
-        $html .= '<div style="margin-top:8px"><input type="submit" value="Select"></div>';
-        $html .= '</form>';
-        $output->addHTML( $html );
+		$output->addHTML( $renderer->renderPacksList( $packs, $this->getContext()->getCsrfTokenSet()->getToken(), $repoLabel ) );
     }
 }
 

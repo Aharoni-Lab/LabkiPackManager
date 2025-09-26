@@ -1,13 +1,79 @@
+schema_version: 1.0.0
+last_updated: "2025-09-22T00:00:00Z"
+
+pages:
+  Template:Publication:
+    file: pages/Templates/Template_Publication.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Form:Publication:
+    file: pages/Forms/Form_Publication.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Category:Publication:
+    file: pages/Categories/Category_Publication.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Property:Has author:
+    file: pages/Properties/Property_Has author.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Template:MeetingNotes:
+    file: pages/Templates/Template_MeetingNotes.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Form:MeetingNotes:
+    file: pages/Forms/Form_MeetingNotes.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Category:Meeting:
+    file: pages/Categories/Category_Meeting.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  Onboarding:
+    file: pages/Layouts/Onboarding.md
+    last_updated: "2025-09-22T00:00:00Z"
+  Module:Util:
+    file: pages/Modules/Module_Util.lua
+    last_updated: "2025-09-22T00:00:00Z"
+  Help:GettingStarted:
+    file: pages/Help/Help_GettingStarted.wiki
+    last_updated: "2025-09-22T00:00:00Z"
+  MediaWiki:Common.css:
+    file: pages/MediaWiki/Common.css
+    last_updated: "2025-09-22T00:00:00Z"
+
 packs:
-  - id: publication
-    path: packs/publication
-    version: 1.0.0
+  publication:
     description: Templates and forms for managing publications
-  - id: onboarding
-    path: packs/onboarding
-    version: 1.1.0
-    description: Standardized onboarding checklists
-  - id: meeting_notes
-    path: packs/meeting_notes
     version: 1.0.0
+    pages:
+      - Template:Publication
+      - Form:Publication
+      - Category:Publication
+      - Property:Has author
+    depends_on: []
+  meeting_notes:
     description: Templates and forms for meeting notes
+    version: 1.0.0
+    pages:
+      - Template:MeetingNotes
+      - Form:MeetingNotes
+      - Category:Meeting
+    depends_on: []
+  onboarding:
+    description: Onboarding layout and example
+    version: 1.0.0
+    pages:
+      - Onboarding
+    depends_on: [publication]
+  shared_base:
+    description: Shared utilities and help pages
+    version: 1.1.0
+    pages:
+      - Module:Util
+      - Help:GettingStarted
+    depends_on: []
+  meta_pack:
+    description: Meta pack aggregating publication + meeting
+    version: 1.0.0
+    pages: []
+    depends_on: [publication, meeting_notes]
+  app:
+    description: App that depends on shared base and onboarding
+    version: 1.0.0
+    pages: []
+    depends_on: [shared_base, onboarding]

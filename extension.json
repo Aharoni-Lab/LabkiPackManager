@@ -22,17 +22,24 @@
   "AutoloadNamespaces": {
     "LabkiPackManager\\": "includes/"
   },
+  "ResourceModules": {
+    "ext.LabkiPackManager.styles": {
+      "styles": [],
+      "dependencies": [
+        "codex.styles"
+      ]
+    }
+  },
   "SpecialPages": {
     "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
   },
   "config": {
-    "LabkiContentManifestURL": {
-      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
-      "description": "URL to the labki-content manifest JSON"
-    },
-    "LabkiContentBaseURL": {
-      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/",
-      "description": "Base URL prefix for raw .wiki files referenced by the manifest"
+    "LabkiContentSources": {
+      "value": {
+        "Lab Packs (Default)": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
+        "Test Packs": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/tests/fixtures/basic_repo/manifest.yml"
+      },
+      "description": "Associative array of content pack repositories (label => manifestUrl)."
     }
   },
   "AvailableRights": [

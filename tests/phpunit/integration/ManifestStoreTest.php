@@ -2,18 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Unit;
+namespace LabkiPackManager\Tests\Integration;
 
 use LabkiPackManager\Services\ManifestStore;
-use MediaWiki\MediaWikiServices;
-use PHPUnit\Framework\TestCase;
 
-class ManifestStoreTest extends TestCase {
+/**
+ * @coversDefaultClass \LabkiPackManager\Services\ManifestStore
+ */
+class ManifestStoreTest extends \MediaWikiIntegrationTestCase {
     /**
-     * Saving packs makes them retrievable via the same URL-based store.
+     * @covers ::savePacks
+     * @covers ::getPacksOrNull
      */
     public function testSaveAndGetPacks(): void {
-        MediaWikiServices::resetForTests();
         $url = 'http://example.test/manifest.yml';
         $store = new ManifestStore( $url );
         $packs = [ [ 'id' => 'a', 'path' => 'p' ] ];
@@ -24,10 +25,9 @@ class ManifestStoreTest extends TestCase {
     }
 
     /**
-     * Clearing removes the cached packs for that URL.
+     * @covers ::clear
      */
     public function testClearRemovesCachedPacks(): void {
-        MediaWikiServices::resetForTests();
         $store = new ManifestStore( 'http://example.test/manifest.yml' );
         $store->savePacks( [ [ 'id' => 'x', 'path' => 'y' ] ] );
         $this->assertNotNull( $store->getPacksOrNull() );
@@ -37,10 +37,10 @@ class ManifestStoreTest extends TestCase {
     }
 
     /**
-     * Different manifest URLs do not collide in cache.
+     * @covers ::savePacks
+     * @covers ::getPacksOrNull
      */
     public function testDifferentUrlsHaveSeparateEntries(): void {
-        MediaWikiServices::resetForTests();
         $store1 = new ManifestStore( 'http://example.test/a.yml' );
         $store2 = new ManifestStore( 'http://example.test/b.yml' );
 
