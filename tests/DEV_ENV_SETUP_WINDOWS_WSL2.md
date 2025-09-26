@@ -1,6 +1,6 @@
 ## MediaWiki Extension Testing on Windows with WSL2, Ubuntu, and Docker
 
-This guide shows an end-to-end setup to run PHPUnit tests for a MediaWiki extension on Windows using WSL2, Ubuntu, and Docker. Keep your repositories inside the Linux filesystem in WSL (e.g., under `~/dev`) for best performance.
+This guide shows an end-to-end setup to run PHPUnit tests for a MediaWiki extension on Windows using WSL2, Ubuntu, and Docker. All tests run inside a real MediaWiki environment. Keep your repositories inside the Linux filesystem in WSL (e.g., under `~/dev`) for best performance.
 
 ### A. Verify and install the base tools
 
@@ -85,7 +85,7 @@ docker compose exec mediawiki /bin/bash /docker/install.sh
 docker compose exec mediawiki chmod -R o+rwx cache/sqlite    # Windows fix for SQLite
 ```
 
-If you have docker issues here, make sure to go into docker settings -> resources and enable wsl integration for ubuntu. Need to run ubuntu as windows admin too.
+If Docker fails to start or connect, open Docker Desktop → Settings → Resources → WSL Integration, and enable your Ubuntu distro. Ensure WSL is version 2. You do not need to run Ubuntu as Windows admin.
 
 Open `http://localhost:8080` to confirm the wiki is live.
 
@@ -98,7 +98,7 @@ Keep your extension in its own repo outside core, for example:
 ```
 ~/dev/YourExtension
 ```
-You will need to install gh and auth your account to be able to clone and work with the .git.
+You can use `git` normally inside WSL. If you prefer GitHub CLI (`gh`), install and auth it in WSL.
 
 Mount your extension into the container with an override file. Create `mediawiki/docker-compose.override.yml`:
 
@@ -152,7 +152,7 @@ docker compose exec mediawiki bash
 Run unit tests for your extension:
 
 ```bash
-composer phpunit:unit -- extensions/YourExtension/tests/phpunit/unit
+composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/unit
 ```
 
 Run integration tests:
@@ -161,13 +161,9 @@ Run integration tests:
 PHPUNIT_WIKI=wiki composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/integration
 ```
 
-Run one test file or directory by passing a path at the end. These entrypoints are the supported way to run tests.
+Run one test file or directory by passing a path at the end. Always use these entrypoints; do not invoke PHPUnit directly.
 
-If a few legacy tests require the old runner, use:
-
-```bash
-php tests/phpunit/phpunit.php -- tests/phpunit/some/legacy/path
-```
+If you hit runner issues, ensure you are inside the MediaWiki container and using the composer scripts shown above.
 
 ### F. Quick database resets and fixes
 
@@ -193,20 +189,29 @@ docker compose exec mediawiki composer phpcs
 
 For PHPUnit HTML coverage, add `--coverage-html` to the test run.
 
-### I. Continuous integration, minimal GitHub Actions
+### I. Continuous integration, GitHub Actions (mirrors local flow)
 
-Keep CI close to your local flow. This matrix runs against two MW branches with SQLite:
+Keep CI close to your local flow. This example runs on pull requests and pushes to `main`, against REL1_44 on PHP 8.2 with SQLite, and cancels superseded runs.
 
 ```yaml
 name: tests
-on: [push, pull_request]
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: phpunit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   phpunit:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        mw_branch: [REL1_44, REL1_43]
+        mw_branch: [REL1_44]
         php: ['8.2']
     steps:
       - uses: actions/checkout@v4
@@ -237,16 +242,16 @@ jobs:
           php maintenance/install.php \
             --dbtype sqlite --dbpath $(pwd)/cache/sqlite \
             --server "http://example.local" --scriptpath "/w" \
-            --lang en --pass pass Wiki Admin
+            --lang en --pass StrongDockerPass123! Wiki Admin
 
       - name: Enable extension
         run: |
           echo "wfLoadExtension( 'YourExtension' );" >> mediawiki/LocalSettings.php
-          ln -s $GITHUB_WORKSPACE/extension mediawiki/extensions/YourExtension
+          ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/YourExtension
 
       - name: PHPUnit unit
         working-directory: mediawiki
-        run: composer phpunit:unit -- extensions/YourExtension/tests/phpunit/unit
+        run: composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/unit
 
       - name: PHPUnit integration
         working-directory: mediawiki
@@ -287,7 +292,7 @@ docker compose exec mediawiki bash
 Run unit tests:
 
 ```bash
-composer phpunit:unit -- extensions/YourExtension/tests/phpunit/unit
+composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/unit
 ```
 
 Run integration tests:
@@ -296,5 +301,21 @@ Run integration tests:
 PHPUNIT_WIKI=wiki composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/integration
 ```
 
-If you want, we can generate a ready-to-drop `docker-compose.override.yml` for your exact WSL path, plus a `README-DEV.md` tailored to your extension.
+### K. Troubleshooting and common pitfalls
+
+- Docker/WSL integration:
+  - In Docker Desktop, enable WSL integration for your Ubuntu distro. Restart Docker after changing.
+  - Verify WSL version: `wsl --list --verbose` should show version 2.
+- File permissions with SQLite:
+  - If MediaWiki reports DB errors, ensure `cache/sqlite` exists and is writable: `chmod -R o+rwx cache/sqlite` inside the container.
+- Path mapping:
+  - In `docker-compose.override.yml`, use your WSL Linux path (e.g., `/home/<user>/dev/...`), not a Windows path like `C:\...`.
+- CRLF vs LF line endings:
+  - Configure Git to use LF in WSL: `git config --global core.autocrlf input`.
+- Composer/network issues:
+  - Run Composer inside the container (`docker compose exec mediawiki composer update`). If you see rate limits, set `COMPOSER_AUTH` or use GitHub OAuth tokens.
+- Test runner not found:
+  - Ensure you run tests via `composer phpunit:entrypoint` from MediaWiki root, not directly with `vendor/bin/phpunit`.
+
+If you run into other issues, capture the exact error and the command you ran. That context makes troubleshooting much faster.
 
