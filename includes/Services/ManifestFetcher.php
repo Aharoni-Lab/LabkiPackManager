@@ -64,6 +64,14 @@ class ManifestFetcher {
             return $this->newFatal( 'labkipackmanager-error-fetch' );
         }
 
+        // Validate manifest (schema_version presence and schema structure)
+        $validator = new ManifestValidator( $factory );
+        $validation = $validator->validate( $body );
+        if ( !$validation->isOK() ) {
+            return $validation;
+        }
+
+        // Parse validated manifest to normalized packs list
         $parser = new ManifestParser();
         try {
             $packs = $parser->parse( $body );

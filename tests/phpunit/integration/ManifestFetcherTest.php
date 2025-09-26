@@ -38,6 +38,7 @@ class ManifestFetcherTest extends \MediaWikiIntegrationTestCase {
      */
     public function testFetchRootManifest_Success(): void {
         $yaml = <<<YAML
+schema_version: 1.0.0
 packs:
   publication:
     version: 1.0.0
