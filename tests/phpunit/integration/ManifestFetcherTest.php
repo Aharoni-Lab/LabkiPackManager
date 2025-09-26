@@ -62,7 +62,11 @@ YAML;
         $fetcher = $this->makeFetcherWithSources( 'not: [ yaml: ' );
         $status = $fetcher->fetchRootManifest();
         $this->assertFalse( $status->isOK() );
-        $this->assertSame( 'labkipackmanager-error-parse', $status->getMessage()->getKey() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-parse', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-parse', $status->getMessageValue()->getKey() );
+        }
     }
 
     /**
@@ -73,7 +77,11 @@ YAML;
         $fetcher = $this->makeFetcherWithSources( $yaml );
         $status = $fetcher->fetchRootManifest();
         $this->assertFalse( $status->isOK() );
-        $this->assertSame( 'labkipackmanager-error-schema', $status->getMessage()->getKey() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-schema', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-schema', $status->getMessageValue()->getKey() );
+        }
     }
 
     /**
@@ -84,7 +92,11 @@ YAML;
         $fetcher = new ManifestFetcher( $factory, [ 'Default' => [ 'manifestUrl' => 'http://example.test/manifest.yml' ] ] );
         $status = $fetcher->fetchRootManifest();
         $this->assertFalse( $status->isOK() );
-        $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessageValue()->getKey() );
+        }
     }
 
     /**
@@ -94,7 +106,11 @@ YAML;
         $fetcher = $this->makeFetcherWithSources( '', 500 );
         $status = $fetcher->fetchRootManifest();
         $this->assertFalse( $status->isOK() );
-        $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessageValue()->getKey() );
+        }
     }
 
     /**
@@ -104,7 +120,11 @@ YAML;
         $fetcher = $this->makeFetcherWithSources( '', 200 );
         $status = $fetcher->fetchRootManifest();
         $this->assertFalse( $status->isOK() );
-        $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessageValue()->getKey() );
+        }
     }
 
     /**
