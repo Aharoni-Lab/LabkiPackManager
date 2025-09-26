@@ -21,10 +21,7 @@ class ManifestFetcher {
                 return $this->fetchManifestFromUrl( $url );
             }
         }
-        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-            ? '\\MediaWiki\\Status\\StatusValue'
-            : '\\StatusValue';
-        return $statusClass::newFatal( 'labkipackmanager-error-no-sources' );
+        return $this->newFatal( 'labkipackmanager-error-no-sources' );
     }
 
     /**
@@ -38,19 +35,13 @@ class ManifestFetcher {
         $req = $httpFactory->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
         $status = $req->execute();
         if ( !$status->isOK() ) {
-            $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-                ? '\\MediaWiki\\Status\\StatusValue'
-                : '\\StatusValue';
-            return $statusClass::newFatal( 'labkipackmanager-error-fetch' );
+            return $this->newFatal( 'labkipackmanager-error-fetch' );
         }
 
         $code = $req->getStatus();
         $body = $req->getContent();
         if ( $code !== 200 || $body === '' ) {
-            $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-                ? '\\MediaWiki\\Status\\StatusValue'
-                : '\\StatusValue';
-            return $statusClass::newFatal( 'labkipackmanager-error-fetch' );
+            return $this->newFatal( 'labkipackmanager-error-fetch' );
         }
 
         $parser = new ManifestParser();
@@ -58,16 +49,24 @@ class ManifestFetcher {
             $packs = $parser->parseRoot( $body );
         } catch ( \InvalidArgumentException $e ) {
             $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
-            $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-                ? '\\MediaWiki\\Status\\StatusValue'
-                : '\\StatusValue';
-            return $statusClass::newFatal( $msg );
+            return $this->newFatal( $msg );
         }
 
+        return $this->newGood( $packs );
+    }
+
+    private function newFatal( string $key ) {
         $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
             ? '\\MediaWiki\\Status\\StatusValue'
             : '\\StatusValue';
-        return $statusClass::newGood( $packs );
+        return $statusClass::newFatal( $key );
+    }
+
+    private function newGood( $value ) {
+        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
+            ? '\\MediaWiki\\Status\\StatusValue'
+            : '\\StatusValue';
+        return $statusClass::newGood( $value );
     }
 }
 
