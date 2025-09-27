@@ -21,6 +21,7 @@
   "labkipackmanager-button-load": "Load Packs",
   "labkipackmanager-error-no-sources": "No content sources configured.",
   "labkipackmanager-status-loaded-from": "Loaded packs from ‘$1’.",
+  "labkipackmanager-error-unknown": "An unexpected error occurred while loading the manifest.",
   "labkipackmanager-error-permission": "You do not have permission to manage Labki packs."
 }
 

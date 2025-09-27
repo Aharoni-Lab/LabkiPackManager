@@ -84,9 +84,7 @@ class SpecialLabkiPackManager extends SpecialPage {
                     } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
                         $key = $status->getMessageValue()->getKey();
                     }
-                    if ( $key ) {
-                        $statusError = $this->msg( $key )->escaped();
-                    }
+                    $statusError = $this->msg( $key ?: 'labkipackmanager-error-unknown' )->escaped();
                 }
             } else {
                 $statusError = $this->msg( 'sessionfailure' )->escaped();
@@ -123,9 +121,7 @@ class SpecialLabkiPackManager extends SpecialPage {
                     } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
                         $key = $status->getMessageValue()->getKey();
                     }
-                    if ( $key ) {
-                        $statusError = $this->msg( $key )->escaped();
-                    }
+                    $statusError = $this->msg( $key ?: 'labkipackmanager-error-unknown' )->escaped();
                 }
             }
         }
