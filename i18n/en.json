@@ -12,6 +12,7 @@
   "labkipackmanager-error-fetch": "Failed to fetch content pack manifest.",
   "labkipackmanager-error-parse": "Failed to parse content pack manifest (YAML error).",
   "labkipackmanager-error-schema": "Manifest format is invalid or missing required fields.",
+  "labkipackmanager-error-schema-version": "Manifest is missing a valid schema_version.",
   "labkipackmanager-button-refresh": "Grab Manifest",
   "labkipackmanager-status-using-cache": "Showing cached manifest.",
   "labkipackmanager-status-fetched": "Manifest fetched successfully.",

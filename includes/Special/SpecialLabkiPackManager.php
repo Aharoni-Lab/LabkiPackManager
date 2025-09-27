@@ -40,12 +40,22 @@ class SpecialLabkiPackManager extends SpecialPage {
             return;
         }
 
-        $repoLabel = ContentSourceHelper::resolveSelectedRepoLabel( $sources, $request->getVal( 'repo' ) );
+        $session = $request->getSession();
+        $requestedRepo = $request->getVal( 'repo' );
+        if ( $requestedRepo === null ) {
+            $persisted = $session->get( 'labkipackmanager.repo' );
+            if ( is_string( $persisted ) ) {
+                $requestedRepo = $persisted;
+            }
+        }
+        $repoLabel = ContentSourceHelper::resolveSelectedRepoLabel( $sources, $requestedRepo );
+        $session->set( 'labkipackmanager.repo', $repoLabel );
         $manifestUrl = ContentSourceHelper::getManifestUrlForLabel( $sources, $repoLabel );
 
         $store = new ManifestStore( $manifestUrl );
         $packs = null;
         $statusNote = '';
+        $statusError = '';
 
         if ( $request->wasPosted() && $doRefresh ) {
             if ( !$this->getUser()->isAllowed( 'labkipackmanager-manage' ) ) {
@@ -57,8 +67,13 @@ class SpecialLabkiPackManager extends SpecialPage {
 				$fetcher = new ManifestFetcher();
                 $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
                 if ( $status->isOK() ) {
-                    $packs = $status->getValue();
-                    $store->savePacks( $packs );
+                    $result = $status->getValue();
+                    $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
+                    $schemaVersion = is_array( $result ) ? ( $result['schema_version'] ?? null ) : null;
+                    $store->savePacks( $packs, [
+                        'schema_version' => $schemaVersion,
+                        'manifest_url' => $manifestUrl,
+                    ] );
                     $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
                 } else {
                     $key = null;
@@ -68,9 +83,8 @@ class SpecialLabkiPackManager extends SpecialPage {
                         $key = $status->getMessageValue()->getKey();
                     }
                     if ( $key ) {
-                        $output->addWikiTextAsInterface( $this->msg( $key )->text() );
+                        $statusError = $this->msg( $key )->escaped();
                     }
-                    return;
                 }
             }
         }
@@ -85,8 +99,13 @@ class SpecialLabkiPackManager extends SpecialPage {
             $fetcher = new ManifestFetcher();
             $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
             if ( $status->isOK() ) {
-                $packs = $status->getValue();
-                $store->savePacks( $packs );
+                $result = $status->getValue();
+                $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
+                $schemaVersion = is_array( $result ) ? ( $result['schema_version'] ?? null ) : null;
+                $store->savePacks( $packs, [
+                    'schema_version' => $schemaVersion,
+                    'manifest_url' => $manifestUrl,
+                ] );
                 $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
             } else {
                 $key = null;
@@ -96,9 +115,8 @@ class SpecialLabkiPackManager extends SpecialPage {
                     $key = $status->getMessageValue()->getKey();
                 }
                 if ( $key ) {
-                    $this->getOutput()->addWikiTextAsInterface( $this->msg( $key )->text() );
+                    $statusError = $this->msg( $key )->escaped();
                 }
-                return;
             }
         }
 
@@ -111,6 +129,21 @@ class SpecialLabkiPackManager extends SpecialPage {
             }
         }
 
+        // Append meta details if available
+        $meta = $store->getMetaOrNull();
+        if ( is_array( $meta ) ) {
+            $bits = [];
+            if ( !empty( $meta['schema_version'] ) ) {
+                $bits[] = 'Schema ' . htmlspecialchars( (string)$meta['schema_version'] );
+            }
+            if ( !empty( $meta['fetched_at'] ) && is_int( $meta['fetched_at'] ) ) {
+                $bits[] = 'Fetched ' . htmlspecialchars( gmdate( 'Y-m-d H:i \U\T\C', $meta['fetched_at'] ) );
+            }
+            if ( $bits ) {
+                $statusNote .= ( $statusNote !== '' ? ' · ' : '' ) . implode( ' · ', $bits );
+            }
+        }
+
 		// Source selector (GET form) via renderer
 		$renderer = new PackListRenderer();
 		$output->addHTML( $renderer->renderRepoSelector( $sources, $repoLabel, $this->msg( 'labkipackmanager-button-load' )->text() ) );
@@ -119,14 +152,13 @@ class SpecialLabkiPackManager extends SpecialPage {
         if ( $statusNote !== '' ) {
             $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--notice"><span class="cdx-message__content">' . $statusNote . '</span></div>' );
         }
+        if ( $statusError !== '' ) {
+            $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--error"><span class="cdx-message__content">' . $statusError . '</span></div>' );
+        }
 
 		$output->addHTML( $renderer->renderRefreshForm( $this->getContext()->getCsrfTokenSet()->getToken(), $this->msg( 'labkipackmanager-button-refresh' )->text(), $repoLabel ) );
 
-        if ( !is_array( $packs ) || !$packs ) {
-            return;
-        }
-
-		$output->addHTML( $renderer->renderPacksList( $packs, $this->getContext()->getCsrfTokenSet()->getToken(), $repoLabel ) );
+        $output->addHTML( $renderer->renderPacksList( is_array( $packs ) ? $packs : [], $this->getContext()->getCsrfTokenSet()->getToken(), $repoLabel ) );
     }
 }
 

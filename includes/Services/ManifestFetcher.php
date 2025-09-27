@@ -70,6 +70,8 @@ class ManifestFetcher {
         if ( !$validation->isOK() ) {
             return $validation;
         }
+        $decoded = $validation->getValue();
+        $schemaVersion = is_array( $decoded ) ? ( $decoded['schema_version'] ?? null ) : null;
 
         // Parse validated manifest to normalized packs list
         $parser = new ManifestParser();
@@ -80,7 +82,7 @@ class ManifestFetcher {
             return $this->newFatal( $msg );
         }
 
-        return $this->newGood( $packs );
+        return $this->newGood( [ 'packs' => $packs, 'schema_version' => $schemaVersion ] );
     }
 
     private function newFatal( string $key ) {
