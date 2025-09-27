@@ -131,6 +131,42 @@ YAML;
     /**
      * @covers ::fetchManifest
      */
+    public function testFetchEmptyPacks_SucceedsAndZeroPacks(): void {
+        $yaml = <<<YAML
+schema_version: 1.0.0
+pages: {}
+packs: {}
+YAML;
+        $fetcher = $this->makeFetcherWithSources( $yaml );
+        $status = $fetcher->fetchManifest();
+        $this->assertTrue( $status->isOK() );
+        $result = $status->getValue();
+        $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
+        $this->assertIsArray( $packs );
+        $this->assertCount( 0, $packs );
+    }
+
+    /**
+     * @covers ::fetchManifest
+     */
+    public function testFetchPacksWrongType_FailsSchema(): void {
+        $yaml = <<<YAML
+schema_version: 1.0.0
+packs: []
+YAML;
+        $fetcher = $this->makeFetcherWithSources( $yaml );
+        $status = $fetcher->fetchManifest();
+        $this->assertFalse( $status->isOK() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-schema', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-schema', $status->getMessageValue()->getKey() );
+        }
+    }
+
+    /**
+     * @covers ::fetchManifest
+     */
     public function testFetchRootManifest_FromFixtureFile(): void {
         $fixturePath = __DIR__ . '/../../fixtures/manifest.yml';
         $this->assertFileExists( $fixturePath );

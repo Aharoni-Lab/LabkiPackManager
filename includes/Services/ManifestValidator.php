@@ -38,8 +38,15 @@ class ManifestValidator {
         if ( !is_string( $schemaVersion ) || !preg_match( '/^(v)?(\d+)(\.\d+)?(\.\d+)?$/', $schemaVersion ) ) {
             return $this->newFatal( 'labkipackmanager-error-schema' );
         }
-        // packs must be an object
+        // packs must be an object (associative). YAML empty {} parses to [], allow empty.
         if ( !isset( $decoded['packs'] ) || !is_array( $decoded['packs'] ) ) {
+            return $this->newFatal( 'labkipackmanager-error-schema' );
+        }
+        if ( $decoded['packs'] !== [] && \array_is_list( $decoded['packs'] ) ) {
+            return $this->newFatal( 'labkipackmanager-error-schema' );
+        }
+        // Heuristic: if packs is empty and YAML used [] (sequence) instead of {} (mapping), fail
+        if ( $decoded['packs'] === [] && preg_match( '/^\s*packs\s*:\s*\[\s*\]\s*$/m', $manifestYaml ) ) {
             return $this->newFatal( 'labkipackmanager-error-schema' );
         }
         $packIds = array_keys( $decoded['packs'] );

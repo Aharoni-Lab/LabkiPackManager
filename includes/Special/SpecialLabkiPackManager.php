@@ -64,7 +64,9 @@ class SpecialLabkiPackManager extends SpecialPage {
                 return;
             }
             if ( $this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
-				$fetcher = new ManifestFetcher();
+                // Begin fetch feedback
+                $statusNote = $this->msg( 'labkipackmanager-status-loaded-from', $repoLabel )->escaped();
+                $fetcher = new ManifestFetcher();
                 $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
                 if ( $status->isOK() ) {
                     $result = $status->getValue();
@@ -74,7 +76,7 @@ class SpecialLabkiPackManager extends SpecialPage {
                         'schema_version' => $schemaVersion,
                         'manifest_url' => $manifestUrl,
                     ] );
-                    $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
+                    $statusNote .= ' · ' . $this->msg( 'labkipackmanager-status-fetched' )->escaped();
                 } else {
                     $key = null;
                     if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
@@ -86,36 +88,44 @@ class SpecialLabkiPackManager extends SpecialPage {
                         $statusError = $this->msg( $key )->escaped();
                     }
                 }
+            } else {
+                $statusError = $this->msg( 'sessionfailure' )->escaped();
             }
         }
 
-        // If user clicked "Load" (GET) and nothing fetched yet, do a fetch now
-        if ( !$request->wasPosted() && $doLoad && $packs === null ) {
+        // If user clicked "Load" (GET or POST), fetch now
+        if ( $doLoad ) {
             if ( !$this->getUser()->isAllowed( 'labkipackmanager-manage' ) ) {
                 $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--warning"><span class="cdx-message__content">' .
                     htmlspecialchars( $this->msg( 'labkipackmanager-error-permission' )->text() ) . '</span></div>' );
                 return;
             }
-            $fetcher = new ManifestFetcher();
-            $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
-            if ( $status->isOK() ) {
-                $result = $status->getValue();
-                $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
-                $schemaVersion = is_array( $result ) ? ( $result['schema_version'] ?? null ) : null;
-                $store->savePacks( $packs, [
-                    'schema_version' => $schemaVersion,
-                    'manifest_url' => $manifestUrl,
-                ] );
-                $statusNote = $this->msg( 'labkipackmanager-status-fetched' )->escaped();
+            if ( $request->wasPosted() && !$this->getContext()->getCsrfTokenSet()->matchToken( $token ) ) {
+                $statusError = $this->msg( 'sessionfailure' )->escaped();
             } else {
-                $key = null;
-                if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
-                    $key = $status->getMessage()->getKey();
-                } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
-                    $key = $status->getMessageValue()->getKey();
-                }
-                if ( $key ) {
-                    $statusError = $this->msg( $key )->escaped();
+                // Begin fetch feedback
+                $statusNote = $this->msg( 'labkipackmanager-status-loaded-from', $repoLabel )->escaped();
+                $fetcher = new ManifestFetcher();
+                $status = $fetcher->fetchManifestFromUrl( $manifestUrl );
+                if ( $status->isOK() ) {
+                    $result = $status->getValue();
+                    $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
+                    $schemaVersion = is_array( $result ) ? ( $result['schema_version'] ?? null ) : null;
+                    $store->savePacks( $packs, [
+                        'schema_version' => $schemaVersion,
+                        'manifest_url' => $manifestUrl,
+                    ] );
+                    $statusNote .= ' · ' . $this->msg( 'labkipackmanager-status-fetched' )->escaped();
+                } else {
+                    $key = null;
+                    if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+                        $key = $status->getMessage()->getKey();
+                    } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+                        $key = $status->getMessageValue()->getKey();
+                    }
+                    if ( $key ) {
+                        $statusError = $this->msg( $key )->escaped();
+                    }
                 }
             }
         }

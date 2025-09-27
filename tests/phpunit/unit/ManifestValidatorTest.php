@@ -65,6 +65,36 @@ YAML;
         $status = $validator->validate( $yaml );
         $this->assertFalse( $status->isOK() );
     }
+
+    /**
+     * @covers ::validate
+     */
+    public function testValidateInvalidSchemaVersionFails(): void {
+        $validator = new ManifestValidator( $this->newHttpFactory( [] ) );
+        $yaml = "schema_version: x.y\npacks: {}";
+        $status = $validator->validate( $yaml );
+        $this->assertFalse( $status->isOK() );
+    }
+
+    /**
+     * @covers ::validate
+     */
+    public function testValidatePacksWrongTypeFails(): void {
+        $validator = new ManifestValidator( $this->newHttpFactory( [] ) );
+        $yaml = "schema_version: 1.0.0\npacks: []";
+        $status = $validator->validate( $yaml );
+        $this->assertFalse( $status->isOK() );
+    }
+
+    /**
+     * @covers ::validate
+     */
+    public function testValidateEmptyPacksPass(): void {
+        $validator = new ManifestValidator( $this->newHttpFactory( [] ) );
+        $yaml = "schema_version: 1.0.0\npacks: {}\npages: {}";
+        $status = $validator->validate( $yaml );
+        $this->assertTrue( $status->isOK() );
+    }
 }
 
 
