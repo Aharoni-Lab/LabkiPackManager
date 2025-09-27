@@ -13,20 +13,7 @@ class PackListRenderer {
         return '<div class="cdx-message cdx-message--block cdx-message--notice"><span class="cdx-message__content">' . $statusNote . '</span></div>';
     }
 
-    /**
-     * Render the refresh-manifest form with a submit button.
-     */
-    public function renderRefreshForm( string $csrfToken, string $buttonLabel, ?string $repoLabel = null ) : string {
-        $html = '<form method="post" class="cdx-form" style="margin-bottom:12px">';
-        $html .= '<input type="hidden" name="token" value="' . htmlspecialchars( $csrfToken ) . '">';
-        if ( $repoLabel !== null ) {
-            $html .= '<input type="hidden" name="repo" value="' . htmlspecialchars( $repoLabel ) . '">';
-        }
-        $html .= '<button class="cdx-button cdx-button--action-progressive" type="submit" name="refresh" value="1">' .
-            htmlspecialchars( $buttonLabel ) . '</button>';
-        $html .= '</form>';
-        return $html;
-    }
+    
 
     /**
      * Render the selectable list of packs with checkboxes.
@@ -78,10 +65,14 @@ class PackListRenderer {
      *
      * @param array<string,string> $sources Mapping label => URL
      */
-    public function renderRepoSelector( array $sources, string $selectedLabel, string $buttonLabel ) : string {
-        $html = '<form method="get" class="cdx-form" style="margin-bottom:12px">';
+    public function renderRepoSelector( array $sources, string $selectedLabel, string $loadLabel, string $refreshLabel = 'Refresh' , ?string $csrfToken = null ) : string {
+        // Single POST form containing the selector and both actions ensures the selected repo is always submitted
+        $html = '<form method="post" class="cdx-form" style="margin-bottom:12px">';
+        if ( $csrfToken !== null ) {
+            $html .= '<input type="hidden" name="token" value="' . htmlspecialchars( $csrfToken ) . '">';
+        }
         $selectId = 'labki-repo-select';
-        $html .= '<div class="cdx-field" style="display:flex;gap:8px;align-items:center">';
+        $html .= '<div class="cdx-field" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
         $html .= '<label class="cdx-label" for="' . $selectId . '">' . htmlspecialchars( wfMessage( 'labkipackmanager-repo-select-label' )->text() ) . '</label>';
         $html .= '<span class="cdx-select">';
         $html .= '<select id="' . $selectId . '" class="cdx-select__input" name="repo">';
@@ -91,7 +82,8 @@ class PackListRenderer {
         }
         $html .= '</select>';
         $html .= '</span>';
-        $html .= '<button class="cdx-button cdx-button--action-progressive" type="submit" name="load" value="1">' . htmlspecialchars( $buttonLabel ) . '</button>';
+        $html .= '<button class="cdx-button" type="submit" name="load" value="1">' . htmlspecialchars( $loadLabel ) . '</button>';
+        $html .= '<button class="cdx-button cdx-button--action-progressive" type="submit" name="refresh" value="1">' . htmlspecialchars( $refreshLabel ) . '</button>';
         $html .= '</div>';
         $html .= '</form>';
         return $html;

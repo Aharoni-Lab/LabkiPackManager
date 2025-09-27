@@ -145,8 +145,14 @@ class SpecialLabkiPackManager extends SpecialPage {
         }
 
 		// Source selector (GET form) via renderer
-		$renderer = new PackListRenderer();
-		$output->addHTML( $renderer->renderRepoSelector( $sources, $repoLabel, $this->msg( 'labkipackmanager-button-load' )->text() ) );
+        $renderer = new PackListRenderer();
+        $output->addHTML( $renderer->renderRepoSelector(
+            $sources,
+            $repoLabel,
+            $this->msg( 'labkipackmanager-button-load' )->text(),
+            $this->msg( 'labkipackmanager-button-refresh' )->text(),
+            $this->getContext()->getCsrfTokenSet()->getToken()
+        ) );
 
 		$output->addWikiTextAsInterface( '== ' . $this->msg( 'labkipackmanager-list-title' )->text() . ' ==' );
         if ( $statusNote !== '' ) {
@@ -156,7 +162,7 @@ class SpecialLabkiPackManager extends SpecialPage {
             $output->addHTML( '<div class="cdx-message cdx-message--block cdx-message--error"><span class="cdx-message__content">' . $statusError . '</span></div>' );
         }
 
-		$output->addHTML( $renderer->renderRefreshForm( $this->getContext()->getCsrfTokenSet()->getToken(), $this->msg( 'labkipackmanager-button-refresh' )->text(), $repoLabel ) );
+        // Separate refresh form no longer needed; actions are part of the selector form
 
         $output->addHTML( $renderer->renderPacksList( is_array( $packs ) ? $packs : [], $this->getContext()->getCsrfTokenSet()->getToken(), $repoLabel ) );
     }
