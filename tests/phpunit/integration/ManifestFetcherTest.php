@@ -34,20 +34,22 @@ class ManifestFetcherTest extends \MediaWikiIntegrationTestCase {
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_Success(): void {
         $yaml = <<<YAML
+schema_version: 1.0.0
 packs:
   publication:
     version: 1.0.0
     description: Templates and forms for managing publications
 YAML;
         $fetcher = $this->makeFetcherWithSources( $yaml );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
 
         $this->assertTrue( $status->isOK() );
-        $packs = $status->getValue();
+        $result = $status->getValue();
+        $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
         $this->assertIsArray( $packs );
         $this->assertCount( 1, $packs );
         $this->assertSame( 'publication', $packs[0]['id'] );
@@ -55,11 +57,11 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_InvalidYaml_ReturnsParseError(): void {
         $fetcher = $this->makeFetcherWithSources( 'not: [ yaml: ' );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-parse', $status->getMessage()->getKey() );
@@ -69,12 +71,12 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_MissingPacks_ReturnsSchemaError(): void {
         $yaml = "key: value";
         $fetcher = $this->makeFetcherWithSources( $yaml );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-schema', $status->getMessage()->getKey() );
@@ -84,12 +86,12 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_HttpExecuteError_ReturnsFetchError(): void {
         $factory = $this->newFactory( 0, '', false );
         $fetcher = new ManifestFetcher( $factory, [ 'Default' => 'http://example.test/manifest.yml' ] );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
@@ -99,11 +101,11 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_Non200_ReturnsFetchError(): void {
         $fetcher = $this->makeFetcherWithSources( '', 500 );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
@@ -113,11 +115,11 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_EmptyBody_ReturnsFetchError(): void {
         $fetcher = $this->makeFetcherWithSources( '', 200 );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertFalse( $status->isOK() );
         if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
             $this->assertSame( 'labkipackmanager-error-fetch', $status->getMessage()->getKey() );
@@ -127,16 +129,53 @@ YAML;
     }
 
     /**
-     * @covers ::fetchRootManifest
+     * @covers ::fetchManifest
+     */
+    public function testFetchEmptyPacks_SucceedsAndZeroPacks(): void {
+        $yaml = <<<YAML
+schema_version: 1.0.0
+pages: {}
+packs: {}
+YAML;
+        $fetcher = $this->makeFetcherWithSources( $yaml );
+        $status = $fetcher->fetchManifest();
+        $this->assertTrue( $status->isOK() );
+        $result = $status->getValue();
+        $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
+        $this->assertIsArray( $packs );
+        $this->assertCount( 0, $packs );
+    }
+
+    /**
+     * @covers ::fetchManifest
+     */
+    public function testFetchPacksWrongType_FailsSchema(): void {
+        $yaml = <<<YAML
+schema_version: 1.0.0
+packs: []
+YAML;
+        $fetcher = $this->makeFetcherWithSources( $yaml );
+        $status = $fetcher->fetchManifest();
+        $this->assertFalse( $status->isOK() );
+        if ( method_exists( $status, 'getMessage' ) && is_object( $status->getMessage() ) && method_exists( $status->getMessage(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-schema', $status->getMessage()->getKey() );
+        } elseif ( method_exists( $status, 'getMessageValue' ) && is_object( $status->getMessageValue() ) && method_exists( $status->getMessageValue(), 'getKey' ) ) {
+            $this->assertSame( 'labkipackmanager-error-schema', $status->getMessageValue()->getKey() );
+        }
+    }
+
+    /**
+     * @covers ::fetchManifest
      */
     public function testFetchRootManifest_FromFixtureFile(): void {
         $fixturePath = __DIR__ . '/../../fixtures/manifest.yml';
         $this->assertFileExists( $fixturePath );
         $yaml = file_get_contents( $fixturePath );
         $fetcher = $this->makeFetcherWithSources( $yaml );
-        $status = $fetcher->fetchRootManifest();
+        $status = $fetcher->fetchManifest();
         $this->assertTrue( $status->isOK() );
-        $packs = $status->getValue();
+        $result = $status->getValue();
+        $packs = is_array( $result ) && isset( $result['packs'] ) ? $result['packs'] : $result;
         $this->assertIsArray( $packs );
         $this->assertCount( 6, $packs );
         $ids = array_map( static function ( $p ) { return $p['id'] ?? ''; }, $packs );

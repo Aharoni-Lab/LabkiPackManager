@@ -8,10 +8,13 @@ class ManifestStore {
     private string $cacheKey;
     /** @var object|null */
     private $wanObjectCache = null;
+    private int $ttlSeconds;
 
-    public function __construct( string $manifestUrl, $wanObjectCache = null ) {
+    public function __construct( string $manifestUrl, $wanObjectCache = null, ?int $ttlSeconds = null ) {
         $this->cacheKey = $this->buildCacheKey( $manifestUrl );
         $this->wanObjectCache = $wanObjectCache;
+        // Default TTL: 24 hours unless overridden
+        $this->ttlSeconds = $ttlSeconds ?? ( 24 * 60 * 60 );
     }
 
     private function buildCacheKey( string $url ) : string {
@@ -25,22 +28,53 @@ class ManifestStore {
     public function getPacksOrNull() : ?array {
         $cache = $this->resolveCache();
         $val = $cache->get( $this->cacheKey );
-        return is_array( $val ) ? $val : null;
+        if ( is_array( $val ) ) {
+            // Support new payload shape { packs, schema_version?, fetched_at?, manifest_url? }
+            if ( array_key_exists( 'packs', $val ) && is_array( $val['packs'] ) ) {
+                return $val['packs'];
+            }
+            // Backward compatibility: value was stored as packs array directly
+            return $val;
+        }
+        return null;
     }
 
     /**
      * @param array $packs
      */
-    public function savePacks( array $packs ) : void {
+    public function savePacks( array $packs, ?array $meta = null ) : void {
         $cache = $this->resolveCache();
-        // Long TTL; manual refresh will overwrite
-        $ttl = 365 * 24 * 60 * 60;
-        $cache->set( $this->cacheKey, $packs, $ttl );
+        $payload = [
+            'packs' => $packs,
+            'schema_version' => $meta['schema_version'] ?? null,
+            'fetched_at' => $meta['fetched_at'] ?? time(),
+            'manifest_url' => $meta['manifest_url'] ?? null,
+        ];
+        $cache->set( $this->cacheKey, $payload, $this->ttlSeconds );
     }
 
     public function clear() : void {
         $cache = $this->resolveCache();
         $cache->delete( $this->cacheKey );
+    }
+
+    /**
+     * @return array|null { schema_version?:string, fetched_at?:int, manifest_url?:string }
+     */
+    public function getMetaOrNull() : ?array {
+        $cache = $this->resolveCache();
+        $val = $cache->get( $this->cacheKey );
+        if ( !is_array( $val ) ) {
+            return null;
+        }
+        if ( array_key_exists( 'packs', $val ) ) {
+            return [
+                'schema_version' => $val['schema_version'] ?? null,
+                'fetched_at' => $val['fetched_at'] ?? null,
+                'manifest_url' => $val['manifest_url'] ?? null,
+            ];
+        }
+        return null;
     }
 
     private function resolveCache() {
