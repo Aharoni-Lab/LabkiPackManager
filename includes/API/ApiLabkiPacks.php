@@ -25,19 +25,29 @@ final class ApiLabkiPacks extends ApiBase {
 
 		$domain = $loader->loadFromUrl( $manifestUrl );
 		$graphInfo = $graph->build( $domain['packs'] );
-		$tree = $hierarchy->buildTree( $domain['packs'] );
-		$diagram = $mermaid->generate( $graphInfo['dependsEdges'] );
+		$vm = $hierarchy->buildViewModel( $domain['packs'] );
+		$diagram = $mermaid->generateWithIdMap( array_map( static function( $e ) {
+			return [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
+		}, $graphInfo['dependsEdges'] ) );
+
+		// Build combined edges with rel
+		$edges = [];
+		foreach ( $graphInfo['containsEdges'] as $e ) {
+			$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => ( strpos( $e['to'], ':' ) === false ? 'page:' . $e['to'] : $e['to'] ), 'rel' => 'contains' ];
+		}
+		foreach ( $graphInfo['dependsEdges'] as $e ) {
+			$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
+		}
 
 		$this->getResult()->addValue( null, $this->getModuleName(), [
-			'schema' => $domain['schema_version'],
-			'tree' => $tree,
-			'containsEdges' => $graphInfo['containsEdges'],
-			'dependsEdges' => $graphInfo['dependsEdges'],
-			'hasCycle' => $graphInfo['hasCycle'],
-			'transitiveDepends' => $graphInfo['transitiveDepends'],
-			'reverseDepends' => $graphInfo['reverseDepends'],
-			'rootPacks' => $graphInfo['rootPacks'],
-			'mermaid' => $diagram,
+			'source' => [ 'name' => 'LabkiContentSources', 'branch' => $this->getConfig()->get( 'LabkiDefaultBranch' ), 'commit' => null ],
+			'schemaVersion' => $domain['schema_version'],
+			'summary' => [ 'packCount' => $vm['packCount'], 'pageCount' => $vm['pageCount'], 'roots' => $vm['roots'] ],
+			'nodes' => $vm['nodes'],
+			'tree' => $vm['tree'],
+			'edges' => $edges,
+			'mermaid' => [ 'code' => $diagram['code'], 'idMap' => $diagram['idMap'] ],
+			'dataVersion' => 1,
 		] );
 	}
 
