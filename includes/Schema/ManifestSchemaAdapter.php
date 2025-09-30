@@ -21,8 +21,18 @@ final class ManifestSchemaAdapter {
 		$schema = isset( $rawManifest['schema_version'] ) ? (string)$rawManifest['schema_version'] : null;
 		$packs = [];
         $rawPacks = [];
-        if ( isset( $rawManifest['packs'] ) && is_array( $rawManifest['packs'] ) ) {
-            $rawPacks = $rawManifest['packs'];
+        $packsField = $rawManifest['packs'] ?? null;
+        if ( is_array( $packsField ) ) {
+            // Support associative mapping id => meta, or list of items with id
+            if ( !\array_is_list( $packsField ) ) {
+                foreach ( $packsField as $idKey => $meta ) {
+                    if ( !is_string( $idKey ) || !is_array( $meta ) ) { continue; }
+                    $meta['id'] = $idKey;
+                    $rawPacks[] = $meta;
+                }
+            } else {
+                $rawPacks = $packsField;
+            }
         } elseif ( isset( $rawManifest[0] ) ) {
             $rawPacks = $rawManifest; // tolerate array root
         }
@@ -31,23 +41,24 @@ final class ManifestSchemaAdapter {
         $allPackIds = [];
         $allPageIds = [];
         foreach ( $rawPacks as $p ) {
-			if ( !is_array( $p ) ) {
-				continue;
-			}
-			$idStr = (string)( $p['id'] ?? '' );
-			if ( $idStr === '' ) {
-				continue;
-			}
+            if ( !is_array( $p ) ) { continue; }
+            $idStr = (string)( $p['id'] ?? '' );
+            if ( $idStr === '' ) { continue; }
             $allPackIds[$idStr] = true;
             if ( isset( $p['pages'] ) && is_array( $p['pages'] ) ) {
-                foreach ( $p['pages'] as $pg ) {
-                    $pgStr = (string)$pg;
-                    if ( $pgStr !== '' ) {
-                        $allPageIds[$pgStr] = true;
+                if ( \array_is_list( $p['pages'] ) ) {
+                    foreach ( $p['pages'] as $pg ) {
+                        $pgStr = (string)$pg;
+                        if ( $pgStr !== '' ) { $allPageIds[$pgStr] = true; }
+                    }
+                } else {
+                    foreach ( $p['pages'] as $pageId => $_meta ) {
+                        $pgStr = (string)$pageId;
+                        if ( $pgStr !== '' ) { $allPageIds[$pgStr] = true; }
                     }
                 }
             }
-		}
+        }
 
         // Second pass: map with validation of references and rules
         foreach ( $rawPacks as $p ) {
@@ -71,8 +82,11 @@ final class ManifestSchemaAdapter {
                 }
             }
 
-            if ( isset( $p['depends'] ) && is_array( $p['depends'] ) ) {
-                foreach ( $p['depends'] as $dep ) {
+            $dependsList = null;
+            if ( isset( $p['depends'] ) && is_array( $p['depends'] ) ) { $dependsList = $p['depends']; }
+            if ( isset( $p['depends_on'] ) && is_array( $p['depends_on'] ) ) { $dependsList = $p['depends_on']; }
+            if ( is_array( $dependsList ) ) {
+                foreach ( $dependsList as $dep ) {
                     $depStr = (string)$dep;
                     if ( $depStr !== '' ) {
                         if ( !isset( $allPackIds[$depStr] ) ) {
@@ -84,20 +98,29 @@ final class ManifestSchemaAdapter {
             }
 
             if ( isset( $p['pages'] ) && is_array( $p['pages'] ) ) {
-                foreach ( $p['pages'] as $pg ) {
-                    $pgStr = (string)$pg;
-                    if ( $pgStr !== '' ) {
-                        // All pages are declared inline; just map to VO
-                        $includedPages[] = new PageId( $pgStr );
+                if ( \array_is_list( $p['pages'] ) ) {
+                    foreach ( $p['pages'] as $pg ) {
+                        $pgStr = (string)$pg;
+                        if ( $pgStr !== '' ) {
+                            $includedPages[] = new PageId( $pgStr );
+                        }
+                    }
+                } else {
+                    foreach ( $p['pages'] as $pageId => $_meta ) {
+                        $pgStr = (string)$pageId;
+                        if ( $pgStr !== '' ) {
+                            $includedPages[] = new PageId( $pgStr );
+                        }
                     }
                 }
             }
 
-            // Semantic rule: A pack must contain ≥1 page OR ≥2 packs.
+            // Semantic rule: A pack must contain ≥1 page OR ≥2 packs (contained) OR ≥2 depends.
             $numPages = count( $includedPages );
             $numChildPacks = count( $containedPacks );
-            if ( $numPages < 1 && $numChildPacks < 2 ) {
-                throw new \InvalidArgumentException( "Pack '$idStr' must contain at least 1 page or at least 2 packs" );
+            $numDepends = count( $dependsOnPacks );
+            if ( $numPages < 1 && $numChildPacks < 2 && $numDepends < 2 ) {
+                throw new \InvalidArgumentException( "Pack '$idStr' must contain at least 1 page or at least 2 packs/depends" );
             }
 
             $packs[] = new Pack(

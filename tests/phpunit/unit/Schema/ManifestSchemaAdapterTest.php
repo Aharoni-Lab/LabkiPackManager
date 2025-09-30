@@ -50,6 +50,20 @@ class ManifestSchemaAdapterTest extends TestCase {
 		$raw = [ 'packs' => [ [ 'id' => 'thin' ] ] ];
 		(new ManifestSchemaAdapter())->toDomain( $raw );
 	}
+
+	/**
+	 * @covers ::toDomain
+	 */
+	public function testAssociativePacksMapAndDependsOn(): void {
+		$raw = [
+			'packs' => [
+				'core' => [ 'pages' => [ 'A' ] ],
+				'feat' => [ 'depends_on' => [ 'core' ], 'pages' => [ 'B' ] ],
+			],
+		];
+		$out = ( new ManifestSchemaAdapter() )->toDomain( $raw );
+		$this->assertCount( 2, $out['packs'] );
+	}
 }
 
 
