@@ -19,17 +19,36 @@ class ManifestSchemaAdapterTest extends TestCase {
 			'schema_version' => '1.0.0',
 			'packs' => [
 				[ 'id' => 'core', 'pages' => [ 'Home', 'About' ] ],
-				[ 'id' => 'feature', 'depends' => [ 'core' ], 'pages' => [ 'Feature' ] ],
+				[ 'id' => 'bundle', 'contains' => [ 'core', 'extra' ] ],
+				[ 'id' => 'extra', 'pages' => [ 'X' ] ],
 			],
 		];
 		$adapter = new ManifestSchemaAdapter();
 		$out = $adapter->toDomain( $raw );
 		$this->assertSame( '1.0.0', $out['schema_version'] );
-		$this->assertCount( 2, $out['packs'] );
+		$this->assertCount( 3, $out['packs'] );
 		$this->assertSame( 'core', $out['packs'][0]->getIdString() );
-		$this->assertSame( 'feature', $out['packs'][1]->getIdString() );
+		$this->assertSame( 'bundle', $out['packs'][1]->getIdString() );
 		$this->assertCount( 2, $out['packs'][0]->getIncludedPages() );
-		$this->assertCount( 1, $out['packs'][1]->getDependsOnPacks() );
+		$this->assertCount( 2, $out['packs'][1]->getContainedPacks() );
+	}
+
+	/**
+	 * @covers ::toDomain
+	 */
+	public function testInvalidReferencesThrow(): void {
+		$this->expectException( \InvalidArgumentException::class );
+		$raw = [ 'packs' => [ [ 'id' => 'a', 'contains' => [ 'missing' ] ] ] ];
+		(new ManifestSchemaAdapter())->toDomain( $raw );
+	}
+
+	/**
+	 * @covers ::toDomain
+	 */
+	public function testSemanticRuleEnforced(): void {
+		$this->expectException( \InvalidArgumentException::class );
+		$raw = [ 'packs' => [ [ 'id' => 'thin' ] ] ];
+		(new ManifestSchemaAdapter())->toDomain( $raw );
 	}
 }
 
