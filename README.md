@@ -113,5 +113,5 @@ Labki content repo expectations
 License
 -------
 
-GPL-2.0-or-later
+ EUPL-1.2
 
