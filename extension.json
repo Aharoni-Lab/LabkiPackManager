@@ -22,13 +22,41 @@
   "AutoloadNamespaces": {
     "LabkiPackManager\\": "includes/"
   },
+  "ResourceFileModulePaths": {
+    "localBasePath": "",
+    "remoteExtPath": "LabkiPackManager"
+  },
   "ResourceModules": {
     "ext.LabkiPackManager.styles": {
-      "styles": [],
+      "styles": [
+        "resources/css/packs.css"
+      ],
+      "dependencies": []
+    },
+    "ext.LabkiPackManager.app": {
+      "scripts": [
+        "resources/js/app.js"
+      ],
+      "messages": [
+        "labkipackmanager-ui-content-repo",
+        "labkipackmanager-ui-current",
+        "labkipackmanager-ui-load",
+        "labkipackmanager-ui-refresh",
+        "labkipackmanager-ui-included",
+        "labkipackmanager-ui-not-included",
+        "labkipackmanager-ui-no-packs",
+        "labkipackmanager-ui-selected-packs",
+        "labkipackmanager-ui-fetched",
+        "labkipackmanager-ui-cache-suffix"
+      ],
       "dependencies": [
-        "codex.styles"
+        "mediawiki.util",
+        "ext.LabkiPackManager.styles"
       ]
     }
+  },
+  "APIModules": {
+    "labkipacks": "LabkiPackManager\\API\\ApiLabkiPacks"
   },
   "SpecialPages": {
     "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
@@ -41,6 +69,22 @@
         "Empty Packs": "var/www/html/w/extensions/LabkiPackManager/tests/fixtures/manifest-empty.yml"
       },
       "description": "Associative array of content pack repositories (label => manifestUrl)."
+    },
+    "LabkiDefaultBranch": {
+      "value": "main",
+      "description": "Default branch or tag to display for content sources that support branches."
+    },
+    "LabkiCacheTTL": {
+      "value": 300,
+      "description": "Base cache TTL in seconds for fetched manifests."
+    },
+    "LabkiSchemaIndexUrl": {
+      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/index.json",
+      "description": "Index of schema versions for Labki manifests."
+    },
+    "LabkiSchemaCacheTTL": {
+      "value": 300,
+      "description": "TTL for schema index caching (future use)."
     }
   },
   "AvailableRights": [

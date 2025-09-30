@@ -3,14 +3,18 @@
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
+use LabkiPackManager\Schema\SchemaResolver;
 use Symfony\Component\Yaml\Yaml;
 
 class ManifestValidator {
     /** @var object|null */
     private $httpRequestFactory;
+    /** @var SchemaResolver|null */
+    private $schemaResolver;
 
-    public function __construct( $httpRequestFactory = null ) {
+    public function __construct( $httpRequestFactory = null, ?SchemaResolver $schemaResolver = null ) {
         $this->httpRequestFactory = $httpRequestFactory;
+        $this->schemaResolver = $schemaResolver;
     }
     /**
      * Validate a manifest string and return the decoded array on success.
@@ -93,31 +97,13 @@ class ManifestValidator {
     }
 
     private function resolveSchemaUrl( string $schemaVersion ) : ?string {
-        $indexUrl = 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/index.json';
-        try {
-            $data = $this->fetchJson( $indexUrl );
-            if ( !is_array( $data ) || !isset( $data['manifest'] ) || !is_array( $data['manifest'] ) ) {
-                return null;
-            }
-            $map = $data['manifest'];
-            $path = $map[$schemaVersion] ?? $map['latest'] ?? null;
-            if ( is_string( $path ) && $path !== '' ) {
-                return 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/' . $path;
-            }
-        } catch ( \Throwable $e ) {
-            return null;
-        }
-        return null;
+        $resolver = $this->schemaResolver ?? new SchemaResolver( $this->httpRequestFactory );
+        return $resolver->resolveManifestSchemaUrl( $schemaVersion );
     }
 
     private function fetchJson( string $url ) : mixed {
-        $http = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
-        $req = $http->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
-        $ok = $req->execute();
-        if ( !$ok->isOK() || $req->getStatus() !== 200 ) {
-            return null;
-        }
-        return json_decode( $req->getContent(), true );
+        $resolver = $this->schemaResolver ?? new SchemaResolver( $this->httpRequestFactory );
+        return $resolver->fetchSchemaJson( $url );
     }
 
     /**

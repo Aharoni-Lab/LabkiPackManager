@@ -48,7 +48,7 @@ class ManifestFetcher {
      * Fetch and parse the root YAML manifest from a specific URL.
      *
      * @param string $url
-     * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
+     * @return StatusValue StatusValue::newGood( array $data ) on success; newFatal on failure
      */
     public function fetchManifestFromUrl( string $url ) {
         $factory = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();

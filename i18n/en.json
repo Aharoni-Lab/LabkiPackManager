@@ -1,7 +1,17 @@
 {
   "@metadata": {
-    "authors": ["Aharoni-Lab"]
+    "authors": ["LabkiPackManager", "Aharoni-Lab"]
   },
+  "labkipackmanager-ui-content-repo": "Content repo:",
+  "labkipackmanager-ui-current": "Current:",
+  "labkipackmanager-ui-load": "Load",
+  "labkipackmanager-ui-refresh": "Refresh",
+  "labkipackmanager-ui-included": "Included",
+  "labkipackmanager-ui-not-included": "Not included",
+  "labkipackmanager-ui-no-packs": "No packs available for the selected source. Click Load or Refresh.",
+  "labkipackmanager-ui-selected-packs": "Selected packs:",
+  "labkipackmanager-ui-fetched": "Fetched",
+  "labkipackmanager-ui-cache-suffix": "· cache",
   "labkipackmanager-desc": "Import Labki .wiki content packs from a Git repository.",
   "labkipackmanager": "Manage Labki content packs",
   "specialpages-group-labki": "Labki",
