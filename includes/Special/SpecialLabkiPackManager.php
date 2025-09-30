@@ -3,9 +3,6 @@
 namespace LabkiPackManager\Special;
 
 use SpecialPage;
-use LabkiPackManager\Services\ManifestFetcher;
-use LabkiPackManager\Services\ManifestStore;
-use LabkiPackManager\Services\ContentSourceHelper;
 
 class SpecialLabkiPackManager extends SpecialPage {
     public function __construct() {
@@ -25,7 +22,9 @@ class SpecialLabkiPackManager extends SpecialPage {
 
         $output = $this->getOutput();
         $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' )->text() );
-        $output->addModules( [ 'ext.LabkiPackManager.styles' ] );
+        $output->addModules( [ 'ext.LabkiPackManager.styles', 'ext.LabkiPackManager.app' ] );
+        $output->addHTML( '<div id="labki-pack-manager-root"></div>' );
+        return;
 
         $request = $this->getRequest();
         $token = $request->getVal( 'token' );
