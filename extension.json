@@ -65,6 +65,14 @@
     "LabkiCacheTTL": {
       "value": 300,
       "description": "Base cache TTL in seconds for fetched manifests."
+    },
+    "LabkiSchemaIndexUrl": {
+      "value": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/index.json",
+      "description": "Index of schema versions for Labki manifests."
+    },
+    "LabkiSchemaCacheTTL": {
+      "value": 300,
+      "description": "TTL for schema index caching (future use)."
     }
   },
   "AvailableRights": [
