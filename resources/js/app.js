@@ -9,6 +9,10 @@
 		lastSources: []
 	};
 
+	function isExpanded(id){
+		return state.expanded[id] !== undefined ? state.expanded[id] : true;
+	}
+
 	function apiUrl(selected, opts){
 		let base = mw.util.wikiScript('api') + '?action=labkipacks&format=json&formatversion=2';
 		if (state.repo) base += '&repo=' + encodeURIComponent(state.repo);
@@ -37,7 +41,8 @@
 	}
 
 	function toggleExpand(id){
-		state.expanded[id] = !state.expanded[id];
+		const cur = isExpanded(id);
+		state.expanded[id] = !cur;
 		render();
 	}
 
@@ -64,7 +69,7 @@
 
 	function treeNode(node){
 		const hasChildren = Array.isArray(node.children) && node.children.length > 0;
-		const expanded = state.expanded[node.id] || false;
+		const expanded = isExpanded(node.id); // default expanded
 		const li = document.createElement('li');
 		li.className = 'lpm-node';
 		const head = document.createElement('div');

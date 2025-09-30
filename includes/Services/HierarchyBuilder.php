@@ -47,11 +47,22 @@ final class HierarchyBuilder {
 		$nodes = [];
 		$tree = [];
 		$seenPages = [];
-		$compute = function( Pack $p ) use ( &$compute, &$nodes, &$seenPages, $byId ) {
+		$visited = [];
+		$compute = function( Pack $p ) use ( &$compute, &$nodes, &$seenPages, $byId, &$visited ) {
+			$idStr = $p->getIdString();
+			if ( isset( $visited[$idStr] ) ) {
+				return [ 'node' => [ 'type' => 'pack', 'id' => $idStr, 'packsBeneath' => 0, 'pagesBeneath' => 0, 'children' => [] ], 'packsBeneath' => 0, 'pagesBeneath' => 0 ];
+			}
+			$visited[$idStr] = true;
 			$childPacks = [];
 			$packsBeneath = 0;
 			$pagesBeneath = 0;
-			foreach ( $p->getContainedPacks() as $childId ) {
+			$childIds = $p->getContainedPacks();
+			if ( !$childIds ) {
+				// Fallback to depends to visualize nested packs when no explicit contains
+				$childIds = $p->getDependsOnPacks();
+			}
+			foreach ( $childIds as $childId ) {
 				$child = $byId[(string)$childId] ?? null;
 				if ( !$child ) { continue; }
 				$vm = $compute( $child );
@@ -68,20 +79,21 @@ final class HierarchyBuilder {
 			}
 			$node = [
 				'type' => 'pack',
-				'id' => $p->getIdString(),
+				'id' => $idStr,
 				'packsBeneath' => $packsBeneath,
 				'pagesBeneath' => $pagesBeneath,
 				'children' => array_merge( $childPacks, $pageChildren ),
 			];
 			$nodes['pack:' . $p->getIdString()] = [
 				'type' => 'pack',
-				'id' => 'pack:' . $p->getIdString(),
+				'id' => 'pack:' . $idStr,
 				'packsBeneath' => $packsBeneath,
 				'pagesBeneath' => $pagesBeneath,
 			];
 			foreach ( $pageChildren as $pc ) {
 				$nodes['page:' . $pc['id']] = [ 'type' => 'page', 'id' => 'page:' . $pc['id'] ];
 			}
+			unset( $visited[$idStr] );
 			return [ 'node' => $node, 'packsBeneath' => $packsBeneath, 'pagesBeneath' => $pagesBeneath ];
 		};
 		foreach ( $roots as $rid ) {
