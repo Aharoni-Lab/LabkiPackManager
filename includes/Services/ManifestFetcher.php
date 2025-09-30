@@ -48,7 +48,7 @@ class ManifestFetcher {
      * Fetch and parse the root YAML manifest from a specific URL.
      *
      * @param string $url
-     * @return StatusValue StatusValue::newGood( string $yaml ) on success; newFatal on failure
+     * @return StatusValue StatusValue::newGood( array $data ) on success; newFatal on failure
      */
     public function fetchManifestFromUrl( string $url ) {
         $factory = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
@@ -82,8 +82,25 @@ class ManifestFetcher {
             $body = $content;
         }
 
-        // Return raw YAML; validation/parsing handled by ManifestLoader layer
-        return $this->newGood( $body );
+        // Validate manifest (schema_version presence and schema structure)
+        $validator = new ManifestValidator( $factory );
+        $validation = $validator->validate( $body );
+        if ( !$validation->isOK() ) {
+            return $validation;
+        }
+        $decoded = $validation->getValue();
+        $schemaVersion = is_array( $decoded ) ? ( $decoded['schema_version'] ?? null ) : null;
+
+        // Parse validated manifest to normalized packs list
+        $parser = new ManifestParser();
+        try {
+            $packs = $parser->parse( $body );
+        } catch ( \InvalidArgumentException $e ) {
+            $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
+            return $this->newFatal( $msg );
+        }
+
+        return $this->newGood( [ 'packs' => $packs, 'schema_version' => $schemaVersion ] );
     }
 
     private function newFatal( string $key ) {

@@ -31,14 +31,20 @@ final class ManifestLoader {
             return [ 'schema_version' => null, 'packs' => [], 'errorKey' => $this->extractStatusKey( $status ) ];
         }
         $val = $status->getValue();
-        $yaml = is_string( $val ) ? $val : Yaml::dump( $val );
-        $validated = $this->validator->validate( $yaml );
-        if ( !$validated->isOK() ) {
-            return [ 'schema_version' => null, 'packs' => [], 'errorKey' => $this->extractStatusKey( $validated ) ];
+        if ( is_array( $val ) && isset( $val['packs'] ) ) {
+            $raw = [ 'schema_version' => $val['schema_version'] ?? null, 'packs' => [] ];
+            foreach ( $val['packs'] as $p ) {
+                $raw['packs'][] = [
+                    'id' => $p['id'] ?? '',
+                    'description' => $p['description'] ?? null,
+                    'version' => $p['version'] ?? null,
+                    'depends' => $p['depends_on'] ?? [],
+                    'pages' => $p['pages'] ?? [],
+                ];
+            }
+            return $this->adapter->toDomain( $raw );
         }
-        $raw = $validated->getValue();
-        $mapped = $this->adapter->toDomain( is_array( $raw ) ? $raw : [] );
-        return $mapped;
+        return [ 'schema_version' => null, 'packs' => [] ];
 	}
 
     private function extractStatusKey( $status ) : ?string {
