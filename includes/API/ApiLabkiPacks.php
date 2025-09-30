@@ -33,7 +33,12 @@ final class ApiLabkiPacks extends ApiBase {
 		$manifestUrl = ContentSourceHelper::getManifestUrlForLabel( $sources, $repoLabel );
 
 		$doRefresh = $this->getRequest()->getCheck( 'refresh' );
-		$store = new ManifestStore( $manifestUrl );
+		// Permission gate for refresh
+		if ( $doRefresh && !$this->getAuthority()->isAllowed( 'labkipackmanager-manage' ) ) {
+			$doRefresh = false;
+		}
+		$ttl = (int)$this->getConfig()->get( 'LabkiCacheTTL' );
+		$store = new ManifestStore( $manifestUrl, null, $ttl > 0 ? $ttl : null );
 		$usedCache = false;
 		$fetchedAt = null;
 		$domain = [ 'schema_version' => null, 'packs' => [] ];
@@ -92,6 +97,14 @@ final class ApiLabkiPacks extends ApiBase {
 			$payload['errorKey'] = $domain['errorKey'];
 		}
 		$this->getResult()->addValue( null, $this->getModuleName(), $payload );
+	}
+
+	public function getAllowedParams() {
+		return [
+			'repo' => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
+			'selected' => [ self::PARAM_TYPE => 'string', self::PARAM_ISMULTI => true, self::PARAM_DFLT => [] ],
+			'refresh' => [ self::PARAM_TYPE => 'boolean', self::PARAM_DFLT => false ],
+		];
 	}
 
 	public function isInternal() {

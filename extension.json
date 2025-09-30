@@ -37,6 +37,18 @@
       "scripts": [
         "resources/js/app.js"
       ],
+      "messages": [
+        "labkipackmanager-ui-content-repo",
+        "labkipackmanager-ui-current",
+        "labkipackmanager-ui-load",
+        "labkipackmanager-ui-refresh",
+        "labkipackmanager-ui-included",
+        "labkipackmanager-ui-not-included",
+        "labkipackmanager-ui-no-packs",
+        "labkipackmanager-ui-selected-packs",
+        "labkipackmanager-ui-fetched",
+        "labkipackmanager-ui-cache-suffix"
+      ],
       "dependencies": [
         "mediawiki.util",
         "ext.LabkiPackManager.styles"

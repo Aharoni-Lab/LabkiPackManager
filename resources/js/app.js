@@ -90,6 +90,15 @@ function recomputePreviewLocally(){
     state.previewPagesSet = pages;
 }
 
+const fetchDebounced = (function(){
+    let t = null, lastOpts = null;
+    return function(opts){
+        lastOpts = opts || null;
+        if (t){ clearTimeout(t); }
+        t = setTimeout(() => { t = null; fetchData(lastOpts); }, 50);
+    };
+})();
+
 function onTogglePack(id){
     if (isDirectSelected(id)){
 			if (isLocked(id)){
@@ -101,7 +110,7 @@ function onTogglePack(id){
 			state.selected[id] = true;
 		}
     recomputePreviewLocally();
-		fetchData();
+    fetchDebounced();
 	}
 
 	function treeNode(node){
@@ -110,19 +119,21 @@ function onTogglePack(id){
 		const li = document.createElement('li');
 		li.className = 'lpm-node';
 		const head = document.createElement('div');
-		head.className = 'lpm-row';
+		head.className = 'lpm-row'; head.setAttribute('role','row');
 		if (node.type === 'pack'){
 			const btn = document.createElement('button');
 			btn.type = 'button';
 			btn.className = 'lpm-expander';
 			btn.textContent = hasChildren ? (expanded ? '▾' : '▸') : '·';
 			btn.disabled = !hasChildren;
+			btn.setAttribute('aria-expanded', String(expanded));
 			btn.addEventListener('click', () => toggleExpand(node.id));
 			head.appendChild(btn);
 
 			const cb = document.createElement('input');
 			cb.type = 'checkbox'; cb.checked = isEffectiveSelectedPack(node.id);
 			cb.disabled = isLocked(node.id);
+			if (cb.disabled) cb.setAttribute('aria-disabled','true');
 			const checkboxId = 'lpm-cb-' + state.uidPrefix + '-' + (++state.uids);
 			cb.id = checkboxId;
 			cb.name = 'pack[]';
@@ -173,7 +184,7 @@ function onTogglePack(id){
 		// keep state.uids monotonic across renders to guarantee unique ids globally
 		if (!tree.length){
 			const empty = document.createElement('div');
-			empty.textContent = 'No packs available for the selected source. Click Load or Refresh.';
+			empty.textContent = mw.msg('labkipackmanager-ui-no-packs');
 			root.appendChild(empty);
 			return;
 		}
@@ -187,7 +198,7 @@ function onTogglePack(id){
 		box.className = 'lpm-summary';
 		const sel = state.data?.preview?.packs || Object.keys(state.selected);
 		const pages = state.data?.preview?.pages || [];
-		let text = `Selected packs: ${sel.length}  |  Pages: ${pages.length}`;
+		let text = `${mw.msg('labkipackmanager-ui-selected-packs')} ${sel.length}  |  Pages: ${pages.length}`;
 		if (state.data?.errorKey){ text += `  |  Error: ${state.data.errorKey}`; }
 		box.textContent = text;
 		root.appendChild(box);
@@ -217,7 +228,7 @@ function onTogglePack(id){
 		wrap.style.marginBottom = '8px';
 		const sources = (state.data && Array.isArray(state.data.sources) ? state.data.sources : state.lastSources) || [];
 		if (!sources.length) return;
-		const label = document.createElement('label'); label.textContent = 'Content repo:'; label.style.marginRight = '6px';
+		const label = document.createElement('label'); label.textContent = mw.msg('labkipackmanager-ui-content-repo'); label.style.marginRight = '6px';
 		const selectId = 'lpm-repo-select';
 		label.htmlFor = selectId;
 		const select = document.createElement('select');
@@ -227,13 +238,13 @@ function onTogglePack(id){
 		}
 		select.addEventListener('change', () => { state.repo = select.value; state.selected = Object.create(null); state.expanded = Object.create(null); fetchData(); });
 		wrap.appendChild(label); wrap.appendChild(select);
-		const active = document.createElement('span'); active.style.marginLeft = '8px'; active.style.color = '#555'; active.textContent = `Current: ${state.repo || ''}`; wrap.appendChild(active);
+		const active = document.createElement('span'); active.style.marginLeft = '8px'; active.style.color = '#555'; active.textContent = `${mw.msg('labkipackmanager-ui-current')} ${state.repo || ''}`; wrap.appendChild(active);
 
-		const btnLoad = document.createElement('button'); btnLoad.type = 'button'; btnLoad.className = 'cdx-button'; btnLoad.style.marginLeft = '8px'; btnLoad.textContent = 'Load';
+		const btnLoad = document.createElement('button'); btnLoad.type = 'button'; btnLoad.className = 'cdx-button'; btnLoad.style.marginLeft = '8px'; btnLoad.textContent = mw.msg('labkipackmanager-ui-load');
 		btnLoad.addEventListener('click', () => { fetchData(); });
 		wrap.appendChild(btnLoad);
 
-		const btnRefresh = document.createElement('button'); btnRefresh.type = 'button'; btnRefresh.className = 'cdx-button cdx-button--action-progressive'; btnRefresh.style.marginLeft = '4px'; btnRefresh.textContent = 'Refresh';
+		const btnRefresh = document.createElement('button'); btnRefresh.type = 'button'; btnRefresh.className = 'cdx-button cdx-button--action-progressive'; btnRefresh.style.marginLeft = '4px'; btnRefresh.textContent = mw.msg('labkipackmanager-ui-refresh');
 		btnRefresh.addEventListener('click', () => { fetchData({ refresh: true }); });
 		wrap.appendChild(btnRefresh);
 
@@ -241,7 +252,7 @@ function onTogglePack(id){
 		const meta = document.createElement('span'); meta.style.marginLeft = '8px'; meta.style.color = '#666';
 		if (typeof status.fetchedAt === 'number'){
 			const dt = new Date(status.fetchedAt * 1000);
-			meta.textContent = `Fetched ${dt.toISOString().slice(0,16)} (UTC) ${status.usingCache ? '· cache' : ''}`;
+			meta.textContent = `${mw.msg('labkipackmanager-ui-fetched')} ${dt.toISOString().slice(0,16)} (UTC) ${status.usingCache ? mw.msg('labkipackmanager-ui-cache-suffix') : ''}`;
 		}
 		wrap.appendChild(meta);
 		container.appendChild(wrap);
