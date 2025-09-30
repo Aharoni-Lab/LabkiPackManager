@@ -152,14 +152,25 @@ docker compose exec mediawiki bash
 Run unit tests for your extension:
 
 ```bash
-composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/unit
+git config --global --add safe.directory /var/www/html/w   # fix "dubious ownership" if shown
+composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit
 ```
 
 Run integration tests:
 
 ```bash
-PHPUNIT_WIKI=wiki composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/integration
+PHPUNIT_WIKI=wiki composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration
 ```
+
+Run all extension tests (unit + integration) using MediaWiki core’s test suite:
+
+```bash
+composer phpunit:entrypoint -- --testsuite extensions --filter LabkiPackManager
+```
+
+Notes:
+- If you see "MediaWikiIntegrationTestCase not found", run via the core suite command above (don’t pass the extension phpunit.xml for integration tests).
+- Always invoke through `composer phpunit:entrypoint`; avoid calling `vendor/bin/phpunit` directly.
 
 Run one test file or directory by passing a path at the end. Always use these entrypoints; do not invoke PHPUnit directly.
 
