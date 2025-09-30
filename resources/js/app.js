@@ -94,8 +94,10 @@
 
 			const labelEl = document.createElement('label');
 			labelEl.htmlFor = checkboxId;
-			labelEl.textContent = node.id + metaSuffix(node.id);
+			labelEl.textContent = node.id;
 			head.appendChild(labelEl);
+			const meta = document.createElement('span'); meta.className = 'lpm-meta'; meta.textContent = countsText(node.id);
+			head.appendChild(meta);
 		} else {
 			const spacer = document.createElement('span'); spacer.textContent = '  ';
 			head.appendChild(spacer);
@@ -112,11 +114,11 @@
 		return li;
 	}
 
-	function metaSuffix(packId){
+	function countsText(packId){
 		const n = state.data?.nodes?.['pack:' + packId];
 		if (!n) return '';
 		const p = n.pagesBeneath ?? 0; const k = n.packsBeneath ?? 0;
-		return `  (${p} pages, ${k} packs)`;
+		return `${p} pages · ${k} packs`;
 	}
 
 	function renderTree(root){
@@ -129,7 +131,7 @@
 			root.appendChild(empty);
 			return;
 		}
-		const ul = document.createElement('ul');
+		const ul = document.createElement('ul'); ul.className = 'lpm-tree';
 		for (const n of tree){ ul.appendChild(treeNode(n)); }
 		root.appendChild(ul);
 	}
@@ -186,12 +188,10 @@
 		el.innerHTML = '';
 		const top = document.createElement('div'); el.appendChild(top);
 		renderRepoPicker(top);
-		const left = document.createElement('div');
-		left.style.width = '60%'; left.style.float = 'left';
-		const right = document.createElement('div');
-		right.style.width = '38%'; right.style.float = 'right';
-		right.style.minHeight = '200px'; right.style.borderLeft = '1px solid #eee'; right.style.paddingLeft = '8px';
-		el.appendChild(left); el.appendChild(right);
+		const layout = document.createElement('div'); layout.className = 'lpm-layout'; el.appendChild(layout);
+		const left = document.createElement('div'); left.className = 'lpm-left';
+		const right = document.createElement('div'); right.className = 'lpm-right';
+		layout.appendChild(left); layout.appendChild(right);
 		renderTree(left);
 		renderSummary(right);
 	}
