@@ -8,7 +8,9 @@
 		repo: null,
 		lastSources: [],
 		previewPacksSet: new Set(),
-		previewPagesSet: new Set()
+		previewPagesSet: new Set(),
+		uids: 0,
+		uidPrefix: (Math.random().toString(36).slice(2))
 	};
 
 	function isExpanded(id){
@@ -121,18 +123,25 @@ function onTogglePack(id){
 			const cb = document.createElement('input');
 			cb.type = 'checkbox'; cb.checked = isEffectiveSelectedPack(node.id);
 			cb.disabled = isLocked(node.id);
-			const checkboxId = 'lpm-cb-' + node.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+			const checkboxId = 'lpm-cb-' + state.uidPrefix + '-' + (++state.uids);
 			cb.id = checkboxId;
 			cb.name = 'pack[]';
 			cb.addEventListener('change', () => onTogglePack(node.id));
 			head.appendChild(cb);
 
+			const nameWrap = document.createElement('div'); nameWrap.className = 'lpm-name';
 			const labelEl = document.createElement('label');
 			labelEl.htmlFor = checkboxId;
 			labelEl.textContent = node.id;
-			head.appendChild(labelEl);
+			nameWrap.appendChild(labelEl);
 			const meta = document.createElement('span'); meta.className = 'lpm-meta'; meta.textContent = countsText(node.id);
-			head.appendChild(meta);
+			nameWrap.appendChild(meta);
+			head.appendChild(nameWrap);
+			const info = packNode(node.id) || {};
+			const ver = document.createElement('span'); ver.className = 'lpm-ver'; ver.textContent = info.version || '';
+			head.appendChild(ver);
+			const desc = document.createElement('span'); desc.className = 'lpm-desc-cell'; desc.textContent = info.description || '';
+			head.appendChild(desc);
 		} else {
 			const inc = document.createElement('span'); inc.className = 'lpm-inc' + (isPageIncluded(node.id) ? ' on' : ''); inc.title = isPageIncluded(node.id) ? 'Included' : 'Not included';
 			head.appendChild(inc);
@@ -155,10 +164,13 @@ function onTogglePack(id){
 		return `${p} pages · ${k} packs`;
 	}
 
+	function packNode(packId){ return state.data?.nodes?.['pack:' + packId] || null; }
+
 	function renderTree(root){
 		if (!state.data) return;
 		const tree = state.data.tree || [];
 		root.innerHTML = '';
+		// keep state.uids monotonic across renders to guarantee unique ids globally
 		if (!tree.length){
 			const empty = document.createElement('div');
 			empty.textContent = 'No packs available for the selected source. Click Load or Refresh.';
@@ -179,6 +191,25 @@ function onTogglePack(id){
 		if (state.data?.errorKey){ text += `  |  Error: ${state.data.errorKey}`; }
 		box.textContent = text;
 		root.appendChild(box);
+
+	// Details table for selected packs with version and description
+	const table = document.createElement('table'); table.className = 'lpm-table';
+	const thead = document.createElement('thead'); const trh = document.createElement('tr');
+	for (const h of ['Pack', 'Version', 'Description']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
+	thead.appendChild(trh); table.appendChild(thead);
+	const tbody = document.createElement('tbody');
+	const packs = state.previewPacksSet.size ? Array.from(state.previewPacksSet) : Object.keys(state.selected);
+	packs.sort();
+	for (const id of packs){
+		const n = packNode(id); if (!n) continue;
+		const tr = document.createElement('tr');
+		const td1 = document.createElement('td'); td1.textContent = id; tr.appendChild(td1);
+		const td2 = document.createElement('td'); td2.textContent = n.version || ''; tr.appendChild(td2);
+		const td3 = document.createElement('td'); td3.textContent = n.description || ''; tr.appendChild(td3);
+		tbody.appendChild(tr);
+	}
+	table.appendChild(tbody);
+	root.appendChild(table);
 	}
 
 	function renderRepoPicker(container){

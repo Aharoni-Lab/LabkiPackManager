@@ -89,6 +89,8 @@ final class HierarchyBuilder {
 				'id' => 'pack:' . $idStr,
 				'packsBeneath' => $packsBeneath,
 				'pagesBeneath' => $pagesBeneath,
+				'description' => $p->getDescription(),
+				'version' => $p->getVersion(),
 			];
 			foreach ( $pageChildren as $pc ) {
 				$nodes['page:' . $pc['id']] = [ 'type' => 'page', 'id' => 'page:' . $pc['id'] ];
