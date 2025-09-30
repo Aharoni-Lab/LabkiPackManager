@@ -24,14 +24,19 @@ final class ApiLabkiPacks extends ApiBase {
 		$mermaid = new MermaidBuilder();
 
 		$domain = $loader->loadFromUrl( $manifestUrl );
-		$edgesInfo = $graph->build( $domain['packs'] );
+		$graphInfo = $graph->build( $domain['packs'] );
 		$tree = $hierarchy->buildTree( $domain['packs'] );
-		$diagram = $mermaid->generate( $edgesInfo['edges'] );
+		$diagram = $mermaid->generate( $graphInfo['dependsEdges'] );
 
 		$this->getResult()->addValue( null, $this->getModuleName(), [
 			'schema' => $domain['schema_version'],
 			'tree' => $tree,
-			'edges' => $edgesInfo['edges'],
+			'containsEdges' => $graphInfo['containsEdges'],
+			'dependsEdges' => $graphInfo['dependsEdges'],
+			'hasCycle' => $graphInfo['hasCycle'],
+			'transitiveDepends' => $graphInfo['transitiveDepends'],
+			'reverseDepends' => $graphInfo['reverseDepends'],
+			'rootPacks' => $graphInfo['rootPacks'],
 			'mermaid' => $diagram,
 		] );
 	}

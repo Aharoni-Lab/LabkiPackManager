@@ -132,10 +132,10 @@ final class GraphBuilder {
 	 * @return string[]
 	 */
 	private function rootPacks( array $idSet, array $depends ): array {
-		$hasIncoming = [];
-		foreach ( $depends as $e ) { $hasIncoming[$e['from']] = $hasIncoming[$e['from']] ?? false; $hasIncoming[$e['to']] = true; }
+		$hasOutgoing = [];
+		foreach ( $depends as $e ) { $hasOutgoing[$e['from']] = true; $hasOutgoing[$e['to']] = $hasOutgoing[$e['to']] ?? false; }
 		$roots = [];
-		foreach ( $idSet as $id => $_ ) { if ( empty( $hasIncoming[$id] ) ) { $roots[] = $id; } }
+		foreach ( $idSet as $id => $_ ) { if ( empty( $hasOutgoing[$id] ) ) { $roots[] = $id; } }
 		return $roots;
 	}
 }
