@@ -6,7 +6,9 @@
 		selected: Object.create(null),
 		locks: Object.create(null),
 		repo: null,
-		lastSources: []
+		lastSources: [],
+		previewPacksSet: new Set(),
+		previewPagesSet: new Set()
 	};
 
 	function isExpanded(id){
@@ -34,6 +36,8 @@
 			if (state.data.preview && state.data.preview.locks){
 				for (const [k,v] of Object.entries(state.data.preview.locks)) state.locks[k] = v;
 			}
+			state.previewPacksSet = new Set(Array.isArray(state.data?.preview?.packs) ? state.data.preview.packs : []);
+			state.previewPagesSet = new Set(Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : []);
 			render();
 		} catch (e) {
 			mw.notify('Failed to load data: ' + e, { type: 'error' });
@@ -50,12 +54,42 @@
 		return !!state.locks[id];
 	}
 
-	function isSelected(id){
-		return !!state.selected[id];
+	function isDirectSelected(id){ return !!state.selected[id]; }
+	function isEffectiveSelectedPack(id){
+		if (state.previewPacksSet.size) return state.previewPacksSet.has(id);
+		return isDirectSelected(id);
+	}
+	function isPageIncluded(id){
+		return state.previewPagesSet.has(id);
 	}
 
-	function onTogglePack(id){
-		if (isSelected(id)){
+function recomputePreviewLocally(){
+    const edges = Array.isArray(state.data?.edges) ? state.data.edges : [];
+    const depAdj = Object.create(null);
+    const containsPages = Object.create(null);
+    for (const e of edges){
+        if (e.rel === 'depends' && typeof e.from === 'string' && typeof e.to === 'string'){
+            const from = e.from.replace(/^pack:/,''); const to = e.to.replace(/^pack:/,'');
+            (depAdj[from] ||= []).push(to);
+        }
+        if (e.rel === 'contains' && typeof e.from === 'string' && typeof e.to === 'string'){
+            const from = e.from.replace(/^pack:/,''); const to = e.to.replace(/^page:/,'');
+            (containsPages[from] ||= []).push(to);
+        }
+    }
+    const selected = Object.keys(state.selected);
+    const seen = Object.create(null);
+    function dfs(p){ if (seen[p]) return; seen[p]=true; const arr=depAdj[p]||[]; for (const q of arr) dfs(q); }
+    for (const s of selected){ dfs(s); }
+    const packs = new Set(Object.keys(seen));
+    const pages = new Set();
+    for (const p of packs){ const arr = containsPages[p]||[]; for (const t of arr) pages.add(t); }
+    state.previewPacksSet = packs;
+    state.previewPagesSet = pages;
+}
+
+function onTogglePack(id){
+    if (isDirectSelected(id)){
 			if (isLocked(id)){
 				mw.notify('Cannot deselect: ' + state.locks[id], { type: 'warn' });
 				return;
@@ -64,6 +98,7 @@
 		} else {
 			state.selected[id] = true;
 		}
+    recomputePreviewLocally();
 		fetchData();
 	}
 
@@ -84,7 +119,7 @@
 			head.appendChild(btn);
 
 			const cb = document.createElement('input');
-			cb.type = 'checkbox'; cb.checked = isSelected(node.id);
+			cb.type = 'checkbox'; cb.checked = isEffectiveSelectedPack(node.id);
 			cb.disabled = isLocked(node.id);
 			const checkboxId = 'lpm-cb-' + node.id.replace(/[^a-zA-Z0-9_-]/g, '-');
 			cb.id = checkboxId;
@@ -99,10 +134,9 @@
 			const meta = document.createElement('span'); meta.className = 'lpm-meta'; meta.textContent = countsText(node.id);
 			head.appendChild(meta);
 		} else {
-			const spacer = document.createElement('span'); spacer.textContent = '  ';
-			head.appendChild(spacer);
-			const label = document.createElement('span');
-			label.textContent = node.id;
+			const inc = document.createElement('span'); inc.className = 'lpm-inc' + (isPageIncluded(node.id) ? ' on' : ''); inc.title = isPageIncluded(node.id) ? 'Included' : 'Not included';
+			head.appendChild(inc);
+			const label = document.createElement('span'); label.className = 'lpm-page-label'; label.textContent = node.id;
 			head.appendChild(label);
 		}
 		li.appendChild(head);
