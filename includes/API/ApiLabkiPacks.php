@@ -15,6 +15,7 @@ use LabkiPackManager\Services\ContentSourceHelper;
 use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Services\InstalledRegistry;
 use LabkiPackManager\Util\SemVer;
+use LabkiPackManager\Services\PreflightPlanner;
 
 final class ApiLabkiPacks extends ApiBase {
 	public function __construct( ApiMain $main, string $name ) {
@@ -97,11 +98,15 @@ final class ApiLabkiPacks extends ApiBase {
             $edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
         }
 
-		$selected = $this->getRequest()->getArray( 'selected' ) ?: [];
-		$preview = [];
-		if ( $selected ) {
-			$preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
-		}
+        $selected = $this->getRequest()->getArray( 'selected' ) ?: [];
+        $preview = [];
+        $preflight = null;
+        if ( $selected ) {
+            $preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
+            // Pre-flight summary based on current wiki state
+            $planner = new PreflightPlanner();
+            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [] ] );
+        }
 
 		$payload = [
 			'source' => [ 'name' => $repoLabel, 'branch' => $this->getConfig()->get( 'LabkiDefaultBranch' ), 'commit' => null ],
@@ -114,7 +119,8 @@ final class ApiLabkiPacks extends ApiBase {
 			'tree' => $vm['tree'],
 			'edges' => $edges,
 			'mermaid' => [ 'code' => $diagram['code'], 'idMap' => $diagram['idMap'] ],
-			'preview' => $preview,
+            'preview' => $preview,
+            'preflight' => $preflight,
 			'dataVersion' => 1,
 		];
 		if ( isset( $domain['errorKey'] ) ) {

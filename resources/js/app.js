@@ -206,6 +206,29 @@ function onTogglePack(id){
 		box.textContent = text;
 		root.appendChild(box);
 
+		// Pre-flight summary
+		if (state.data?.preflight){
+			const pf = state.data.preflight;
+			const pfBox = document.createElement('div'); pfBox.className = 'lpm-summary';
+			pfBox.textContent = `Pre-flight: Create ${pf.create || 0} | Update (unchanged) ${pf.update_unchanged || 0} | Update (modified) ${pf.update_modified || 0} | Pack-pack ${pf.pack_pack_conflicts || 0} | External ${pf.external_collisions || 0}`;
+			root.appendChild(pfBox);
+			// Simple drill-down lists toggled inline
+			const makeList = (label, list) => {
+				if (!Array.isArray(list) || !list.length) return null;
+				const wrap = document.createElement('div'); wrap.style.marginTop = '4px';
+				const btn = document.createElement('button'); btn.type='button'; btn.className='cdx-button'; btn.textContent = label + ` (${list.length})`;
+				const ul = document.createElement('ul'); ul.style.margin='4px 0 0 16px'; ul.style.display='none';
+				for (const t of list){ const li=document.createElement('li'); li.textContent=t; ul.appendChild(li); }
+				btn.addEventListener('click', ()=>{ ul.style.display = (ul.style.display==='none') ? 'block' : 'none'; });
+				wrap.appendChild(btn); wrap.appendChild(ul); return wrap;
+			};
+			const lists = pf.lists || {};
+			for (const [key,label] of [ ['create','Create'], ['update_unchanged','Update (unchanged)'], ['update_modified','Update (modified)'], ['pack_pack_conflicts','Pack-pack conflicts'], ['external_collisions','External collisions'] ]){
+				const el = makeList(label, lists[key] || []);
+				if (el) root.appendChild(el);
+			}
+		}
+
     // Details table for selected packs with version, installed/update, and description
 	const table = document.createElement('table'); table.className = 'lpm-table';
 	const thead = document.createElement('thead'); const trh = document.createElement('tr');
