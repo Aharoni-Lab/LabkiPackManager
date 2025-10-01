@@ -10,24 +10,27 @@ use LabkiPackManager\Domain\Pack;
  * Resolves dependency closure and final page list without I/O.
  */
 final class SelectionResolver {
-	/**
-	 * @param Pack[] $packs
-	 * @param string[] $selectedPackIds
-	 * @return array{packs: string[], pages: string[]}
-	 */
-	public function resolve( array $packs, array $selectedPackIds ): array {
+    /**
+     * @param Pack[] $packs
+     * @param string[] $selectedPackIds
+     * @return array{packs: string[], pages: string[], pageOwners: array<string,string[]>}
+     */
+    public function resolve( array $packs, array $selectedPackIds ): array {
 		$graph = $this->buildDependsAdjacency( $packs );
 		$closure = $this->closure( $selectedPackIds, $graph );
-		$pages = [];
+        $pages = [];
+        $owners = [];
 		$selectedSet = array_flip( $closure );
 		foreach ( $packs as $p ) {
 			if ( isset( $selectedSet[$p->getIdString()] ) ) {
 				foreach ( $p->getIncludedPages() as $pg ) {
-					$pages[(string)$pg] = true;
+                    $id = (string)$pg;
+                    $pages[$id] = true;
+                    $owners[$id][] = $p->getIdString();
 				}
 			}
 		}
-		return [ 'packs' => $closure, 'pages' => array_keys( $pages ) ];
+        return [ 'packs' => $closure, 'pages' => array_keys( $pages ), 'pageOwners' => $owners ];
 	}
 
 	/**
@@ -36,7 +39,7 @@ final class SelectionResolver {
 	 * @param string[] $selectedPackIds
 	 * @return array{packs: string[], pages: string[], locks: array<string,string>}
 	 */
-	public function resolveWithLocks( array $packs, array $selectedPackIds ): array {
+    public function resolveWithLocks( array $packs, array $selectedPackIds ): array {
 		$graph = $this->buildDependsAdjacency( $packs );
 		$closure = $this->closure( $selectedPackIds, $graph );
 		$selectedDirect = array_flip( $selectedPackIds );
@@ -48,8 +51,8 @@ final class SelectionResolver {
 				}
 			}
 		}
-		$base = $this->resolve( $packs, $selectedPackIds );
-		return [ 'packs' => $base['packs'], 'pages' => $base['pages'], 'locks' => $locks ];
+        $base = $this->resolve( $packs, $selectedPackIds );
+        return [ 'packs' => $base['packs'], 'pages' => $base['pages'], 'locks' => $locks, 'pageOwners' => $base['pageOwners'] ];
 	}
 
 	/**

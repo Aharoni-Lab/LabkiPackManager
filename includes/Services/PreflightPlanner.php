@@ -12,8 +12,13 @@ use MediaWiki\Revision\SlotRecord;
  */
 final class PreflightPlanner {
     /**
-     * @param array{packs:string[],pages:string[]} $resolved SelectionResolver result
-     * @return array{create:int,update_unchanged:int,update_modified:int,pack_pack_conflicts:int,external_collisions:int}
+     * @param array{packs:string[],pages:string[],pageOwners?:array<string,string[]>} $resolved SelectionResolver result plus optional pageOwners mapping
+     * @return array{
+     *   create:int,update_unchanged:int,update_modified:int,pack_pack_conflicts:int,external_collisions:int,
+     *   lists:array{
+     *     create:string[],update_unchanged:string[],update_modified:string[],pack_pack_conflicts:string[],external_collisions:string[]
+     *   }
+     * }
      */
     public function plan( array $resolved ): array {
         $services = MediaWikiServices::getInstance();
@@ -22,12 +27,13 @@ final class PreflightPlanner {
         $dbr = $services->getDBLoadBalancer()->getConnection( DB_REPLICA );
 
         $create = 0; $updateUnchanged = 0; $updateModified = 0; $packPack = 0; $external = 0;
+        $createList = []; $updateUnchangedList = []; $updateModifiedList = []; $packPackList = []; $externalList = [];
 
         foreach ( $resolved['pages'] as $prefixed ) {
             $title = $titleFactory->newFromText( $prefixed );
             if ( !$title ) { continue; }
             $pageId = (int)$title->getArticleID();
-            if ( $pageId === 0 ) { $create++; continue; }
+            if ( $pageId === 0 ) { $create++; $createList[] = $prefixed; continue; }
 
             // Check page_props for provenance
             $pp = $dbr->newSelectQueryBuilder()
@@ -39,7 +45,13 @@ final class PreflightPlanner {
             foreach ( $pp as $row ) { $props[(string)$row->pp_propname] = (string)$row->pp_value; }
 
             $packId = $props['labki.pack_id'] ?? null;
-            if ( $packId === null ) { $external++; continue; }
+            if ( $packId === null ) { $external++; $externalList[] = $prefixed; continue; }
+
+            // If existing page is owned by a different pack than any selected owners -> pack-pack conflict
+            $owners = (array)( $resolved['pageOwners'][$prefixed] ?? [] );
+            if ( $owners && !in_array( $packId, $owners, true ) ) {
+                $packPack++; $packPackList[] = $prefixed; continue;
+            }
 
             // Same pack → candidate update; compare local drift vs last labki.content_hash
             $rev = $revLookup->getRevisionByTitle( $title );
@@ -54,8 +66,8 @@ final class PreflightPlanner {
                 $curHash = hash( 'sha256', self::normalizeText( $curText ) );
             }
             $lastHash = $props['labki.content_hash'] ?? null;
-            if ( $curHash !== null && $lastHash !== null && $curHash !== $lastHash ) { $updateModified++; }
-            else { $updateUnchanged++; }
+            if ( $curHash !== null && $lastHash !== null && $curHash !== $lastHash ) { $updateModified++; $updateModifiedList[] = $prefixed; }
+            else { $updateUnchanged++; $updateUnchangedList[] = $prefixed; }
         }
 
         // Pack-pack conflicts are identified when two packs target the same page.
@@ -69,6 +81,13 @@ final class PreflightPlanner {
             'update_modified' => $updateModified,
             'pack_pack_conflicts' => $packPack,
             'external_collisions' => $external,
+            'lists' => [
+                'create' => $createList,
+                'update_unchanged' => $updateUnchangedList,
+                'update_modified' => $updateModifiedList,
+                'pack_pack_conflicts' => $packPackList,
+                'external_collisions' => $externalList,
+            ],
         ];
     }
 

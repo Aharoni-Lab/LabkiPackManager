@@ -105,7 +105,7 @@ final class ApiLabkiPacks extends ApiBase {
             $preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
             // Pre-flight summary based on current wiki state
             $planner = new PreflightPlanner();
-            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'] ] );
+            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [] ] );
         }
 
 		$payload = [
