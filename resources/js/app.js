@@ -206,6 +206,14 @@ function onTogglePack(id){
 		box.textContent = text;
 		root.appendChild(box);
 
+		// Pre-flight summary
+		if (state.data?.preflight){
+			const pf = state.data.preflight;
+			const pfBox = document.createElement('div'); pfBox.className = 'lpm-summary';
+			pfBox.textContent = `Pre-flight: Create ${pf.create || 0} | Update (unchanged) ${pf.update_unchanged || 0} | Update (modified) ${pf.update_modified || 0} | Pack-pack ${pf.pack_pack_conflicts || 0} | External ${pf.external_collisions || 0}`;
+			root.appendChild(pfBox);
+		}
+
     // Details table for selected packs with version, installed/update, and description
 	const table = document.createElement('table'); table.className = 'lpm-table';
 	const thead = document.createElement('thead'); const trh = document.createElement('tr');
