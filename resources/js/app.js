@@ -10,7 +10,8 @@
 		previewPacksSet: new Set(),
 		previewPagesSet: new Set(),
 		uids: 0,
-		uidPrefix: (Math.random().toString(36).slice(2))
+		uidPrefix: (Math.random().toString(36).slice(2)),
+		mermaidReady: false
 	};
 
 	function isExpanded(id){
@@ -61,9 +62,7 @@
 		if (state.previewPacksSet.size) return state.previewPacksSet.has(id);
 		return isDirectSelected(id);
 	}
-	function isPageIncluded(id){
-		return state.previewPagesSet.has(id);
-	}
+function isPageIncluded(id){ return state.previewPagesSet.has(id); }
 
 function recomputePreviewLocally(){
     const edges = Array.isArray(state.data?.edges) ? state.data.edges : [];
@@ -90,14 +89,7 @@ function recomputePreviewLocally(){
     state.previewPagesSet = pages;
 }
 
-const fetchDebounced = (function(){
-    let t = null, lastOpts = null;
-    return function(opts){
-        lastOpts = opts || null;
-        if (t){ clearTimeout(t); }
-        t = setTimeout(() => { t = null; fetchData(lastOpts); }, 50);
-    };
-})();
+const fetchDebounced = (()=>{ let t=null,last=null; return opts=>{ last=opts||null; if(t)clearTimeout(t); t=setTimeout(()=>{t=null;fetchData(last);},50); }; })();
 
 function onTogglePack(id){
     if (isDirectSelected(id)){
@@ -270,6 +262,7 @@ function onTogglePack(id){
 		layout.appendChild(left); layout.appendChild(right);
 		renderTree(left);
 		renderSummary(right);
+		renderGraph(right);
 	}
 
 	if ( document.readyState === 'loading' ) {
@@ -277,6 +270,91 @@ function onTogglePack(id){
 	} else {
 		fetchData();
 	}
+
+// Mermaid graph rendering (Strategy A: re-render code with class blocks)
+function renderGraph(container){
+	const graphWrap = document.createElement('div'); graphWrap.style.marginTop = '8px';
+	const graphEl = document.createElement('div'); graphEl.id = 'lpm-graph'; graphEl.className = 'lpm-graph'; graphEl.style.maxWidth = '480px';
+	graphWrap.appendChild(graphEl); container.appendChild(graphWrap);
+    const legend = document.createElement('div'); legend.className = 'lpm-legend';
+    legend.innerHTML = '<span class="lpm-swatch sel"></span>Selected <span class="lpm-swatch imp"></span>Implied <span class="lpm-swatch pg"></span>Pages';
+	container.appendChild(legend);
+    if (window.mermaid && window.mermaid.run){ state.mermaidReady = true; updateGraph(); return; }
+    // If ext.mermaid is loaded, a global mermaid is usually available. If not, fallback to CDN in dev.
+    const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    s.onload = () => { if (window.mermaid) { try{ window.mermaid.initialize({ startOnLoad:false }); }catch(e){} state.mermaidReady = true; updateGraph(); } };
+    document.body.appendChild(s);
+}
+
+function updateGraph(){
+	if (!state.mermaidReady || !state.data) return;
+	const base = state.data.mermaid?.code || '';
+	const idMap = state.data.mermaid?.idMap || {};
+	if (!base) return;
+	const sel = state.previewPacksSet.size ? Array.from(state.previewPacksSet) : Object.keys(state.selected);
+	const direct = Object.keys(state.selected);
+	const toIds = (arr) => arr.map(k => idMap['pack:' + k]).filter(Boolean);
+    const clsLines = [
+        'classDef selected stroke:#2563eb,stroke-width:2px;',
+        'classDef implied stroke:#10b981,stroke-width:2px;',
+        'classDef pageIncluded stroke:#22c55e,stroke-width:2px,fill:#ecfdf5;'
+    ];
+	const selectedIds = toIds(direct);
+	const impliedIds = toIds(sel.filter(k => direct.indexOf(k) === -1));
+	if (selectedIds.length) clsLines.push('class ' + selectedIds.join(',') + ' selected;');
+	if (impliedIds.length) clsLines.push('class ' + impliedIds.join(',') + ' implied;');
+	// Pages: color them green when included (match tree dot)
+    const pageIncluded = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : [];
+    const pageIds = pageIncluded.map(p => idMap['page:' + p]).filter(Boolean);
+    if (pageIds.length) {
+        clsLines.push('class ' + pageIds.join(',') + ' pageIncluded;');
+    }
+	const code = base + '\n' + clsLines.join('\n');
+	// simple render using mermaidAPI through global mermaid
+	try {
+		// mermaid 10 ESM default init in module; re-render by setting innerHTML
+		const target = document.getElementById('lpm-graph');
+		target.innerHTML = '<pre class="mermaid">' + code.replace(/</g,'&lt;') + '</pre>';
+		if (window.mermaid && window.mermaid.run) { window.mermaid.run({ querySelector: '#lpm-graph .mermaid' }); }
+		attachHoverSync(target, idMap);
+	} catch (e) {}
+}
+
+// Hover sync: tree -> graph and graph -> tree
+function attachHoverSync(target, idMap){
+	const mapPackToSvgId = {};
+	for (const key in idMap){ if (key.startsWith('pack:')) mapPackToSvgId[key.slice(5)] = idMap[key]; }
+	const svg = target.querySelector('svg'); if (!svg) return;
+	// graph -> tree
+	for (const [packId, svgId] of Object.entries(mapPackToSvgId)){
+		const node = svg.querySelector('#' + svgId);
+		if (!node) continue;
+		node.addEventListener('mouseenter', () => highlightTree(packId, true));
+		node.addEventListener('mouseleave', () => highlightTree(packId, false));
+	}
+	// tree -> graph
+	document.querySelectorAll('.lpm-row').forEach(row => {
+		const label = row.querySelector('label');
+		if (!label) return;
+		const packId = label.textContent;
+		if (!mapPackToSvgId[packId]) return;
+		row.addEventListener('mouseenter', () => highlightGraph(mapPackToSvgId[packId], true));
+		row.addEventListener('mouseleave', () => highlightGraph(mapPackToSvgId[packId], false));
+	});
+}
+
+function highlightTree(packId, on){
+	document.querySelectorAll('.lpm-row').forEach(row => {
+		const label = row.querySelector('label');
+		if (label && label.textContent === packId){ row.classList.toggle('lpm-hover', on); }
+	});
+}
+
+function highlightGraph(svgId, on){
+	const node = document.querySelector('#lpm-graph svg #' + svgId);
+	if (!node) return;
+	if (on){ node.classList.add('hovered'); } else { node.classList.remove('hovered'); }
+}
 })();
 
 

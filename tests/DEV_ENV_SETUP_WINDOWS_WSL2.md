@@ -122,6 +122,33 @@ Enable the extension in `mediawiki/LocalSettings.php`:
 wfLoadExtension( 'YourExtension' );
 ```
 
+### Optional: Install Mermaid (for the dependency graph) via composer.local.json
+
+Inside the MediaWiki container, from the MediaWiki root (`/var/www/html/w`):
+
+```bash
+cd /var/www/html/w
+cat > composer.local.json <<'JSON'
+{
+  "require": {
+    "mediawiki/mermaid": "~6.0.1"
+  }
+}
+JSON
+
+composer update --no-interaction --no-progress
+```
+
+Then enable Mermaid in `LocalSettings.php`:
+
+```php
+wfLoadExtension( 'Mermaid' );
+```
+
+Notes:
+- Using REL1_44: `~6.0.1` is compatible. Alternatively, you can git-clone `extensions/Mermaid` and `git checkout REL1_44`.
+- If you prefer not to install Mermaid in development, the UI can fall back to a CDN-loaded Mermaid, but production should install the extension for CSP and stability.
+
 ### D. Structure tests in your extension
 
 Use the MediaWiki test harness. Place tests under `tests/phpunit/` in your extension.

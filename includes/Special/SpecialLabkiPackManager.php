@@ -3,6 +3,7 @@
 namespace LabkiPackManager\Special;
 
 use SpecialPage;
+use ExtensionRegistry;
 
 class SpecialLabkiPackManager extends SpecialPage {
     public function __construct() {
@@ -22,7 +23,11 @@ class SpecialLabkiPackManager extends SpecialPage {
 
         $output = $this->getOutput();
         $output->setPageTitle( $this->msg( 'labkipackmanager-special-title' )->text() );
-        $output->addModules( [ 'ext.LabkiPackManager.styles', 'ext.LabkiPackManager.app' ] );
+		$modules = [ 'ext.LabkiPackManager.styles', 'ext.LabkiPackManager.app' ];
+		if ( class_exists( '\ExtensionRegistry' ) && ExtensionRegistry::getInstance()->isLoaded( 'Mermaid' ) ) {
+			$modules[] = 'ext.mermaid';
+		}
+		$output->addModules( $modules );
         $output->addHTML( '<div id="labki-pack-manager-root"></div>' );
 	}
 }
