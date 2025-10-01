@@ -13,6 +13,8 @@ use LabkiPackManager\Services\MermaidBuilder;
 use LabkiPackManager\Services\SelectionResolver;
 use LabkiPackManager\Services\ContentSourceHelper;
 use LabkiPackManager\Services\ManifestStore;
+use LabkiPackManager\Services\InstalledRegistry;
+use LabkiPackManager\Util\SemVer;
 
 final class ApiLabkiPacks extends ApiBase {
 	public function __construct( ApiMain $main, string $name ) {
@@ -57,8 +59,22 @@ final class ApiLabkiPacks extends ApiBase {
 				$store->savePacks( $domain['packs'], [ 'schema_version' => $domain['schema_version'], 'manifest_url' => $manifestUrl ] );
 			}
 		}
-		$graphInfo = $graph->build( $domain['packs'] );
-		$vm = $hierarchy->buildViewModel( $domain['packs'] );
+        $graphInfo = $graph->build( $domain['packs'] );
+        $vm = $hierarchy->buildViewModel( $domain['packs'] );
+        // Enrich nodes with installed state and updateAvailable
+        $registry = new InstalledRegistry();
+        $installedMap = $registry->getInstalledMap();
+        foreach ( $vm['nodes'] as $key => &$node ) {
+            if ( !is_array( $node ) || ($node['type'] ?? null) !== 'pack' ) { continue; }
+            $id = isset($node['id']) && str_starts_with((string)$node['id'], 'pack:') ? substr((string)$node['id'], 5) : null;
+            if ( !$id ) { continue; }
+            $available = $node['version'] ?? null;
+            $inst = $installedMap[$id]['version'] ?? null;
+            $node['installed'] = $inst !== null;
+            $node['installedVersion'] = $inst;
+            $node['updateAvailable'] = ($inst !== null && $available !== null && SemVer::sameMajor( (string)$inst, (string)$available ) && SemVer::compare( (string)$available, (string)$inst ) > 0);
+        }
+        unset($node);
 		$resolver = new SelectionResolver();
 		$diagram = $mermaid->generateWithIdMap( (function() use ( $graphInfo ) {
 			$edges = [];

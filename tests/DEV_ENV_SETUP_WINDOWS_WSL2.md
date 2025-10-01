@@ -205,6 +205,14 @@ If you hit runner issues, ensure you are inside the MediaWiki container and usin
 
 ### F. Quick database resets and fixes
 
+Run the MediaWiki database updater (after enabling the extension or when schema changes):
+
+```bash
+docker compose exec mediawiki php maintenance/update.php --quick
+```
+
+After it completes, visit Special:Version to confirm the extension is active and that the tables were created.
+
 For Windows “No database connection” errors with SQLite, set write perms as above. To reinstall from scratch:
 
 ```bash
