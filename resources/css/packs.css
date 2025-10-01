@@ -29,11 +29,12 @@
 .lpm-swatch { width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:4px; border:1px solid #d1d5db; }
 .lpm-swatch.sel { background:#dbeafe; border-color:#93c5fd; }
 .lpm-swatch.imp { background:#d1fae5; border-color:#6ee7b7; }
-.lpm-swatch.lock { background:#fee2e2; border-color:#fca5a5; }
+.lpm-swatch.pg { background:#ecfdf5; border-color:#22c55e; }
 .lpm-graph svg .hovered rect, .lpm-graph svg .hovered path, .lpm-graph svg .hovered circle { stroke:#f59e0b !important; stroke-width:3px !important; }
 .lpm-row.lpm-hover { background:#fff7ed; }
 .lpm-meta { font-size: 12px; color: #6b7280; margin-left: 6px; }
-.lpm-desc-inline { font-size: 12px; color:#6b7280; margin-left: 6px; max-width: 60ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* deprecated inline desc retained for future use */
+.lpm-desc-inline { font-size: 12px; color:#6b7280; margin-left: 6px; max-width: 60ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display:none; }
 
 /* Right panel table */
 .lpm-table { width:100%; border-collapse: collapse; margin-top:8px; font-size: 13px; }

@@ -63,7 +63,8 @@ final class ApiLabkiPacks extends ApiBase {
 		$diagram = $mermaid->generateWithIdMap( (function() use ( $graphInfo ) {
 			$edges = [];
 			foreach ( $graphInfo['containsEdges'] as $e ) {
-				$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => ( strpos( $e['to'], ':' ) === false ? 'page:' . $e['to'] : $e['to'] ), 'rel' => 'contains' ];
+				// Always prefix page nodes with 'page:' so idMap keys are consistent
+				$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'page:' . $e['to'], 'rel' => 'contains' ];
 			}
 			foreach ( $graphInfo['dependsEdges'] as $e ) {
 				$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
@@ -71,14 +72,14 @@ final class ApiLabkiPacks extends ApiBase {
 			return $edges;
 		})() );
 
-		// Build combined edges with rel
-		$edges = [];
-		foreach ( $graphInfo['containsEdges'] as $e ) {
-			$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => ( strpos( $e['to'], ':' ) === false ? 'page:' . $e['to'] : $e['to'] ), 'rel' => 'contains' ];
-		}
-		foreach ( $graphInfo['dependsEdges'] as $e ) {
-			$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
-		}
+        // Build combined edges with rel (client still consumes this for local closure calc)
+        $edges = [];
+        foreach ( $graphInfo['containsEdges'] as $e ) {
+            $edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'page:' . $e['to'], 'rel' => 'contains' ];
+        }
+        foreach ( $graphInfo['dependsEdges'] as $e ) {
+            $edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
+        }
 
 		$selected = $this->getRequest()->getArray( 'selected' ) ?: [];
 		$preview = [];

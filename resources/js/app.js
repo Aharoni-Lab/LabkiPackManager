@@ -11,8 +11,7 @@
 		previewPagesSet: new Set(),
 		uids: 0,
 		uidPrefix: (Math.random().toString(36).slice(2)),
-		mermaidReady: false,
-		mermaidSvg: ''
+		mermaidReady: false
 	};
 
 	function isExpanded(id){
@@ -63,9 +62,7 @@
 		if (state.previewPacksSet.size) return state.previewPacksSet.has(id);
 		return isDirectSelected(id);
 	}
-	function isPageIncluded(id){
-		return state.previewPagesSet.has(id);
-	}
+function isPageIncluded(id){ return state.previewPagesSet.has(id); }
 
 function recomputePreviewLocally(){
     const edges = Array.isArray(state.data?.edges) ? state.data.edges : [];
@@ -92,14 +89,7 @@ function recomputePreviewLocally(){
     state.previewPagesSet = pages;
 }
 
-const fetchDebounced = (function(){
-    let t = null, lastOpts = null;
-    return function(opts){
-        lastOpts = opts || null;
-        if (t){ clearTimeout(t); }
-        t = setTimeout(() => { t = null; fetchData(lastOpts); }, 50);
-    };
-})();
+const fetchDebounced = (()=>{ let t=null,last=null; return opts=>{ last=opts||null; if(t)clearTimeout(t); t=setTimeout(()=>{t=null;fetchData(last);},50); }; })();
 
 function onTogglePack(id){
     if (isDirectSelected(id)){
@@ -286,8 +276,8 @@ function renderGraph(container){
 	const graphWrap = document.createElement('div'); graphWrap.style.marginTop = '8px';
 	const graphEl = document.createElement('div'); graphEl.id = 'lpm-graph'; graphEl.className = 'lpm-graph'; graphEl.style.maxWidth = '480px';
 	graphWrap.appendChild(graphEl); container.appendChild(graphWrap);
-	const legend = document.createElement('div'); legend.className = 'lpm-legend';
-	legend.innerHTML = '<span class="lpm-swatch sel"></span>Selected <span class="lpm-swatch imp"></span>Implied <span class="lpm-swatch lock"></span>Locked';
+    const legend = document.createElement('div'); legend.className = 'lpm-legend';
+    legend.innerHTML = '<span class="lpm-swatch sel"></span>Selected <span class="lpm-swatch imp"></span>Implied <span class="lpm-swatch pg"></span>Pages';
 	container.appendChild(legend);
     if (window.mermaid && window.mermaid.run){ state.mermaidReady = true; updateGraph(); return; }
     // If ext.mermaid is loaded, a global mermaid is usually available. If not, fallback to CDN in dev.
@@ -302,20 +292,23 @@ function updateGraph(){
 	const idMap = state.data.mermaid?.idMap || {};
 	if (!base) return;
 	const sel = state.previewPacksSet.size ? Array.from(state.previewPacksSet) : Object.keys(state.selected);
-	const locks = state.locks || {};
 	const direct = Object.keys(state.selected);
 	const toIds = (arr) => arr.map(k => idMap['pack:' + k]).filter(Boolean);
-	const clsLines = [
-		'classDef selected stroke:#2563eb,stroke-width:2px;',
-		'classDef implied stroke:#10b981,stroke-width:2px;',
-		'classDef locked stroke:#ef4444,stroke-width:2px;'
-	];
+    const clsLines = [
+        'classDef selected stroke:#2563eb,stroke-width:2px;',
+        'classDef implied stroke:#10b981,stroke-width:2px;',
+        'classDef pageIncluded stroke:#22c55e,stroke-width:2px,fill:#ecfdf5;'
+    ];
 	const selectedIds = toIds(direct);
 	const impliedIds = toIds(sel.filter(k => direct.indexOf(k) === -1));
-	const lockedIds = toIds(Object.keys(locks));
 	if (selectedIds.length) clsLines.push('class ' + selectedIds.join(',') + ' selected;');
 	if (impliedIds.length) clsLines.push('class ' + impliedIds.join(',') + ' implied;');
-	if (lockedIds.length) clsLines.push('class ' + lockedIds.join(',') + ' locked;');
+	// Pages: color them green when included (match tree dot)
+    const pageIncluded = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : [];
+    const pageIds = pageIncluded.map(p => idMap['page:' + p]).filter(Boolean);
+    if (pageIds.length) {
+        clsLines.push('class ' + pageIds.join(',') + ' pageIncluded;');
+    }
 	const code = base + '\n' + clsLines.join('\n');
 	// simple render using mermaidAPI through global mermaid
 	try {
