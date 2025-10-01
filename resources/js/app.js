@@ -289,11 +289,11 @@ function renderGraph(container){
 	const legend = document.createElement('div'); legend.className = 'lpm-legend';
 	legend.innerHTML = '<span class="lpm-swatch sel"></span>Selected <span class="lpm-swatch imp"></span>Implied <span class="lpm-swatch lock"></span>Locked';
 	container.appendChild(legend);
-	if (!window.mermaid){
-		const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs'; s.type = 'module';
-		s.onload = () => { state.mermaidReady = true; updateGraph(); };
-		document.body.appendChild(s);
-	} else { state.mermaidReady = true; updateGraph(); }
+    if (window.mermaid && window.mermaid.run){ state.mermaidReady = true; updateGraph(); return; }
+    // If ext.mermaid is loaded, a global mermaid is usually available. If not, fallback to CDN in dev.
+    const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    s.onload = () => { if (window.mermaid) { try{ window.mermaid.initialize({ startOnLoad:false }); }catch(e){} state.mermaidReady = true; updateGraph(); } };
+    document.body.appendChild(s);
 }
 
 function updateGraph(){
@@ -308,8 +308,7 @@ function updateGraph(){
 	const clsLines = [
 		'classDef selected stroke:#2563eb,stroke-width:2px;',
 		'classDef implied stroke:#10b981,stroke-width:2px;',
-		'classDef locked stroke:#ef4444,stroke-width:2px;',
-		'direction TD'
+		'classDef locked stroke:#ef4444,stroke-width:2px;'
 	];
 	const selectedIds = toIds(direct);
 	const impliedIds = toIds(sel.filter(k => direct.indexOf(k) === -1));
