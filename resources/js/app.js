@@ -132,15 +132,26 @@ function onTogglePack(id){
 			cb.addEventListener('change', () => onTogglePack(node.id));
 			head.appendChild(cb);
 
-			const nameWrap = document.createElement('div'); nameWrap.className = 'lpm-name';
+            const nameWrap = document.createElement('div'); nameWrap.className = 'lpm-name';
 			const labelEl = document.createElement('label');
 			labelEl.htmlFor = checkboxId;
 			labelEl.textContent = node.id;
 			nameWrap.appendChild(labelEl);
-			const meta = document.createElement('span'); meta.className = 'lpm-meta'; meta.textContent = countsText(node.id);
+            const meta = document.createElement('span'); meta.className = 'lpm-meta'; meta.textContent = countsText(node.id);
 			nameWrap.appendChild(meta);
+            // badges for installed/update
+            const info = packNode(node.id) || {};
+            const badges = document.createElement('span'); badges.className = 'lpm-badges';
+            if (info.installedVersion){
+                const b = document.createElement('span'); b.className = 'lpm-badge inst'; b.textContent = 'Installed ' + info.installedVersion; badges.appendChild(b);
+            } else if (info.installed){
+                const b = document.createElement('span'); b.className = 'lpm-badge inst'; b.textContent = 'Installed'; badges.appendChild(b);
+            }
+            if (info.updateAvailable && info.version){
+                const b2 = document.createElement('span'); b2.className = 'lpm-badge update'; b2.textContent = 'Update to ' + info.version; badges.appendChild(b2);
+            }
+            if (badges.childNodes.length) nameWrap.appendChild(badges);
 			head.appendChild(nameWrap);
-			const info = packNode(node.id) || {};
 			const ver = document.createElement('span'); ver.className = 'lpm-ver'; ver.textContent = info.version || '';
 			head.appendChild(ver);
 			const desc = document.createElement('span'); desc.className = 'lpm-desc-cell'; desc.textContent = info.description || '';
@@ -195,10 +206,10 @@ function onTogglePack(id){
 		box.textContent = text;
 		root.appendChild(box);
 
-	// Details table for selected packs with version and description
+    // Details table for selected packs with version, installed/update, and description
 	const table = document.createElement('table'); table.className = 'lpm-table';
 	const thead = document.createElement('thead'); const trh = document.createElement('tr');
-	for (const h of ['Pack', 'Version', 'Description']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
+    for (const h of ['Pack', 'Version', 'Installed/Update', 'Description']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
 	thead.appendChild(trh); table.appendChild(thead);
 	const tbody = document.createElement('tbody');
 	const packs = state.previewPacksSet.size ? Array.from(state.previewPacksSet) : Object.keys(state.selected);
@@ -208,7 +219,14 @@ function onTogglePack(id){
 		const tr = document.createElement('tr');
 		const td1 = document.createElement('td'); td1.textContent = id; tr.appendChild(td1);
 		const td2 = document.createElement('td'); td2.textContent = n.version || ''; tr.appendChild(td2);
-		const td3 = document.createElement('td'); td3.textContent = n.description || ''; tr.appendChild(td3);
+        const tdMid = document.createElement('td');
+        const parts = [];
+        if (n.installedVersion){ parts.push('Installed ' + n.installedVersion); }
+        else if (n.installed){ parts.push('Installed'); }
+        if (n.updateAvailable && n.version){ parts.push('Update to ' + n.version); }
+        tdMid.textContent = parts.join(' · ');
+        tr.appendChild(tdMid);
+        const td3 = document.createElement('td'); td3.textContent = n.description || ''; tr.appendChild(td3);
 		tbody.appendChild(tr);
 	}
 	table.appendChild(tbody);

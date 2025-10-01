@@ -31,10 +31,24 @@ Integration tests can inject fakes or mocks through constructors or by overridin
 
 ### Running tests inside MediaWiki
 
-From the MediaWiki root, with this extension under `extensions/LabkiPackManager`:
+From the MediaWiki root, with this extension under `extensions/LabkiPackManager`.
+
+- Unit tests (run by path):
 ```bash
-composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/
+docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit'
 ```
+
+- Integration tests (require MediaWiki harness):
+```bash
+docker compose exec -e PHPUNIT_WIKI=wiki mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration'
+```
+
+- Single test file:
+```bash
+docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration/PackImporterTest.php'
+```
+
+Note: Avoid the full `--testsuite extensions` run unless you also install dependencies for other extensions' test suites (e.g., Mermaid pulls in tests that require SMW).
 
 ### Running a single test
 ```bash

@@ -53,6 +53,10 @@ jobs:
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
           ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
 
+      - name: Update DB schema (run extension schema updates)
+        working-directory: mediawiki
+        run: php maintenance/update.php --quick
+
       - name: PHPUnit unit
         working-directory: mediawiki
         run: |
