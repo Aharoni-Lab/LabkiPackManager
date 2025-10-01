@@ -15,6 +15,8 @@ use LabkiPackManager\Services\ContentSourceHelper;
 use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Services\InstalledRegistry;
 use LabkiPackManager\Util\SemVer;
+use LabkiPackManager\Services\PreflightPlanner;
+use LabkiPackManager\Services\PlanResolver;
 
 final class ApiLabkiPacks extends ApiBase {
 	public function __construct( ApiMain $main, string $name ) {
@@ -97,11 +99,24 @@ final class ApiLabkiPacks extends ApiBase {
             $edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
         }
 
-		$selected = $this->getRequest()->getArray( 'selected' ) ?: [];
-		$preview = [];
-		if ( $selected ) {
-			$preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
-		}
+        $selected = $this->getRequest()->getArray( 'selected' ) ?: [];
+        $preview = [];
+        $preflight = null;
+        if ( $selected ) {
+            $preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
+            // Pre-flight summary based on current wiki state
+            $planner = new PreflightPlanner();
+            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [] ] );
+            // Optional mapping input for plan (rename/prefix). Accept as JSON in 'plan' param.
+            $rawPlan = $this->getRequest()->getVal( 'plan' );
+            $plan = null;
+            if ( is_string( $rawPlan ) && $rawPlan !== '' ) {
+                $decoded = json_decode( $rawPlan, true );
+                if ( is_array( $decoded ) ) {
+                    $plan = ( new PlanResolver() )->resolve( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'] ], $decoded, [ 'lists' => $preflight['lists'] ?? [] ] );
+                }
+            }
+        }
 
 		$payload = [
 			'source' => [ 'name' => $repoLabel, 'branch' => $this->getConfig()->get( 'LabkiDefaultBranch' ), 'commit' => null ],
@@ -114,7 +129,9 @@ final class ApiLabkiPacks extends ApiBase {
 			'tree' => $vm['tree'],
 			'edges' => $edges,
 			'mermaid' => [ 'code' => $diagram['code'], 'idMap' => $diagram['idMap'] ],
-			'preview' => $preview,
+            'preview' => $preview,
+            'preflight' => $preflight,
+            'plan' => $plan,
 			'dataVersion' => 1,
 		];
 		if ( isset( $domain['errorKey'] ) ) {
@@ -128,6 +145,7 @@ final class ApiLabkiPacks extends ApiBase {
 			'repo' => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
 			'selected' => [ self::PARAM_TYPE => 'string', self::PARAM_ISMULTI => true, self::PARAM_DFLT => [] ],
 			'refresh' => [ self::PARAM_TYPE => 'boolean', self::PARAM_DFLT => false ],
+            'plan' => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
 		];
 	}
 
