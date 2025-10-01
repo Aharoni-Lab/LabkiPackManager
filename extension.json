@@ -61,6 +61,9 @@
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates"
   },
+  "MaintenanceScripts": {
+    "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
+  },
   "SpecialPages": {
     "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
   },
