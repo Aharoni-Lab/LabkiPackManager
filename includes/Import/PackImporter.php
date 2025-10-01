@@ -7,8 +7,10 @@ namespace LabkiPackManager\Import;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Revision\RevisionLookup;
+use MediaWiki\CommentStore\CommentStoreComment;
 use MediaWiki\Logger\LoggerFactory;
-use UserIdentity;
+use MediaWiki\User\UserIdentity;
+use ContentHandler;
 
 /**
  * Writes/updates pages only. I/O layer for imports (Phase 5 will implement).
@@ -68,7 +70,15 @@ final class PackImporter {
 			$existingHash = null;
 			if ( $existingRev ) {
 				$content = $existingRev->getContent( SlotRecord::MAIN );
-				$existingText = $content ? ContentHandler::getContentText( $content ) : '';
+				$existingText = '';
+				if ( $content ) {
+					// Prefer non-deprecated accessors when available (e.g., TextContent::getText)
+					if ( method_exists( $content, 'getText' ) ) {
+						$existingText = (string)$content->getText();
+					} else {
+						$existingText = (string)ContentHandler::getContentText( $content );
+					}
+				}
 				$existingHash = hash( 'sha256', self::normalizeText( (string)$existingText ) );
 			}
 
@@ -123,7 +133,7 @@ final class PackImporter {
 		foreach ( $pages as $p ) {
 			$titleText = (string)$p['title'];
 			$ns = isset( $p['namespace'] ) ? (int)$p['namespace'] : NS_MAIN;
-			$title = $services->getTitleFactory()->makeTitleSafe( $ns, $titleText );
+			$title = $titleFactory->makeTitleSafe( $ns, $titleText );
 			if ( !$title ) { continue; }
 			$pageId = (int)$title->getArticleID();
 			$prefixed = $title->getPrefixedText();
@@ -148,7 +158,7 @@ final class PackImporter {
 	}
 
 	private static function normalizeText( string $text ): string {
-		$norm = preg_replace( "/\r\n?|\u2028|\u2029/", "\n", $text );
+		$norm = preg_replace( "/\r\n?|\x{2028}|\x{2029}/u", "\n", $text );
 		$norm = preg_replace( '/[ \t]+\n/', "\n", (string)$norm );
 		return (string)$norm;
 	}
