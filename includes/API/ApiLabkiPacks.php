@@ -60,9 +60,16 @@ final class ApiLabkiPacks extends ApiBase {
 		$graphInfo = $graph->build( $domain['packs'] );
 		$vm = $hierarchy->buildViewModel( $domain['packs'] );
 		$resolver = new SelectionResolver();
-		$diagram = $mermaid->generateWithIdMap( array_map( static function( $e ) {
-			return [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
-		}, $graphInfo['dependsEdges'] ) );
+		$diagram = $mermaid->generateWithIdMap( (function() use ( $graphInfo ) {
+			$edges = [];
+			foreach ( $graphInfo['containsEdges'] as $e ) {
+				$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => ( strpos( $e['to'], ':' ) === false ? 'page:' . $e['to'] : $e['to'] ), 'rel' => 'contains' ];
+			}
+			foreach ( $graphInfo['dependsEdges'] as $e ) {
+				$edges[] = [ 'from' => 'pack:' . $e['from'], 'to' => 'pack:' . $e['to'], 'rel' => 'depends' ];
+			}
+			return $edges;
+		})() );
 
 		// Build combined edges with rel
 		$edges = [];

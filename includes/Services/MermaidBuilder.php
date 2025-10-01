@@ -12,7 +12,7 @@ final class MermaidBuilder {
 	 * @param array<array{from:string,to:string}> $edges
 	 */
 	public function generate( array $edges ): string {
-		$lines = [ 'graph TD' ];
+		$lines = [ 'graph LR' ];
 		foreach ( $edges as $e ) {
 			$lines[] = $e['from'] . ' --> ' . $e['to'];
 		}
@@ -32,7 +32,7 @@ final class MermaidBuilder {
 			$idMap[$key] = $id;
 			return $id;
 		};
-		$lines = [ 'graph TD' ];
+		$lines = [ 'graph LR' ];
 		$nodeDefs = [];
 		$edgeDefs = [];
 		// Collect nodes and edge lines with styles
