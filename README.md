@@ -49,6 +49,19 @@ Usage
 - The extension will fetch a YAML `manifest.yml` from the selected source, parse available packs, and list them for selection
 - Each selected pack corresponds to a folder under `packs/<id>/` with its own `manifest.yml` and a `pages/` directory containing `.wiki` files whose names are the page titles
 
+Mermaid graph requirement
+-------------------------
+
+This extension renders a small live dependency graph (Mermaid). To enable it:
+
+1) Install and enable the MediaWiki Mermaid extension (recommended):
+
+```php
+wfLoadExtension( 'Mermaid' );
+```
+
+2) Alternatively (dev-only), the UI will lazy-load Mermaid from a CDN for the graph panel. For production wikis, prefer installing the Mermaid extension to avoid external requests and to align with CSP.
+
 Demo without MediaWiki
 ----------------------
 
