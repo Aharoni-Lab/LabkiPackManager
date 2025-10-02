@@ -63,7 +63,31 @@ final class PlanResolver {
                 // If skipping due to collision but global prefix provided, turn into rename
                 if ( $pageAction === 'skip' ) { $pageAction = 'rename'; }
                 if ( is_string($renameTo) && $renameTo !== '' ) {
-                    $finalTitle = $renameTo;
+                    // Combine per-page rename with global prefix
+                    if ( $titleFactory && $nsInfo ) {
+                        $t = $titleFactory->newFromText( $prefixed );
+                        if ( $t ) {
+                            $ns = $t->getNamespace();
+                            if ( $ns !== NS_MAIN ) {
+                                $leaf = (string)$renameTo;
+                                $finalTitle = $titleFactory->makeTitle( $ns, ($globalPrefix ? ($globalPrefix . '/' . $leaf) : $leaf) )->getPrefixedText();
+                            } else {
+                                if ( $globalPrefix ) {
+                                    $idx = $nsInfo->getCanonicalIndex( (string)$globalPrefix );
+                                    if ( is_int( $idx ) ) { $finalTitle = $titleFactory->makeTitle( $idx, (string)$renameTo )->getPrefixedText(); }
+                                    else { $finalTitle = (string)$globalPrefix . ':' . (string)$renameTo; }
+                                } else { $finalTitle = (string)$renameTo; }
+                            }
+                        } else { $finalTitle = $globalPrefix ? ($globalPrefix . ':' . (string)$renameTo) : (string)$renameTo; }
+                    } else {
+                        $pos = strpos( $prefixed, ':' );
+                        if ( $pos !== false ) {
+                            $nsName = substr( $prefixed, 0, $pos );
+                            $finalTitle = $nsName . ':' . ( $globalPrefix ? ($globalPrefix . '/' . (string)$renameTo) : (string)$renameTo );
+                        } else {
+                            $finalTitle = $globalPrefix ? ($globalPrefix . ':' . (string)$renameTo) : (string)$renameTo;
+                        }
+                    }
                 } else {
                     if ( $titleFactory && $nsInfo ) {
                         $t = $titleFactory->newFromText( $prefixed );
