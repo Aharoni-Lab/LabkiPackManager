@@ -239,6 +239,15 @@ function onTogglePack(id){
 				const el = makeList(label, lists[key] || []);
 				if (el) root.appendChild(el);
 			}
+			// Show intra-selection conflicts (multiple selected packs own same page)
+			if (Array.isArray(pf.selection_conflicts) && pf.selection_conflicts.length){
+				const wrap = document.createElement('div'); wrap.style.marginTop='4px';
+				const btn = document.createElement('button'); btn.type='button'; btn.className='cdx-button'; btn.textContent = `Selection conflicts (${pf.selection_conflicts.length})`;
+				const ul = document.createElement('ul'); ul.style.margin='4px 0 0 16px'; ul.style.display='none';
+				for (const row of pf.selection_conflicts){ const li=document.createElement('li'); li.textContent = `${row.page} ← owners: ${row.owners.join(', ')}`; ul.appendChild(li); }
+				btn.addEventListener('click', ()=>{ ul.style.display = (ul.style.display==='none') ? 'block' : 'none'; });
+				wrap.appendChild(btn); wrap.appendChild(ul); root.appendChild(wrap);
+			}
 			const hasCollisions = (lists.pack_pack_conflicts && lists.pack_pack_conflicts.length) || (lists.external_collisions && lists.external_collisions.length);
 			if (hasCollisions){ root.appendChild(renderResolverPanel(lists)); }
 		}

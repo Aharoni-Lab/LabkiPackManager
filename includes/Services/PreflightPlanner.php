@@ -17,7 +17,9 @@ final class PreflightPlanner {
      *   create:int,update_unchanged:int,update_modified:int,pack_pack_conflicts:int,external_collisions:int,
      *   lists:array{
      *     create:string[],update_unchanged:string[],update_modified:string[],pack_pack_conflicts:string[],external_collisions:string[]
-     *   }
+     *   },
+     *   selection_conflicts?:array<int,array{page:string,owners:string[]}>,
+     *   owners?:array<string,array{pack_id:?string,source_repo:?string,pack_uid:?string}>
      * }
      */
     public function plan( array $resolved ): array {
@@ -76,6 +78,16 @@ final class PreflightPlanner {
         // For now, approximate by counting duplicates in input (SelectionResolver ensures unique pages per closure),
         // so conflicts are 0 unless we later include pack->page mapping in resolved payload.
 
+        // Intra-selection conflicts: multiple selected packs own the same page in this selection
+        $selectionConflicts = [];
+        if ( isset($resolved['pageOwners']) && is_array($resolved['pageOwners']) ) {
+            foreach ( $resolved['pageOwners'] as $p => $owners ) {
+                if ( is_array($owners) && count($owners) > 1 ) {
+                    $selectionConflicts[] = [ 'page' => $p, 'owners' => array_values(array_unique($owners)) ];
+                }
+            }
+        }
+
         return [
             'create' => $create,
             'update_unchanged' => $updateUnchanged,
@@ -89,6 +101,7 @@ final class PreflightPlanner {
                 'pack_pack_conflicts' => $packPackList,
                 'external_collisions' => $externalList,
             ],
+            'selection_conflicts' => $selectionConflicts,
         ];
     }
 
