@@ -29,7 +29,7 @@ final class PlanResolver {
         $extSet = array_flip($lists['external_collisions'] ?? []);
 
         $planPages = [];
-        $counts = [ 'create' => 0, 'update' => 0, 'skip' => 0, 'rename' => 0, 'backup' => 0 ];
+        $counts = [ 'create' => 0, 'update' => 0, 'skip' => 0, 'rename' => 0, 'backup' => 0, 'collision' => 0 ];
 
         // Try to use MediaWiki services when available; otherwise fall back to a simple parser
         $titleFactory = null; $nsInfo = null;
@@ -53,15 +53,15 @@ final class PlanResolver {
             if ( $pageAction === null ) {
                 if ( isset($createSet[$prefixed]) ) { $pageAction = 'create'; }
                 elseif ( isset($unchSet[$prefixed]) || isset($modSet[$prefixed]) ) { $pageAction = 'update'; }
-                elseif ( isset($ppcSet[$prefixed]) || isset($extSet[$prefixed]) ) { $pageAction = 'skip'; }
+                elseif ( isset($ppcSet[$prefixed]) || isset($extSet[$prefixed]) ) { $pageAction = 'collision'; }
                 else { $pageAction = 'update'; }
             }
 
             // Apply renames with namespace-preserving behavior for namespaced content
             $finalTitle = $prefixed;
-            if ( $pageAction === 'rename' || ( ($pageAction === 'skip') && $globalPrefix && ( isset($ppcSet[$prefixed]) || isset($extSet[$prefixed]) ) ) ) {
+            if ( $pageAction === 'rename' || ( ($pageAction === 'collision') && $globalPrefix && ( isset($ppcSet[$prefixed]) || isset($extSet[$prefixed]) ) ) ) {
                 // If skipping due to collision but global prefix provided, turn into rename
-                if ( $pageAction === 'skip' ) { $pageAction = 'rename'; }
+                if ( $pageAction === 'collision' ) { $pageAction = 'rename'; }
                 if ( is_string($renameTo) && $renameTo !== '' ) {
                     // Combine per-page rename with global prefix
                     if ( $titleFactory && $nsInfo ) {
@@ -134,7 +134,8 @@ final class PlanResolver {
             if ( $pageAction === 'create' ) { $counts['create']++; }
             elseif ( $pageAction === 'update' ) { $counts['update']++; if ($backup) $counts['backup']++; }
             elseif ( $pageAction === 'rename' ) { $counts['rename']++; }
-            else { $counts['skip']++; }
+            elseif ( $pageAction === 'skip' ) { $counts['skip']++; }
+            else { $counts['collision']++; }
         }
 
         return [ 'pages' => $planPages, 'summary' => $counts ];

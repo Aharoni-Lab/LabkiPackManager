@@ -14,7 +14,8 @@
 		mermaidReady: false,
 		resolverOpen: false,
 		planDraft: { globalPrefix: '', pages: {} },
-		lastPlan: null
+		lastPlan: null,
+		lastSentPlanKey: null
 	};
 
 	// Shared constants/utilities
@@ -182,7 +183,26 @@ function recomputePreviewLocally(){
     state.previewPagesSet = pages;
 }
 
-const fetchDebounced = (()=>{ let t=null,last=null; return opts=>{ last=opts||null; if(t)clearTimeout(t); t=setTimeout(()=>{t=null;fetchData(last);},50); }; })();
+// Debounced fetch with request coalescing: avoid flooding the server with identical plan drafts
+const fetchDebounced = (()=>{
+    let t=null,last=null;
+    return opts=>{
+        last=opts||null;
+        if(t) clearTimeout(t);
+        t=setTimeout(()=>{
+            t=null;
+            // If we're sending a plan, skip if identical to last one sent
+            if (last && last.plan){
+                try{
+                    const key = JSON.stringify(last.plan);
+                    if (state.lastSentPlanKey === key){ return; }
+                    state.lastSentPlanKey = key;
+                }catch(e){}
+            }
+            fetchData(last);
+        }, 80);
+    };
+})();
 
 function onTogglePack(id){
     if (isDirectSelected(id)){
@@ -383,19 +403,20 @@ function onTogglePack(id){
 	table.appendChild(tbody);
 	root.appendChild(table);
 
-		// Plan preview and downloads: ensure we prompt server for a plan at least once
-		if (!state.lastPlan && state.previewPagesSet.size){
+		// Plan preview and downloads: ensure plan reflects current draft; trigger update on render if stale
+		if (state.previewPagesSet.size){
 			fetchDebounced({ plan: buildPlanFromDraft() });
 		}
 		if (state.lastPlan){
 			const planBox = document.createElement('div'); planBox.className = 'lpm-summary';
 			const s = state.lastPlan.summary || {};
-			planBox.textContent = `Plan: Create ${s.create||0} | Update ${s.update||0} | Rename ${s.rename||0} | Skip ${s.skip||0} | Backup ${s.backup||0}`;
+			const collisionCount = s.collision || 0;
+			planBox.textContent = `Plan: Create ${s.create||0} | Update ${s.update||0} | Rename ${s.rename||0} | Skip ${s.skip||0} | Backup ${s.backup||0}` + (collisionCount ? ` | Collisions ${collisionCount}` : '');
 			const btnJson = document.createElement('button'); btnJson.type='button'; btnJson.className='cdx-button'; btnJson.style.marginLeft='6px'; btnJson.textContent = 'Download JSON';
 			btnJson.addEventListener('click', ()=>downloadText('labki-plan.json', JSON.stringify(state.lastPlan, null, 2)) );
 			const btnCsv = document.createElement('button'); btnCsv.type='button'; btnCsv.className='cdx-button'; btnCsv.style.marginLeft='4px'; btnCsv.textContent = 'Download CSV';
 			btnCsv.addEventListener('click', ()=>downloadText('labki-plan.csv', planToCsv(state.lastPlan)) );
-			planBox.appendChild(btnJson); planBox.appendChild(btnCsv);
+			if (!collisionCount){ planBox.appendChild(btnJson); planBox.appendChild(btnCsv); }
 			root.appendChild(planBox);
 		}
 	}
@@ -407,7 +428,7 @@ function renderResolverPanel(lists, pf){
 		const lbl = document.createElement('label'); lbl.textContent = 'Global prefix for renames:'; lbl.style.marginRight='6px';
 		const inp = document.createElement('input'); inp.type='text'; inp.value = state.planDraft.globalPrefix || ''; inp.style.minWidth='160px';
 		const gpId = safeIdFromTitle('lpm-gp', 'global'); inp.id = gpId; lbl.htmlFor = gpId; inp.name = 'lpm-global-prefix'; inp.autocomplete = 'off';
-        // Update preview, persist prefix, and refresh type colors when global prefix changes
+        // Update preview, persist prefix, and refresh type colors when global prefix changes (no fetch to avoid focus loss)
         inp.addEventListener('input', ()=>{
             state.planDraft.globalPrefix = inp.value;
             try { localStorage.setItem(LOCAL_STORAGE_GLOBAL_PREFIX_KEY, inp.value || ''); } catch(e) {}
@@ -415,6 +436,8 @@ function renderResolverPanel(lists, pf){
             refreshTreeBadges();
             updateGraph();
         });
+        // Send plan once the field loses focus
+        inp.addEventListener('blur', ()=>{ fetchDebounced({ plan: buildPlanFromDraft() }); });
 		prefixWrap.appendChild(lbl); prefixWrap.appendChild(inp); wrap.appendChild(prefixWrap);
 
 		// Live preview of resulting titles after applying per-page rename or global prefix
@@ -489,13 +512,15 @@ function renderResolverPanel(lists, pf){
         for (const h of ['Page','Type','Action','Rename to','Backup']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
         thead.appendChild(trh); table.appendChild(thead);
         const tbody = document.createElement('tbody');
-        const extSet = new Set(lists.external_collisions || []); const ppcSet = new Set(lists.pack_pack_conflicts || []);
+        // Use original (unfiltered) preflight lists to determine initial collision types for correct "Resolved" classification
+        const extSet0 = new Set((pf && pf.lists && pf.lists.external_collisions) || []);
+        const ppcSet0 = new Set((pf && pf.lists && pf.lists.pack_pack_conflicts) || []);
         const allPages = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages.slice().sort() : [];
         const computeType = (title) => {
             const p = (state.planDraft.pages||{})[title] || {};
             if (p.action === 'skip') return 'Skip';
-            const initiallyPackPack = ppcSet.has(title);
-            const initiallyExternal = extSet.has(title);
+            const initiallyPackPack = ppcSet0.has(title);
+            const initiallyExternal = extSet0.has(title);
             const finalT = finalTitleFor(title);
             if ((initiallyPackPack || initiallyExternal) && finalT !== title) return 'Resolved';
             if (initiallyPackPack) return 'Pack-pack';
@@ -516,16 +541,23 @@ function renderResolverPanel(lists, pf){
             const tdType = document.createElement('td'); tdType.textContent = type; tdType.style.fontWeight='600'; tdType.style.color = typeColor(type); tr.appendChild(tdType);
             const tdAction = document.createElement('td');
             const selectAction = document.createElement('select');
+            selectAction.id = safeIdFromTitle('lpm-action', t); selectAction.name = 'lpm-action';
+            const selLabel = makeSrLabel('Action'); selLabel.htmlFor = selectAction.id; tdAction.appendChild(selLabel);
             const options = (type === 'External' || type === 'Pack-pack') ? [ ['', '---'], ['skip','Skip'], ['update','Backup & Overwrite'], ['rename','Rename…'] ] : [ ['', '---'], ['skip','Skip'], ['rename','Rename…'] ];
             const pageDraft = state.planDraft.pages[t] || {};
             for (const [val,label] of options){ const o=document.createElement('option'); o.value=val; o.textContent=label; if ((pageDraft.action|| '')===val) o.selected=true; selectAction.appendChild(o); }
-            selectAction.addEventListener('change', (ev)=>{ const v = ev.target.value; if (!v) { if (state.planDraft.pages[t]) delete state.planDraft.pages[t].action; } else { state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { action: v }); } renderPreviewTable(); let ty=computeType(t); if (v==='skip') ty='Skip'; tdType.textContent=ty; tdType.style.color=typeColor(ty); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); });
+            selectAction.addEventListener('change', (ev)=>{ const v = ev.target.value; if (!v) { if (state.planDraft.pages[t]) delete state.planDraft.pages[t].action; } else { state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { action: v }); } renderPreviewTable(); const ty=computeType(t); tdType.textContent=ty; tdType.style.color=typeColor(ty); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); });
             tdAction.appendChild(selectAction); tr.appendChild(tdAction);
             const tdRename = document.createElement('td'); const renameInput = document.createElement('input'); renameInput.type='text'; renameInput.value = pageDraft.renameTo || ''; renameInput.disabled = (selectAction.value!=='rename');
+            renameInput.id = safeIdFromTitle('lpm-rename', t); renameInput.name = 'lpm-rename-to';
+            const rnLabel = makeSrLabel('Rename to'); rnLabel.htmlFor = renameInput.id; tdRename.appendChild(rnLabel);
             renameInput.addEventListener('input', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { renameTo: ev.target.value, action: 'rename' }); selectAction.value='rename'; renameInput.disabled=false; renderPreviewTable(); const ty=computeType(t); tdType.textContent = ty; tdType.style.color = typeColor(ty); refreshTreeBadges(); updateGraph(); /* no fetch here to preserve focus while typing */ });
             renameInput.addEventListener('blur', ()=>{ fetchDebounced({ plan: buildPlanFromDraft() }); });
             tdRename.appendChild(renameInput); tr.appendChild(tdRename);
-            const tdBackup = document.createElement('td'); const backupCheckbox = document.createElement('input'); backupCheckbox.type='checkbox'; backupCheckbox.checked = !!pageDraft.backup; backupCheckbox.disabled = !(type==='External' || type==='Pack-pack') || (selectAction.value!=='update'); backupCheckbox.addEventListener('change', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { backup: ev.target.checked }); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); }); tdBackup.appendChild(backupCheckbox); tr.appendChild(tdBackup);
+            const tdBackup = document.createElement('td'); const backupCheckbox = document.createElement('input'); backupCheckbox.type='checkbox'; backupCheckbox.checked = !!pageDraft.backup; backupCheckbox.disabled = !(type==='External' || type==='Pack-pack') || (selectAction.value!=='update');
+            backupCheckbox.id = safeIdFromTitle('lpm-backup', t); backupCheckbox.name = 'lpm-backup';
+            const bkLabel = makeSrLabel('Backup existing page'); bkLabel.htmlFor = backupCheckbox.id; tdBackup.appendChild(bkLabel);
+            backupCheckbox.addEventListener('change', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { backup: ev.target.checked }); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); }); tdBackup.appendChild(backupCheckbox); tr.appendChild(tdBackup);
             tbody.appendChild(tr);
             rowRefs.push({ title: t, tdType });
         }
@@ -657,12 +689,14 @@ function updateGraph(){
 	if (impliedIds.length) clsLines.push('class ' + impliedIds.join(',') + ' implied;');
 	// Pages: color them green when included (match tree dot)
     const pageIncluded = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : [];
-    const pageIds = pageIncluded.map(p => idMap['page:' + p]).filter(Boolean);
+    const skippedPages = Object.entries(state.planDraft.pages||{}).filter(([k,v]) => v && v.action === 'skip').map(([k])=>k);
+    const skippedSet = new Set(skippedPages);
+    // Included pages should exclude those explicitly skipped
+    const pageIds = pageIncluded.filter(p => !skippedSet.has(p)).map(p => idMap['page:' + p]).filter(Boolean);
     if (pageIds.length) {
         clsLines.push('class ' + pageIds.join(',') + ' pageIncluded;');
     }
     // Skipped pages
-    const skippedPages = Object.entries(state.planDraft.pages||{}).filter(([k,v]) => v && v.action === 'skip').map(([k])=>k);
     const skippedIds = skippedPages.map(p => idMap['page:' + p]).filter(Boolean);
     if (skippedIds.length){
         clsLines.push('class ' + skippedIds.join(',') + ' pageSkipped;');
