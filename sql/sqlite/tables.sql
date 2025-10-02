@@ -20,4 +20,13 @@ CREATE TABLE IF NOT EXISTS labki_pack_pages (
   PRIMARY KEY (pack_id, page_title)
 );
 
+-- labki_page_mapping: remembers original page keys to final titles
+CREATE TABLE IF NOT EXISTS labki_page_mapping (
+  pack_id TEXT NOT NULL,
+  page_key TEXT NOT NULL,
+  final_title TEXT NOT NULL,
+  created_at INTEGER,
+  PRIMARY KEY (pack_id, page_key)
+);
+
 

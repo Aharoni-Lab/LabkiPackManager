@@ -17,6 +17,12 @@
 		lastPlan: null
 	};
 
+	// Restore last used global prefix from localStorage
+	try {
+		const gp = localStorage.getItem('lpm_global_prefix');
+		if (typeof gp === 'string' && gp) { state.planDraft.globalPrefix = gp; }
+	} catch(e) {}
+
 	function isExpanded(id){
 		return state.expanded[id] !== undefined ? state.expanded[id] : true;
 	}
@@ -283,7 +289,7 @@ function onTogglePack(id){
 		const prefixWrap = document.createElement('div');
 		const lbl = document.createElement('label'); lbl.textContent = 'Global prefix for renames:'; lbl.style.marginRight='6px';
 		const inp = document.createElement('input'); inp.type='text'; inp.value = state.planDraft.globalPrefix || ''; inp.style.minWidth='160px';
-		inp.addEventListener('input', ()=>{ state.planDraft.globalPrefix = inp.value; });
+		inp.addEventListener('input', ()=>{ state.planDraft.globalPrefix = inp.value; try{ localStorage.setItem('lpm_global_prefix', inp.value||''); }catch(e){} });
 		prefixWrap.appendChild(lbl); prefixWrap.appendChild(inp); wrap.appendChild(prefixWrap);
 
 		const makeRow = (title, type) => {

@@ -19,4 +19,12 @@ CREATE TABLE IF NOT EXISTS /*_*/labki_pack_pages (
   PRIMARY KEY (pack_id, page_title)
 ) /*$wgDBTableOptions*/;
 
+CREATE TABLE IF NOT EXISTS /*_*/labki_page_mapping (
+  pack_id VARBINARY(255) NOT NULL,
+  page_key VARBINARY(512) NOT NULL,
+  final_title VARBINARY(512) NOT NULL,
+  created_at BINARY(14) DEFAULT NULL,
+  PRIMARY KEY (pack_id, page_key)
+) /*$wgDBTableOptions*/;
+
 

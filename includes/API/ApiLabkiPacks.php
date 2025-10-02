@@ -110,11 +110,15 @@ final class ApiLabkiPacks extends ApiBase {
             // Optional mapping input for plan (rename/prefix). Accept as JSON in 'plan' param.
             $rawPlan = $this->getRequest()->getVal( 'plan' );
             $plan = null;
+            $defaultPrefix = (string)$this->getConfig()->get( 'LabkiGlobalPrefix' );
             if ( is_string( $rawPlan ) && $rawPlan !== '' ) {
                 $decoded = json_decode( $rawPlan, true );
                 if ( is_array( $decoded ) ) {
+                    if ( !isset( $decoded['globalPrefix'] ) && $defaultPrefix !== '' ) { $decoded['globalPrefix'] = $defaultPrefix; }
                     $plan = ( new PlanResolver() )->resolve( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'] ], $decoded, [ 'lists' => $preflight['lists'] ?? [] ] );
                 }
+            } elseif ( $defaultPrefix !== '' ) {
+                $plan = ( new PlanResolver() )->resolve( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'] ], [ 'globalPrefix' => $defaultPrefix ], [ 'lists' => $preflight['lists'] ?? [] ] );
             }
         }
 
