@@ -23,6 +23,34 @@ git clone https://github.com/Aharoni-Lab/LabkiPackManager.git LabkiPackManager
 wfLoadExtension( 'LabkiPackManager' );
 ```
 
+Quick setup/reset (Docker + SQLite)
+-----------------------------------
+
+If you are developing locally with MediaWiki-Docker, use the bundled script to install or fully reset a working test wiki in one shot (clone MW if needed, mount this extension, install Mermaid, enable both, run updater):
+
+```bash
+# from your host shell (WSL/macOS/Linux), not inside the container
+cd ~/dev/LabkiPackManager
+chmod +x reset_mw_test.sh
+./reset_mw_test.sh
+```
+
+Then:
+
+- Open `http://localhost:8080/w` to use the wiki
+- Run unit tests:
+  ```bash
+  docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit'
+  ```
+- Run integration tests:
+  ```bash
+  docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration'
+  ```
+
+Notes:
+- Do not run the script with sudo. If you see permission errors after running as root, fix ownership: `sudo chown -R $USER:$USER ~/dev/mediawiki`.
+- The script mirrors the CI flow (SQLite), and is idempotent — safe to re-run when things get out of sync.
+
 3. Configure content sources (raw file hosts):
 
 ```php

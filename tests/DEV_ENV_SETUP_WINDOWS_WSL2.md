@@ -39,7 +39,23 @@ git config --global user.email "you@example.com"
 mkdir -p ~/dev && cd ~/dev
 ```
 
-### B. Get MediaWiki core with the built-in Docker dev environment
+### B. Quick path: use the reset script (recommended)
+
+For a one-command setup/reset that mirrors CI (SQLite), run from your host shell (WSL):
+
+```bash
+cd ~/dev/LabkiPackManager
+chmod +x reset_mw_test.sh
+./reset_mw_test.sh
+```
+
+This will: clone/update MediaWiki, start containers, install MW (SQLite), mount this extension, install Mermaid, enable both, and run the updater. After it completes, open `http://localhost:8080/w`.
+
+Notes:
+- Do not run with sudo. If permissions get messed up, fix with `sudo chown -R $USER:$USER ~/dev/mediawiki`.
+- If you prefer manual setup or need to debug, continue with the detailed steps below.
+
+### C. Get MediaWiki core with the built-in Docker dev environment
 
 1) Clone MediaWiki core inside WSL:
 
@@ -89,7 +105,7 @@ If Docker fails to start or connect, open Docker Desktop → Settings → Resour
 
 Open `http://localhost:8080` to confirm the wiki is live.
 
-### C. Attach your extension without polluting core
+### D. Attach your extension without polluting core
 
 We will want our extension's cloned repo to live in WSL just like the MW instance. We can clone into something like ~/dev/LabkiPackManager. We will need the WSL plugin in VS Code.
 
@@ -149,7 +165,7 @@ Notes:
 - Using REL1_44: `~6.0.1` is compatible. Alternatively, you can git-clone `extensions/Mermaid` and `git checkout REL1_44`.
 - If you prefer not to install Mermaid in development, the UI can fall back to a CDN-loaded Mermaid, but production should install the extension for CSP and stability.
 
-### D. Structure tests in your extension
+### E. Structure tests in your extension
 
 Use the MediaWiki test harness. Place tests under `tests/phpunit/` in your extension.
 
@@ -168,7 +184,7 @@ YourExtension/
 - Use `MediaWikiUnitTestCase` for fast, isolated tests.
 - Use `MediaWikiIntegrationTestCase` when you need services or a database.
 
-### E. Run tests through MediaWiki’s composer entrypoints
+### F. Run tests through MediaWiki’s composer entrypoints
 
 Open a shell inside the MediaWiki container:
 
@@ -203,7 +219,7 @@ Run one test file or directory by passing a path at the end. Always use these en
 
 If you hit runner issues, ensure you are inside the MediaWiki container and using the composer scripts shown above.
 
-### F. Quick database resets and fixes
+### G. Quick database resets and fixes
 
 Run the MediaWiki database updater (after enabling the extension or when schema changes):
 
@@ -221,11 +237,11 @@ mv LocalSettings.php LocalSettings.php.bak
 docker compose exec mediawiki /bin/bash /docker/install.sh
 ```
 
-### G. Optional MariaDB, closer to production
+### H. Optional MariaDB, closer to production
 
 Use SQLite for speed during development. For MySQL parity, add a MariaDB service in `docker-compose.override.yml` and point the installer at it. MediaWiki-Docker provides recipes for alternative databases and overrides.
 
-### H. Coding style and coverage
+### I. Coding style and coverage
 
 Run CodeSniffer from core to enforce MediaWiki rules:
 
@@ -235,7 +251,7 @@ docker compose exec mediawiki composer phpcs
 
 For PHPUnit HTML coverage, add `--coverage-html` to the test run.
 
-### I. Continuous integration, GitHub Actions (mirrors local flow)
+### J. Continuous integration, GitHub Actions (mirrors local flow)
 
 Keep CI close to your local flow. This example runs on pull requests and pushes to `main`, against REL1_44 on PHP 8.2 with SQLite, and cancels superseded runs.
 
@@ -306,7 +322,7 @@ jobs:
         run: composer phpunit:entrypoint -- extensions/YourExtension/tests/phpunit/integration
 ```
 
-### J. What goes where
+### K. What goes where
 
 In your extension repo:
 - All extension code.
