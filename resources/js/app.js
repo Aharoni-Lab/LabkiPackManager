@@ -11,7 +11,10 @@
 		previewPagesSet: new Set(),
 		uids: 0,
 		uidPrefix: (Math.random().toString(36).slice(2)),
-		mermaidReady: false
+		mermaidReady: false,
+		resolverOpen: false,
+		planDraft: { globalPrefix: '', pages: {} },
+		lastPlan: null
 	};
 
 	function isExpanded(id){
@@ -22,6 +25,7 @@
 		let base = mw.util.wikiScript('api') + '?action=labkipacks&format=json&formatversion=2';
 		if (state.repo) base += '&repo=' + encodeURIComponent(state.repo);
 		if (opts && opts.refresh) base += '&refresh=1';
+		if (opts && opts.plan){ try { base += '&plan=' + encodeURIComponent(JSON.stringify(opts.plan)); } catch(e){} }
 		if (!selected || !selected.length) return base;
 		return base + selected.map(s => '&selected[]=' + encodeURIComponent(s)).join('');
 	}
@@ -41,6 +45,7 @@
 			}
 			state.previewPacksSet = new Set(Array.isArray(state.data?.preview?.packs) ? state.data.preview.packs : []);
 			state.previewPagesSet = new Set(Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : []);
+			state.lastPlan = state.data?.plan || null;
 			render();
 		} catch (e) {
 			mw.notify('Failed to load data: ' + e, { type: 'error' });
@@ -102,7 +107,8 @@ function onTogglePack(id){
 			state.selected[id] = true;
 		}
     recomputePreviewLocally();
-    fetchDebounced();
+    // Fetch immediately so API receives selected[] and returns preview/preflight/plan
+    fetchData();
 	}
 
 	function treeNode(node){
@@ -227,6 +233,8 @@ function onTogglePack(id){
 				const el = makeList(label, lists[key] || []);
 				if (el) root.appendChild(el);
 			}
+			const hasCollisions = (lists.pack_pack_conflicts && lists.pack_pack_conflicts.length) || (lists.external_collisions && lists.external_collisions.length);
+			if (hasCollisions){ root.appendChild(renderResolverPanel(lists)); }
 		}
 
     // Details table for selected packs with version, installed/update, and description
@@ -254,6 +262,92 @@ function onTogglePack(id){
 	}
 	table.appendChild(tbody);
 	root.appendChild(table);
+
+		// Plan preview and downloads
+		if (state.lastPlan){
+			const planBox = document.createElement('div'); planBox.className = 'lpm-summary';
+			const s = state.lastPlan.summary || {};
+			planBox.textContent = `Plan: Create ${s.create||0} | Update ${s.update||0} | Rename ${s.rename||0} | Skip ${s.skip||0} | Backup ${s.backup||0}`;
+			const btnJson = document.createElement('button'); btnJson.type='button'; btnJson.className='cdx-button'; btnJson.style.marginLeft='6px'; btnJson.textContent = 'Download JSON';
+			btnJson.addEventListener('click', ()=>downloadText('labki-plan.json', JSON.stringify(state.lastPlan, null, 2)) );
+			const btnCsv = document.createElement('button'); btnCsv.type='button'; btnCsv.className='cdx-button'; btnCsv.style.marginLeft='4px'; btnCsv.textContent = 'Download CSV';
+			btnCsv.addEventListener('click', ()=>downloadText('labki-plan.csv', planToCsv(state.lastPlan)) );
+			planBox.appendChild(btnJson); planBox.appendChild(btnCsv);
+			root.appendChild(planBox);
+		}
+	}
+
+	function renderResolverPanel(lists){
+		const wrap = document.createElement('div'); wrap.style.marginTop='8px';
+		const h = document.createElement('div'); h.textContent = 'Resolve collisions'; h.style.fontWeight='600'; wrap.appendChild(h);
+		const prefixWrap = document.createElement('div');
+		const lbl = document.createElement('label'); lbl.textContent = 'Global prefix for renames:'; lbl.style.marginRight='6px';
+		const inp = document.createElement('input'); inp.type='text'; inp.value = state.planDraft.globalPrefix || ''; inp.style.minWidth='160px';
+		inp.addEventListener('input', ()=>{ state.planDraft.globalPrefix = inp.value; });
+		prefixWrap.appendChild(lbl); prefixWrap.appendChild(inp); wrap.appendChild(prefixWrap);
+
+		const makeRow = (title, type) => {
+			const tr = document.createElement('tr');
+			const td1 = document.createElement('td'); td1.textContent = title; tr.appendChild(td1);
+			const td2 = document.createElement('td');
+			const sel = document.createElement('select');
+			const opts = type==='external' ? [ ['skip','Skip (default)'], ['backup','Backup & overwrite'], ['rename','Rename…'] ] : [ ['skip','Skip (default)'], ['rename','Rename…'] ];
+			for (const [val,label] of opts){ const o=document.createElement('option'); o.value=val; o.textContent=label; sel.appendChild(o); }
+			const pageDraft = state.planDraft.pages[title] || {};
+			sel.value = pageDraft.action || 'skip';
+			const rn = document.createElement('input'); rn.type='text'; rn.placeholder='New title'; rn.style.marginLeft='6px'; rn.value = pageDraft.renameTo || '';
+			rn.style.display = (sel.value==='rename') ? '' : 'none';
+			const bk = document.createElement('input'); bk.type='checkbox'; bk.style.marginLeft='6px'; bk.title='Backup existing page before overwrite'; bk.checked = !!pageDraft.backup;
+			bk.style.display = (type==='external' && sel.value!=='skip') ? '' : 'none';
+			sel.addEventListener('change', ()=>{ rn.style.display = (sel.value==='rename') ? '' : 'none'; bk.style.display = (type==='external' && sel.value!=='skip') ? '' : 'none'; state.planDraft.pages[title] = Object.assign({}, state.planDraft.pages[title]||{}, { action: sel.value }); });
+			rn.addEventListener('input', ()=>{ state.planDraft.pages[title] = Object.assign({}, state.planDraft.pages[title]||{}, { renameTo: rn.value, action: 'rename' }); sel.value='rename'; rn.style.display=''; });
+			bk.addEventListener('change', ()=>{ state.planDraft.pages[title] = Object.assign({}, state.planDraft.pages[title]||{}, { backup: bk.checked }); });
+			td2.appendChild(sel); td2.appendChild(rn); td2.appendChild(bk); tr.appendChild(td2);
+			return tr;
+		};
+
+		const table = document.createElement('table'); table.className='lpm-table';
+		const thead = document.createElement('thead'); const trh = document.createElement('tr');
+		for (const h of ['Page','Action']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
+		thead.appendChild(trh); table.appendChild(thead);
+		const tbody = document.createElement('tbody');
+		const ext = lists.external_collisions || []; const ppc = lists.pack_pack_conflicts || [];
+		for (const t of ext){ tbody.appendChild(makeRow(t, 'external')); }
+		for (const t of ppc){ tbody.appendChild(makeRow(t, 'packpack')); }
+		table.appendChild(tbody); wrap.appendChild(table);
+
+		const btnApply = document.createElement('button'); btnApply.type='button'; btnApply.className='cdx-button cdx-button--action-progressive'; btnApply.textContent='Apply plan'; btnApply.style.marginTop='6px';
+		btnApply.addEventListener('click', ()=>{ applyPlan(); });
+		wrap.appendChild(btnApply);
+		return wrap;
+	}
+
+	function applyPlan(){
+		const plan = { globalPrefix: (state.planDraft.globalPrefix||'') || undefined, pages: {} };
+		for (const [title, cfg] of Object.entries(state.planDraft.pages||{})){
+			const rec = {};
+			if (cfg.action) rec.action = cfg.action;
+			if (cfg.renameTo) rec.renameTo = cfg.renameTo;
+			if (cfg.backup) rec.backup = true;
+			plan.pages[title] = rec;
+		}
+		fetchData({ plan });
+	}
+
+	function planToCsv(plan){
+		const rows = [['title','finalTitle','action','backup']];
+		const pages = Array.isArray(plan?.pages) ? plan.pages : (plan?.pages || []);
+		if (Array.isArray(pages)){
+			for (const p of pages){ rows.push([p.title, p.finalTitle, p.action, String(!!p.backup)]); }
+		}else{
+			for (const p of (plan.list||[])) rows.push([p.title,p.finalTitle,p.action,String(!!p.backup)]);
+		}
+		return rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+	}
+
+	function downloadText(filename, text){
+		const blob = new Blob([text], { type: 'text/plain' });
+		const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 	}
 
 	function renderRepoPicker(container){

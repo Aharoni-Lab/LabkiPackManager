@@ -31,6 +31,10 @@ final class PlanResolver {
         $planPages = [];
         $counts = [ 'create' => 0, 'update' => 0, 'skip' => 0, 'rename' => 0, 'backup' => 0 ];
 
+        $services = MediaWikiServices::getInstance();
+        $titleFactory = $services->getTitleFactory();
+        $nsInfo = $services->getNamespaceInfo();
+
         foreach ( $resolved['pages'] as $prefixed ) {
             $pageAction = $perPage[$prefixed]['action'] ?? null;
             $renameTo = $perPage[$prefixed]['renameTo'] ?? null;
@@ -44,14 +48,39 @@ final class PlanResolver {
                 else { $pageAction = 'update'; }
             }
 
-            // Apply renames: explicit per-page wins; else global prefix if provided and action would skip due to collision
+            // Apply renames with namespace-preserving behavior for namespaced content
             $finalTitle = $prefixed;
-            $didRename = false;
-            if ( $pageAction === 'rename' ) {
-                if ( is_string($renameTo) && $renameTo !== '' ) { $finalTitle = $renameTo; $didRename = true; }
-                elseif ( $globalPrefix ) { $finalTitle = $globalPrefix . ':' . $prefixed; $didRename = true; }
-            } elseif ( ($pageAction === 'skip') && $globalPrefix && ( isset($ppcSet[$prefixed]) || isset($extSet[$prefixed]) ) ) {
-                $finalTitle = $globalPrefix . ':' . $prefixed; $pageAction = 'rename'; $didRename = true;
+            if ( $pageAction === 'rename' || ( ($pageAction === 'skip') && $globalPrefix && ( isset($ppcSet[$prefixed]) || isset($extSet[$prefixed]) ) ) ) {
+                // If skipping due to collision but global prefix provided, turn into rename
+                if ( $pageAction === 'skip' ) { $pageAction = 'rename'; }
+                if ( is_string($renameTo) && $renameTo !== '' ) {
+                    $finalTitle = $renameTo;
+                } else {
+                    $t = $titleFactory->newFromText( $prefixed );
+                    if ( $t ) {
+                        $ns = $t->getNamespace();
+                        $text = $t->getText();
+                        if ( $ns !== NS_MAIN ) {
+                            // Preserve original namespace; add prefix as subpage component
+                            $finalTitle = $titleFactory->makeTitle( $ns, $globalPrefix . '/' . $text )->getPrefixedText();
+                        } else {
+                            // Try to interpret prefix as real namespace; otherwise treat as literal prefix in main
+                            $targetNs = null;
+                            if ( is_string($globalPrefix) && $globalPrefix !== '' ) {
+                                $idx = $nsInfo->getCanonicalIndex( $globalPrefix );
+                                if ( is_int( $idx ) ) { $targetNs = $idx; }
+                            }
+                            if ( $targetNs !== null ) {
+                                $finalTitle = $titleFactory->makeTitle( $targetNs, $text )->getPrefixedText();
+                            } else {
+                                $finalTitle = $globalPrefix . ':' . $prefixed;
+                            }
+                        }
+                    } else {
+                        // Fallback: simple prefix
+                        $finalTitle = $globalPrefix ? ($globalPrefix . ':' . $prefixed) : $prefixed;
+                    }
+                }
             }
 
             $planPages[] = [ 'title' => $prefixed, 'finalTitle' => $finalTitle, 'action' => $pageAction, 'backup' => $backup ];
