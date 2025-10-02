@@ -6,6 +6,7 @@ declare(strict_types=1);
  * @group Database
  */
 final class PreflightPlannerTest extends \MediaWikiIntegrationTestCase {
+    protected static $tablesUsed = [ 'page', 'revision', 'page_props' ];
     /**
      * @group Database
      * @covers \LabkiPackManager\Services\PreflightPlanner::plan
@@ -57,6 +58,17 @@ final class PreflightPlannerTest extends \MediaWikiIntegrationTestCase {
         $this->assertSame(1, $pf['update_unchanged']);
         $this->assertSame(1, $pf['update_modified']);
         $this->assertIsArray($pf['lists']['create']);
+
+        // Cross-repo conflict: mark existing page as from a different repo
+        $dbr = $this->getDb();
+        $pageIdExt = (int)$titleFactory->newFromText( 'PF External' )->getArticleID();
+        // Upsert props so it looks owned by a different repo/pack
+        $dbr->newDeleteQueryBuilder()->deleteFrom('page_props')->where(['pp_page'=>$pageIdExt,'pp_propname'=>'labki.source_repo'])->caller(__METHOD__)->execute();
+        $dbr->newInsertQueryBuilder()->insertInto('page_props')->row(['pp_page'=>$pageIdExt,'pp_propname'=>'labki.source_repo','pp_value'=>'https://example.com/repoB/manifest.yml'])->caller(__METHOD__)->execute();
+        $dbr->newDeleteQueryBuilder()->deleteFrom('page_props')->where(['pp_page'=>$pageIdExt,'pp_propname'=>'labki.pack_id'])->caller(__METHOD__)->execute();
+        $dbr->newInsertQueryBuilder()->insertInto('page_props')->row(['pp_page'=>$pageIdExt,'pp_propname'=>'labki.pack_id','pp_value'=>'pub'])->caller(__METHOD__)->execute();
+        $pf2 = $planner->plan( [ 'packs'=>['pub'], 'pages'=>['PF External'], 'repoUrl' => 'https://example.com/repoA/manifest.yml' ] );
+        $this->assertSame(1, $pf2['pack_pack_conflicts']);
     }
 }
 

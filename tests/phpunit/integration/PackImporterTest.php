@@ -10,6 +10,7 @@ use LabkiPackManager\Import\PackImporter;
  * @covers \LabkiPackManager\Import\PackImporter::importPack
  */
 final class PackImporterTest extends \MediaWikiIntegrationTestCase {
+    protected static $tablesUsed = [ 'page', 'revision', 'page_props', 'labki_pack_registry', 'labki_pack_pages' ];
     public function testImportPackWritesPropsAndRegistry(): void {
         $title = $this->getServiceContainer()->getTitleFactory()->makeTitle( NS_MAIN, 'LPM Test Page' );
         $revRec = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $title )

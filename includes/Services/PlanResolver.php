@@ -31,9 +31,18 @@ final class PlanResolver {
         $planPages = [];
         $counts = [ 'create' => 0, 'update' => 0, 'skip' => 0, 'rename' => 0, 'backup' => 0 ];
 
-        $services = MediaWikiServices::getInstance();
-        $titleFactory = $services->getTitleFactory();
-        $nsInfo = $services->getNamespaceInfo();
+        // Try to use MediaWiki services when available; otherwise fall back to a simple parser
+        $titleFactory = null; $nsInfo = null;
+        try {
+            if ( class_exists( MediaWikiServices::class ) ) {
+                $services = MediaWikiServices::getInstance();
+                // When unit tests run without MW bootstrap, this may throw; keep it guarded
+                $titleFactory = $services->getTitleFactory();
+                $nsInfo = $services->getNamespaceInfo();
+            }
+        } catch ( \Throwable $e ) {
+            $titleFactory = null; $nsInfo = null;
+        }
 
         foreach ( $resolved['pages'] as $prefixed ) {
             $pageAction = $perPage[$prefixed]['action'] ?? null;
@@ -56,29 +65,43 @@ final class PlanResolver {
                 if ( is_string($renameTo) && $renameTo !== '' ) {
                     $finalTitle = $renameTo;
                 } else {
-                    $t = $titleFactory->newFromText( $prefixed );
-                    if ( $t ) {
-                        $ns = $t->getNamespace();
-                        $text = $t->getText();
-                        if ( $ns !== NS_MAIN ) {
-                            // Preserve original namespace; add prefix as subpage component
-                            $finalTitle = $titleFactory->makeTitle( $ns, $globalPrefix . '/' . $text )->getPrefixedText();
-                        } else {
-                            // Try to interpret prefix as real namespace; otherwise treat as literal prefix in main
-                            $targetNs = null;
-                            if ( is_string($globalPrefix) && $globalPrefix !== '' ) {
-                                $idx = $nsInfo->getCanonicalIndex( $globalPrefix );
-                                if ( is_int( $idx ) ) { $targetNs = $idx; }
-                            }
-                            if ( $targetNs !== null ) {
-                                $finalTitle = $titleFactory->makeTitle( $targetNs, $text )->getPrefixedText();
+                    if ( $titleFactory && $nsInfo ) {
+                        $t = $titleFactory->newFromText( $prefixed );
+                        if ( $t ) {
+                            $ns = $t->getNamespace();
+                            $text = $t->getText();
+                            if ( $ns !== NS_MAIN ) {
+                                // Preserve original namespace; add prefix as subpage component
+                                $finalTitle = $titleFactory->makeTitle( $ns, $globalPrefix . '/' . $text )->getPrefixedText();
                             } else {
-                                $finalTitle = $globalPrefix . ':' . $prefixed;
+                                // Try to interpret prefix as real namespace; otherwise treat as literal prefix in main
+                                $targetNs = null;
+                                if ( is_string($globalPrefix) && $globalPrefix !== '' ) {
+                                    $idx = $nsInfo->getCanonicalIndex( $globalPrefix );
+                                    if ( is_int( $idx ) ) { $targetNs = $idx; }
+                                }
+                                if ( $targetNs !== null ) {
+                                    $finalTitle = $titleFactory->makeTitle( $targetNs, $text )->getPrefixedText();
+                                } else {
+                                    $finalTitle = $globalPrefix . ':' . $prefixed;
+                                }
                             }
+                        } else {
+                            $finalTitle = $globalPrefix ? ($globalPrefix . ':' . $prefixed) : $prefixed;
                         }
                     } else {
-                        // Fallback: simple prefix
-                        $finalTitle = $globalPrefix ? ($globalPrefix . ':' . $prefixed) : $prefixed;
+                        // Simple fallback without MW services: preserve first-segment namespace if present
+                        $nsName = null; $rest = $prefixed;
+                        $pos = strpos( $prefixed, ':' );
+                        if ( $pos !== false ) {
+                            $nsName = substr( $prefixed, 0, $pos );
+                            $rest = substr( $prefixed, $pos + 1 );
+                        }
+                        if ( $nsName !== null && $nsName !== '' ) {
+                            $finalTitle = $nsName . ':' . $globalPrefix . '/' . $rest;
+                        } else {
+                            $finalTitle = $globalPrefix . ':' . $prefixed;
+                        }
                     }
                 }
             }
