@@ -91,6 +91,10 @@
     "LabkiSchemaCacheTTL": {
       "value": 300,
       "description": "TTL for schema index caching (future use)."
+    },
+    "LabkiGlobalPrefix": {
+      "value": "",
+      "description": "Optional global prefix to apply to renamed pages (collision avoidance)."
     }
   },
   "AvailableRights": [
@@ -100,6 +104,7 @@
     "sysop": {
       "labkipackmanager-manage": true
     }
-  }
+  },
+  "ConfigRegistry": {}
 }
 
