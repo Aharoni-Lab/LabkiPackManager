@@ -2,23 +2,31 @@
 
 declare(strict_types=1);
 
-use PHPUnit\Framework\TestCase;
 use LabkiPackManager\Services\PlanResolver;
 
 /**
- * @covers \LabkiPackManager\Services\PlanResolver::resolve
+ * @covers \LabkiPackManager\Services\PlanResolver
  */
-final class PlanResolverTest extends TestCase {
-    public function testNamespacePreservingRename(): void {
+final class PlanResolverTest extends \MediaWikiUnitTestCase {
+    public function testRenameWithPrefixPreservesNamespace(): void {
         $resolver = new PlanResolver();
-        $resolved = [ 'packs' => ['p'], 'pages' => [ 'Template:Card' ] ];
-        $actions = [ 'globalPrefix' => 'PackX' ];
-        $pf = [ 'lists' => [ 'external_collisions' => [ 'Template:Card' ] ] ];
+        $resolved = [ 'packs' => ['p1'], 'pages' => ['Template:Foo','Main:Bar','Baz'] ];
+        $actions = [ 'globalPrefix' => 'ABC', 'pages' => [ 'Template:Foo' => [ 'action' => 'rename', 'renameTo' => 'Ren' ] ] ];
+        $pf = [ 'lists' => [ 'external_collisions' => ['Template:Foo'], 'pack_pack_conflicts' => [] ] ];
         $plan = $resolver->resolve( $resolved, $actions, $pf );
-        $this->assertIsArray( $plan['pages'] );
-        $this->assertNotEmpty( $plan['pages'] );
-        $this->assertSame( 'Template:PackX/Card', $plan['pages'][0]['finalTitle'] );
-        $this->assertSame( 'rename', $plan['pages'][0]['action'] );
+        $pages = $plan['pages'];
+        $this->assertSame('Template:ABC/Ren', $pages[0]['finalTitle']);
+    }
+
+    public function testSkipActionCounted(): void {
+        $resolver = new PlanResolver();
+        $resolved = [ 'packs' => ['p1'], 'pages' => ['Foo'] ];
+        $actions = [ 'pages' => [ 'Foo' => [ 'action' => 'skip' ] ] ];
+        $pf = [ 'lists' => [] ];
+        $plan = $resolver->resolve( $resolved, $actions, $pf );
+        $this->assertSame('skip', $plan['pages'][0]['action']);
+        $this->assertArrayHasKey('summary', $plan);
+        $this->assertIsArray($plan['summary']);
     }
 }
 

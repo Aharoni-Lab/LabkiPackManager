@@ -104,6 +104,7 @@ final class ApiLabkiPacks extends ApiBase {
         }
 
         $selected = $this->getRequest()->getArray( 'selected' ) ?: [];
+        $plan = null;
         $preview = [];
         $preflight = null;
         if ( $selected ) {
