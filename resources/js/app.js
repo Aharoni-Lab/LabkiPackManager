@@ -17,9 +17,16 @@
 		lastPlan: null
 	};
 
+	// Shared constants/utilities
+	const LOCAL_STORAGE_GLOBAL_PREFIX_KEY = 'lpm_global_prefix';
+	const KNOWN_NS = new Set([
+		'Template','Form','Module','Category','Property','Help','User','File','Image','Project','MediaWiki','Media','Special','Talk','User talk','Project talk','File talk','MediaWiki talk','Template talk','Help talk','Category talk','Module talk'
+	]);
+	function isKnownNamespace(ns){ return KNOWN_NS.has(ns); }
+
 	// Restore last used global prefix from localStorage
 	try {
-		const gp = localStorage.getItem('lpm_global_prefix');
+		const gp = localStorage.getItem(LOCAL_STORAGE_GLOBAL_PREFIX_KEY);
 		if (typeof gp === 'string' && gp) { state.planDraft.globalPrefix = gp; }
 	} catch(e) {}
 
@@ -36,8 +43,7 @@
 			const idxR = title.indexOf(':');
 			if (idxR > 0){
 				const ns = title.slice(0, idxR);
-				const knownNs = new Set(['Template','Form','Module','Category','Property','Help','User','File','Image','Project','MediaWiki','Media','Special','Talk','User talk','Project talk','File talk','MediaWiki talk','Template talk','Help talk','Category talk','Module talk']);
-				if (knownNs.has(ns)){
+				if ( isKnownNamespace(ns) ){
 					if (gp){ if (p.renameTo.startsWith(gp + '/')) return ns + ':' + p.renameTo; return ns + ':' + gp + '/' + p.renameTo; }
 					return ns + ':' + p.renameTo;
 				}
@@ -51,8 +57,7 @@
 		const idx = title.indexOf(':');
 		if (idx > 0){
 			const ns = title.slice(0, idx); const rest = title.slice(idx+1);
-			const knownNs = new Set(['Template','Form','Module','Category','Property','Help','User','File','Image','Project','MediaWiki','Media','Special','Talk','User talk','Project talk','File talk','MediaWiki talk','Template talk','Help talk','Category talk','Module talk']);
-			if (knownNs.has(ns)){
+			if ( isKnownNamespace(ns) ){
 				if (rest.startsWith(gp + '/')) return title;
 				return ns + ':' + gp + '/' + rest;
 			}
@@ -131,6 +136,25 @@ function isPageCollidingNow(title){
     if (!initiallyColliding) return false;
     // If mapping changes the final title, collision is considered resolved
     return finalTitleFor(title) === title;
+}
+
+// Update existing tree page badges (dot colors) without re-rendering the whole tree
+function refreshTreeBadges(){
+    document.querySelectorAll('.lpm-row').forEach(row => {
+        const pageLabel = row.querySelector('.lpm-page-label');
+        const inc = row.querySelector('.lpm-inc');
+        if (!pageLabel || !inc) return;
+        const title = pageLabel.textContent;
+        const skipped = isPageSkipped(title);
+        const colliding = isPageCollidingNow(title);
+        if (skipped){
+            inc.className = 'lpm-inc'; inc.style.background='#facc15'; inc.style.border='1px solid #eab308'; inc.title = 'Skipped';
+        } else if (colliding){
+            inc.className = 'lpm-inc'; inc.style.background='#fecaca'; inc.style.border='1px solid #ef4444'; inc.title = 'Collision';
+        } else {
+            inc.className = 'lpm-inc' + (isPageIncluded(title) ? ' on' : ''); inc.style.background=''; inc.style.border=''; inc.title = isPageIncluded(title) ? 'Included' : 'Not included';
+        }
+    });
 }
 
 function recomputePreviewLocally(){
@@ -329,8 +353,8 @@ function onTogglePack(id){
 				wrap.appendChild(btn); wrap.appendChild(ul); root.appendChild(wrap);
 			}
             const hasCollisions = (filteredLists.pack_pack_conflicts && filteredLists.pack_pack_conflicts.length) || (filteredLists.external_collisions && filteredLists.external_collisions.length);
-            // Always show resolver so users can set global prefix even without collisions
-            root.appendChild(renderResolverPanel(filteredLists, pf));
+			// Always show resolver so users can set global prefix even without collisions
+			root.appendChild(renderResolverPanel(filteredLists, pf));
 		}
 
     // Details table for selected packs with version, installed/update, and description
@@ -359,7 +383,10 @@ function onTogglePack(id){
 	table.appendChild(tbody);
 	root.appendChild(table);
 
-		// Plan preview and downloads
+		// Plan preview and downloads: ensure we prompt server for a plan at least once
+		if (!state.lastPlan && state.previewPagesSet.size){
+			fetchDebounced({ plan: buildPlanFromDraft() });
+		}
 		if (state.lastPlan){
 			const planBox = document.createElement('div'); planBox.className = 'lpm-summary';
 			const s = state.lastPlan.summary || {};
@@ -380,7 +407,14 @@ function renderResolverPanel(lists, pf){
 		const lbl = document.createElement('label'); lbl.textContent = 'Global prefix for renames:'; lbl.style.marginRight='6px';
 		const inp = document.createElement('input'); inp.type='text'; inp.value = state.planDraft.globalPrefix || ''; inp.style.minWidth='160px';
 		const gpId = safeIdFromTitle('lpm-gp', 'global'); inp.id = gpId; lbl.htmlFor = gpId; inp.name = 'lpm-global-prefix'; inp.autocomplete = 'off';
-		inp.addEventListener('input', ()=>{ state.planDraft.globalPrefix = inp.value; try{ localStorage.setItem('lpm_global_prefix', inp.value||''); }catch(e){}; renderPreviewTable(); });
+        // Update preview, persist prefix, and refresh type colors when global prefix changes
+        inp.addEventListener('input', ()=>{
+            state.planDraft.globalPrefix = inp.value;
+            try { localStorage.setItem(LOCAL_STORAGE_GLOBAL_PREFIX_KEY, inp.value || ''); } catch(e) {}
+            renderPreviewTable();
+            refreshTreeBadges();
+            updateGraph();
+        });
 		prefixWrap.appendChild(lbl); prefixWrap.appendChild(inp); wrap.appendChild(prefixWrap);
 
 		// Live preview of resulting titles after applying per-page rename or global prefix
@@ -448,32 +482,7 @@ function renderResolverPanel(lists, pf){
 		renderPreviewTable();
 		wrap.appendChild(prev);
 
-		const makeRow = (title, type) => {
-			const tr = document.createElement('tr');
-			const td1 = document.createElement('td'); td1.textContent = title; tr.appendChild(td1);
-			const td2 = document.createElement('td');
-			const sel = document.createElement('select');
-			sel.name = 'lpm-action'; sel.id = safeIdFromTitle('lpm-action', title);
-            // Default '---' means no per-page override; server will use safe defaults
-            const opts = type==='external' ? [ ['', '---'], ['skip','Skip'], ['backup','Backup & overwrite'], ['rename','Rename…'] ] : [ ['', '---'], ['skip','Skip'], ['rename','Rename…'] ];
-            for (const [val,label] of opts){ const o=document.createElement('option'); o.value=val; o.textContent=label; sel.appendChild(o); }
-			const pageDraft = state.planDraft.pages[title] || {};
-            sel.value = pageDraft.action || '';
-			const rn = document.createElement('input'); rn.type='text'; rn.placeholder='New title'; rn.style.marginLeft='6px'; rn.value = pageDraft.renameTo || '';
-			rn.name = 'lpm-rename-to'; rn.id = safeIdFromTitle('lpm-rename', title); rn.autocomplete='off';
-			rn.style.display = (sel.value==='rename') ? '' : 'none'; rn.disabled = (sel.value!=='rename');
-			const bk = document.createElement('input'); bk.type='checkbox'; bk.style.marginLeft='6px'; bk.title='Backup existing page before overwrite'; bk.checked = !!pageDraft.backup;
-			bk.name = 'lpm-backup'; bk.id = safeIdFromTitle('lpm-backup', title);
-			bk.style.display = (type==='external' && sel.value!=='skip') ? '' : 'none'; bk.disabled = !((type==='External' || type==='Pack-pack') && sel.value==='update');
-            sel.addEventListener('change', ()=>{ rn.style.display = (sel.value==='rename') ? '' : 'none'; rn.disabled = (sel.value!=='rename'); bk.style.display = (type==='external' && sel.value!=='skip') ? '' : 'none'; bk.disabled = !((type==='External' || type==='Pack-pack') && sel.value==='update'); if (!sel.value) { if (state.planDraft.pages[title]) { delete state.planDraft.pages[title].action; } } else { state.planDraft.pages[title] = Object.assign({}, state.planDraft.pages[title]||{}, { action: sel.value }); } renderPreviewTable(); fetchData({ plan: buildPlanFromDraft() }); });
-            rn.addEventListener('input', ()=>{ state.planDraft.pages[title] = Object.assign({}, state.planDraft.pages[title]||{}, { renameTo: rn.value, action: 'rename' }); sel.value='rename'; rn.style.display=''; renderPreviewTable(); fetchData({ plan: buildPlanFromDraft() }); });
-            bk.addEventListener('change', ()=>{ state.planDraft.pages[title] = Object.assign({}, state.planDraft.pages[title]||{}, { backup: bk.checked }); fetchData({ plan: buildPlanFromDraft() }); });
-			td2.appendChild(sel);
-			const rnLabel = makeSrLabel('Rename to'); rnLabel.htmlFor = rn.id; td2.appendChild(rnLabel); td2.appendChild(rn);
-			const bkLabel = makeSrLabel('Backup existing page'); bkLabel.htmlFor = bk.id; td2.appendChild(bkLabel); td2.appendChild(bk);
-			tr.appendChild(td2);
-			return tr;
-		};
+		// (makeRow helper removed; inline row creation below is the single source of truth)
 
         const table = document.createElement('table'); table.className='lpm-table';
         const thead = document.createElement('thead'); const trh = document.createElement('tr');
@@ -510,13 +519,13 @@ function renderResolverPanel(lists, pf){
             const options = (type === 'External' || type === 'Pack-pack') ? [ ['', '---'], ['skip','Skip'], ['update','Backup & Overwrite'], ['rename','Rename…'] ] : [ ['', '---'], ['skip','Skip'], ['rename','Rename…'] ];
             const pageDraft = state.planDraft.pages[t] || {};
             for (const [val,label] of options){ const o=document.createElement('option'); o.value=val; o.textContent=label; if ((pageDraft.action|| '')===val) o.selected=true; selectAction.appendChild(o); }
-            selectAction.addEventListener('change', (ev)=>{ const v = ev.target.value; if (!v) { if (state.planDraft.pages[t]) delete state.planDraft.pages[t].action; } else { state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { action: v }); } renderPreviewTable(); let ty=computeType(t); if (v==='skip') ty='Skip'; tdType.textContent=ty; tdType.style.color=typeColor(ty); fetchDebounced({ plan: buildPlanFromDraft() }); });
+            selectAction.addEventListener('change', (ev)=>{ const v = ev.target.value; if (!v) { if (state.planDraft.pages[t]) delete state.planDraft.pages[t].action; } else { state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { action: v }); } renderPreviewTable(); let ty=computeType(t); if (v==='skip') ty='Skip'; tdType.textContent=ty; tdType.style.color=typeColor(ty); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); });
             tdAction.appendChild(selectAction); tr.appendChild(tdAction);
             const tdRename = document.createElement('td'); const renameInput = document.createElement('input'); renameInput.type='text'; renameInput.value = pageDraft.renameTo || ''; renameInput.disabled = (selectAction.value!=='rename');
-            renameInput.addEventListener('input', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { renameTo: ev.target.value, action: 'rename' }); selectAction.value='rename'; renameInput.disabled=false; renderPreviewTable(); const ty=computeType(t); tdType.textContent = ty; tdType.style.color = typeColor(ty); /* no fetch here to preserve focus while typing */ });
+            renameInput.addEventListener('input', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { renameTo: ev.target.value, action: 'rename' }); selectAction.value='rename'; renameInput.disabled=false; renderPreviewTable(); const ty=computeType(t); tdType.textContent = ty; tdType.style.color = typeColor(ty); refreshTreeBadges(); updateGraph(); /* no fetch here to preserve focus while typing */ });
             renameInput.addEventListener('blur', ()=>{ fetchDebounced({ plan: buildPlanFromDraft() }); });
             tdRename.appendChild(renameInput); tr.appendChild(tdRename);
-            const tdBackup = document.createElement('td'); const backupCheckbox = document.createElement('input'); backupCheckbox.type='checkbox'; backupCheckbox.checked = !!pageDraft.backup; backupCheckbox.disabled = !(type==='External' || type==='Pack-pack') || (selectAction.value!=='update'); backupCheckbox.addEventListener('change', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { backup: ev.target.checked }); fetchDebounced({ plan: buildPlanFromDraft() }); }); tdBackup.appendChild(backupCheckbox); tr.appendChild(tdBackup);
+            const tdBackup = document.createElement('td'); const backupCheckbox = document.createElement('input'); backupCheckbox.type='checkbox'; backupCheckbox.checked = !!pageDraft.backup; backupCheckbox.disabled = !(type==='External' || type==='Pack-pack') || (selectAction.value!=='update'); backupCheckbox.addEventListener('change', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { backup: ev.target.checked }); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); }); tdBackup.appendChild(backupCheckbox); tr.appendChild(tdBackup);
             tbody.appendChild(tr);
             rowRefs.push({ title: t, tdType });
         }
@@ -662,7 +671,7 @@ function updateGraph(){
     const lists = (state.data && state.data.preflight && state.data.preflight.lists) || {};
     const extSet = new Set(lists.external_collisions || []);
     const ppcSet = new Set(lists.pack_pack_conflicts || []);
-    const collidingUnresolved = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages.filter(t => (extSet.has(t)||ppcSet.has(t)) && finalTitleFor(t)===t) : [];
+    const collidingUnresolved = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages.filter(t => (extSet.has(t)||ppcSet.has(t)) && finalTitleFor(t)===t && !isPageSkipped(t)) : [];
     const collidingIds = collidingUnresolved.map(p => idMap['page:' + p]).filter(Boolean);
     if (collidingIds.length){ clsLines.push('class ' + collidingIds.join(',') + ' pageCollision;'); }
     const code = base + '\n' + clsLines.join('\n');
