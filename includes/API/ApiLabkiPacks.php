@@ -140,6 +140,7 @@ final class ApiLabkiPacks extends ApiBase {
             'preview' => $preview,
             'preflight' => $preflight,
             'plan' => $plan,
+                    'defaults' => [ 'globalPrefix' => (string)$this->getConfig()->get( 'LabkiGlobalPrefix' ) ],
 			'dataVersion' => 1,
 		];
 		if ( isset( $domain['errorKey'] ) ) {

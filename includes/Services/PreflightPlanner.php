@@ -30,6 +30,7 @@ final class PreflightPlanner {
 
         $create = 0; $updateUnchanged = 0; $updateModified = 0; $packPack = 0; $external = 0;
         $createList = []; $updateUnchangedList = []; $updateModifiedList = []; $packPackList = []; $externalList = [];
+        $ownersMap = [];
 
         $currentRepo = isset($resolved['repoUrl']) && is_string($resolved['repoUrl']) ? (string)$resolved['repoUrl'] : null;
         foreach ( $resolved['pages'] as $prefixed ) {
@@ -48,6 +49,13 @@ final class PreflightPlanner {
             foreach ( $pp as $row ) { $props[(string)$row->pp_propname] = (string)$row->pp_value; }
 
             $packId = $props['labki.pack_id'] ?? null;
+            if ( $packId !== null ) {
+                $ownersMap[$prefixed] = [
+                    'pack_id' => $packId,
+                    'source_repo' => $props['labki.source_repo'] ?? null,
+                    'pack_uid' => $props['labki.pack_uid'] ?? null,
+                ];
+            }
             if ( $packId === null ) { $external++; $externalList[] = $prefixed; continue; }
 
             // If existing page is owned by a different repo, treat as pack-pack conflict
@@ -102,6 +110,7 @@ final class PreflightPlanner {
                 'external_collisions' => $externalList,
             ],
             'selection_conflicts' => $selectionConflicts,
+            'owners' => $ownersMap,
         ];
     }
 
