@@ -17,12 +17,14 @@ final class InstalledRegistry {
         $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
         $db = $lb->getConnection( DB_REPLICA );
         $res = $db->newSelectQueryBuilder()
-            ->select( [ 'pack_id','version','source_repo','source_ref','source_commit','installed_at','installed_by' ] )
+            ->select( [ 'pack_uid','pack_id','version','source_repo','source_ref','source_commit','installed_at','installed_by' ] )
             ->from( 'labki_pack_registry' )
             ->fetchResultSet();
         $out = [];
         foreach ( $res as $row ) {
-            $out[(string)$row->pack_id] = [
+            $uid = (string)$row->pack_uid;
+            $out[$uid] = [
+                'pack_id' => $row->pack_id !== null ? (string)$row->pack_id : null,
                 'version' => $row->version !== null ? (string)$row->version : null,
                 'source_repo' => $row->source_repo !== null ? (string)$row->source_repo : null,
                 'source_ref' => $row->source_ref !== null ? (string)$row->source_ref : null,

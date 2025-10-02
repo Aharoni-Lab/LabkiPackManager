@@ -12,7 +12,7 @@ use MediaWiki\Revision\SlotRecord;
  */
 final class PreflightPlanner {
     /**
-     * @param array{packs:string[],pages:string[],pageOwners?:array<string,string[]>} $resolved SelectionResolver result plus optional pageOwners mapping
+     * @param array{packs:string[],pages:string[],pageOwners?:array<string,string[]>,pageOwnerUids?:array<string,string[]>,repoUrl?:string} $resolved SelectionResolver result plus optional owners and repo
      * @return array{
      *   create:int,update_unchanged:int,update_modified:int,pack_pack_conflicts:int,external_collisions:int,
      *   lists:array{
@@ -29,6 +29,7 @@ final class PreflightPlanner {
         $create = 0; $updateUnchanged = 0; $updateModified = 0; $packPack = 0; $external = 0;
         $createList = []; $updateUnchangedList = []; $updateModifiedList = []; $packPackList = []; $externalList = [];
 
+        $currentRepo = isset($resolved['repoUrl']) && is_string($resolved['repoUrl']) ? (string)$resolved['repoUrl'] : null;
         foreach ( $resolved['pages'] as $prefixed ) {
             $title = $titleFactory->newFromText( $prefixed );
             if ( !$title ) { continue; }
@@ -39,7 +40,7 @@ final class PreflightPlanner {
             $pp = $dbr->newSelectQueryBuilder()
                 ->select( [ 'pp_propname', 'pp_value' ] )
                 ->from( 'page_props' )
-                ->where( [ 'pp_page' => $pageId, 'pp_propname' => [ 'labki.pack_id', 'labki.content_hash' ] ] )
+                ->where( [ 'pp_page' => $pageId, 'pp_propname' => [ 'labki.pack_id', 'labki.content_hash', 'labki.source_repo', 'labki.pack_uid' ] ] )
                 ->fetchResultSet();
             $props = [];
             foreach ( $pp as $row ) { $props[(string)$row->pp_propname] = (string)$row->pp_value; }
@@ -47,9 +48,9 @@ final class PreflightPlanner {
             $packId = $props['labki.pack_id'] ?? null;
             if ( $packId === null ) { $external++; $externalList[] = $prefixed; continue; }
 
-            // If existing page is owned by a different pack than any selected owners -> pack-pack conflict
-            $owners = (array)( $resolved['pageOwners'][$prefixed] ?? [] );
-            if ( $owners && !in_array( $packId, $owners, true ) ) {
+            // If existing page is owned by a different repo, treat as pack-pack conflict
+            $existingRepo = $props['labki.source_repo'] ?? null;
+            if ( $existingRepo && $currentRepo && $existingRepo !== $currentRepo ) {
                 $packPack++; $packPackList[] = $prefixed; continue;
             }
 

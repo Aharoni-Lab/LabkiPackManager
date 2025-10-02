@@ -70,11 +70,15 @@ final class ApiLabkiPacks extends ApiBase {
             if ( !is_array( $node ) || ($node['type'] ?? null) !== 'pack' ) { continue; }
             $id = isset($node['id']) && str_starts_with((string)$node['id'], 'pack:') ? substr((string)$node['id'], 5) : null;
             if ( !$id ) { continue; }
+            // Build repo-scoped pack UID for lookup
+            $repoUrl = ContentSourceHelper::getManifestUrlForLabel( $sources, $repoLabel );
+            $packUid = sha1( $repoUrl . ':' . $id );
             $available = $node['version'] ?? null;
-            $inst = $installedMap[$id]['version'] ?? null;
+            $inst = $installedMap[$packUid]['version'] ?? null;
             $node['installed'] = $inst !== null;
             $node['installedVersion'] = $inst;
             $node['updateAvailable'] = ($inst !== null && $available !== null && SemVer::sameMajor( (string)$inst, (string)$available ) && SemVer::compare( (string)$available, (string)$inst ) > 0);
+            $node['packUid'] = $packUid;
         }
         unset($node);
 		$resolver = new SelectionResolver();
@@ -106,7 +110,7 @@ final class ApiLabkiPacks extends ApiBase {
             $preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
             // Pre-flight summary based on current wiki state
             $planner = new PreflightPlanner();
-            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [] ] );
+            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [], 'repoUrl' => $manifestUrl ] );
             // Optional mapping input for plan (rename/prefix). Accept as JSON in 'plan' param.
             $rawPlan = $this->getRequest()->getVal( 'plan' );
             $plan = null;
