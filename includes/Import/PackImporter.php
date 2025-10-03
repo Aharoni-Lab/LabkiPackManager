@@ -54,11 +54,11 @@ final class PackImporter {
 		$created = 0; $updated = 0;
 		$lastRevIdPerPage = [];
 
-		foreach ( $pages as $p ) {
+        foreach ( $pages as $p ) {
 			$titleText = (string)$p['title'];
 			$ns = isset( $p['namespace'] ) ? (int)$p['namespace'] : NS_MAIN;
 			$text = (string)$p['text'];
-			$pageKey = isset( $p['page_key'] ) ? (string)$p['page_key'] : $titleText;
+            $pageKey = isset( $p['page_key'] ) ? (string)$p['page_key'] : $titleText;
 
 			$title = $titleFactory->makeTitleSafe( $ns, $titleText );
 			if ( !$title ) { continue; }
@@ -112,7 +112,7 @@ final class PackImporter {
 			$pageId = (int)$title->getArticleID();
 			$lastRevIdPerPage[$title->getPrefixedText()] = $revId;
 
-			self::writePageProps( $dbw, $pageId, [
+            self::writePageProps( $dbw, $pageId, [
 				'labki.pack_id' => $packId,
 				'labki.pack_uid' => $packUid,
 				'labki.pack_version' => (string)$packVersion,
@@ -134,7 +134,7 @@ final class PackImporter {
 			[ 'pack_uid' ],
 			[ 'pack_id' => $packId, 'version' => $packVersion, 'source_repo' => $source['source_repo'] ?? null, 'source_ref' => $source['source_ref'] ?? null, 'source_commit' => $source['source_commit'] ?? null, 'installed_at' => time(), 'installed_by' => $user->getId() ]
 		);
-		foreach ( $pages as $p ) {
+        foreach ( $pages as $p ) {
 			$titleText = (string)$p['title'];
 			$ns = isset( $p['namespace'] ) ? (int)$p['namespace'] : NS_MAIN;
 			$title = $titleFactory->makeTitleSafe( $ns, $titleText );
@@ -157,6 +157,21 @@ final class PackImporter {
 				[ [ 'pack_uid', 'page_title' ] ],
 				[ 'pack_id' => $packId, 'page_namespace' => $ns, 'page_id' => $pageId, 'last_rev_id' => $revId, 'content_hash' => $hash ]
 			);
+
+            // Persist original-to-final mapping for future updates
+            $pageKey = isset( $p['page_key'] ) ? (string)$p['page_key'] : $titleText;
+            $dbw->upsert(
+                'labki_page_mapping',
+                [
+                    'pack_uid' => $packUid,
+                    'pack_id' => $packId,
+                    'page_key' => $pageKey,
+                    'final_title' => $prefixed,
+                    'created_at' => time(),
+                ],
+                [ [ 'pack_uid', 'page_key' ] ],
+                [ 'pack_id' => $packId, 'final_title' => $prefixed, 'created_at' => time() ]
+            );
 		}
 
 		return [ 'created' => $created, 'updated' => $updated ];

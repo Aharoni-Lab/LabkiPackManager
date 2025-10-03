@@ -31,10 +31,32 @@ final class PreflightPlanner {
         $create = 0; $updateUnchanged = 0; $updateModified = 0; $packPack = 0; $external = 0;
         $createList = []; $updateUnchangedList = []; $updateModifiedList = []; $packPackList = []; $externalList = [];
         $ownersMap = [];
+        $priorMap = [];
 
         $currentRepo = isset($resolved['repoUrl']) && is_string($resolved['repoUrl']) ? (string)$resolved['repoUrl'] : null;
         foreach ( $resolved['pages'] as $prefixed ) {
-            $title = $titleFactory->newFromText( $prefixed );
+            // Resolve prior mapping: use selected pack owner to compute pack_uid and look up final_title in labki_page_mapping
+            $checkTitleText = $prefixed;
+            $packIdFromSelection = null;
+            if ( isset($resolved['pageOwners']) && is_array($resolved['pageOwners']) ) {
+                $ownersSel = $resolved['pageOwners'][$prefixed] ?? null;
+                if ( is_array($ownersSel) && count($ownersSel) ) { $packIdFromSelection = (string)$ownersSel[0]; }
+            }
+            if ( $packIdFromSelection && $currentRepo ) {
+                $packUidForSelection = sha1( $currentRepo . ':' . $packIdFromSelection );
+                $mapped = $dbr->newSelectQueryBuilder()
+                    ->select( 'final_title' )
+                    ->from( 'labki_page_mapping' )
+                    ->where( [ 'pack_uid' => $packUidForSelection, 'page_key' => $prefixed ] )
+                    ->caller( __METHOD__ )
+                    ->fetchField();
+                if ( is_string( $mapped ) && $mapped !== '' ) {
+                    $checkTitleText = $mapped;
+                    $priorMap[$prefixed] = $mapped;
+                }
+            }
+
+            $title = $titleFactory->newFromText( $checkTitleText );
             if ( !$title ) { continue; }
             $pageId = (int)$title->getArticleID();
             if ( $pageId === 0 ) { $create++; $createList[] = $prefixed; continue; }
@@ -111,6 +133,7 @@ final class PreflightPlanner {
             ],
             'selection_conflicts' => $selectionConflicts,
             'owners' => $ownersMap,
+            'prior_titles' => $priorMap,
         ];
     }
 

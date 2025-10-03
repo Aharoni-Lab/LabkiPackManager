@@ -418,6 +418,19 @@ function onTogglePack(id){
 			btnCsv.addEventListener('click', ()=>downloadText('labki-plan.csv', planToCsv(state.lastPlan)) );
 			if (!collisionCount){ planBox.appendChild(btnJson); planBox.appendChild(btnCsv); }
 			root.appendChild(planBox);
+
+			// Warning banner for partial installs due to skipped pages
+			if ((s.skip||0) > 0){
+				const warn = document.createElement('div');
+				warn.setAttribute('role','alert');
+				warn.style.marginTop = '6px';
+				warn.style.padding = '6px 8px';
+				warn.style.border = '1px solid #f59e0b';
+				warn.style.background = '#fffbeb';
+				warn.style.color = '#92400e';
+				warn.textContent = `Warning: ${s.skip} page(s) will be skipped. Import will be partial.`;
+				root.appendChild(warn);
+			}
 		}
 	}
 
