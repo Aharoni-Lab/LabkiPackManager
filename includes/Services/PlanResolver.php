@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * Builds a deterministic import plan with safe defaults and optional renames.
  */
@@ -31,18 +29,7 @@ final class PlanResolver {
         $planPages = [];
         $counts = [ 'create' => 0, 'update' => 0, 'skip' => 0, 'rename' => 0, 'backup' => 0, 'collision' => 0 ];
 
-        // Try to use MediaWiki services when available; otherwise fall back to a simple parser
-        $titleFactory = null; $nsInfo = null;
-        try {
-            if ( class_exists( MediaWikiServices::class ) ) {
-                $services = MediaWikiServices::getInstance();
-                // When unit tests run without MW bootstrap, this may throw; keep it guarded
-                $titleFactory = $services->getTitleFactory();
-                $nsInfo = $services->getNamespaceInfo();
-            }
-        } catch ( \Throwable $e ) {
-            $titleFactory = null; $nsInfo = null;
-        }
+        // Compute titles
 
         foreach ( $resolved['pages'] as $prefixed ) {
             $pageAction = $perPage[$prefixed]['action'] ?? null;
@@ -63,69 +50,21 @@ final class PlanResolver {
                 // If skipping due to collision but global prefix provided, turn into rename
                 if ( $pageAction === 'collision' ) { $pageAction = 'rename'; }
                 if ( is_string($renameTo) && $renameTo !== '' ) {
-                    // Combine per-page rename with global prefix
-                    if ( $titleFactory && $nsInfo ) {
-                        $t = $titleFactory->newFromText( $prefixed );
-                        if ( $t ) {
-                            $ns = $t->getNamespace();
-                            if ( $ns !== NS_MAIN ) {
-                                $leaf = (string)$renameTo;
-                                $finalTitle = $titleFactory->makeTitle( $ns, ($globalPrefix ? ($globalPrefix . '/' . $leaf) : $leaf) )->getPrefixedText();
-                            } else {
-                                if ( $globalPrefix ) {
-                                    $idx = $nsInfo->getCanonicalIndex( (string)$globalPrefix );
-                                    if ( is_int( $idx ) ) { $finalTitle = $titleFactory->makeTitle( $idx, (string)$renameTo )->getPrefixedText(); }
-                                    else { $finalTitle = (string)$globalPrefix . ':' . (string)$renameTo; }
-                                } else { $finalTitle = (string)$renameTo; }
-                            }
-                        } else { $finalTitle = $globalPrefix ? ($globalPrefix . ':' . (string)$renameTo) : (string)$renameTo; }
+                    // Combine per-page rename with optional global prefix
+                    [ $nsName, $leaf ] = self::splitNamespace( $prefixed );
+                    if ( $nsName !== null && $nsName !== '' && $nsName !== 'Main' ) {
+                        $newLeaf = $globalPrefix ? ($globalPrefix . '/' . (string)$renameTo) : (string)$renameTo;
+                        $finalTitle = $nsName . ':' . $newLeaf;
                     } else {
-                        $pos = strpos( $prefixed, ':' );
-                        if ( $pos !== false ) {
-                            $nsName = substr( $prefixed, 0, $pos );
-                            $finalTitle = $nsName . ':' . ( $globalPrefix ? ($globalPrefix . '/' . (string)$renameTo) : (string)$renameTo );
-                        } else {
-                            $finalTitle = $globalPrefix ? ($globalPrefix . ':' . (string)$renameTo) : (string)$renameTo;
-                        }
+                        $finalTitle = $globalPrefix ? ($globalPrefix . ':' . (string)$renameTo) : (string)$renameTo;
                     }
                 } else {
-                    if ( $titleFactory && $nsInfo ) {
-                        $t = $titleFactory->newFromText( $prefixed );
-                        if ( $t ) {
-                            $ns = $t->getNamespace();
-                            $text = $t->getText();
-                            if ( $ns !== NS_MAIN ) {
-                                // Preserve original namespace; add prefix as subpage component
-                                $finalTitle = $titleFactory->makeTitle( $ns, $globalPrefix . '/' . $text )->getPrefixedText();
-                            } else {
-                                // Try to interpret prefix as real namespace; otherwise treat as literal prefix in main
-                                $targetNs = null;
-                                if ( is_string($globalPrefix) && $globalPrefix !== '' ) {
-                                    $idx = $nsInfo->getCanonicalIndex( $globalPrefix );
-                                    if ( is_int( $idx ) ) { $targetNs = $idx; }
-                                }
-                                if ( $targetNs !== null ) {
-                                    $finalTitle = $titleFactory->makeTitle( $targetNs, $text )->getPrefixedText();
-                                } else {
-                                    $finalTitle = $globalPrefix . ':' . $prefixed;
-                                }
-                            }
-                        } else {
-                            $finalTitle = $globalPrefix ? ($globalPrefix . ':' . $prefixed) : $prefixed;
-                        }
+                    [ $nsName, $leaf ] = self::splitNamespace( $prefixed );
+                    if ( $nsName !== null && $nsName !== '' && $nsName !== 'Main' ) {
+                        // Preserve original namespace; add prefix as subpage component
+                        $finalTitle = $globalPrefix ? ($nsName . ':' . $globalPrefix . '/' . $leaf) : $prefixed;
                     } else {
-                        // Simple fallback without MW services: preserve first-segment namespace if present
-                        $nsName = null; $rest = $prefixed;
-                        $pos = strpos( $prefixed, ':' );
-                        if ( $pos !== false ) {
-                            $nsName = substr( $prefixed, 0, $pos );
-                            $rest = substr( $prefixed, $pos + 1 );
-                        }
-                        if ( $nsName !== null && $nsName !== '' ) {
-                            $finalTitle = $nsName . ':' . $globalPrefix . '/' . $rest;
-                        } else {
-                            $finalTitle = $globalPrefix . ':' . $prefixed;
-                        }
+                        $finalTitle = $globalPrefix ? ($globalPrefix . ':' . $prefixed) : $prefixed;
                     }
                 }
             }
@@ -139,6 +78,22 @@ final class PlanResolver {
         }
 
         return [ 'pages' => $planPages, 'summary' => $counts ];
+    }
+
+    /**
+     * Split a prefixed title into namespace name and leaf title using the first colon.
+     * Returns array [ ?string $namespaceName, string $leafTitle ]. If no namespace, first element is null.
+     * This simple splitter avoids MediaWiki service dependencies for unit-test friendliness.
+     *
+     * @param string $prefixed
+     * @return array{0:?string,1:string}
+     */
+    private static function splitNamespace( string $prefixed ): array {
+        $pos = strpos( $prefixed, ':' );
+        if ( $pos === false ) { return [ null, $prefixed ]; }
+        $ns = substr( $prefixed, 0, $pos );
+        $leaf = substr( $prefixed, $pos + 1 );
+        return [ $ns, $leaf ];
     }
 }
 
