@@ -23,6 +23,34 @@ git clone https://github.com/Aharoni-Lab/LabkiPackManager.git LabkiPackManager
 wfLoadExtension( 'LabkiPackManager' );
 ```
 
+Quick setup/reset (Docker + SQLite)
+-----------------------------------
+
+If you are developing locally with MediaWiki-Docker, use the bundled script to install or fully reset a working test wiki in one shot (clone MW if needed, mount this extension, install Mermaid, enable both, run updater):
+
+```bash
+# from your host shell (WSL/macOS/Linux), not inside the container
+cd ~/dev/LabkiPackManager
+chmod +x reset_mw_test.sh
+./reset_mw_test.sh
+```
+
+Then:
+
+- Open `http://localhost:8080/w` to use the wiki
+- Run unit tests:
+  ```bash
+  docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit'
+  ```
+- Run integration tests:
+  ```bash
+  docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration'
+  ```
+
+Notes:
+- Do not run the script with sudo. If you see permission errors after running as root, fix ownership: `sudo chown -R $USER:$USER ~/dev/mediawiki`.
+- The script mirrors the CI flow (SQLite), and is idempotent — safe to re-run when things get out of sync.
+
 3. Configure content sources (raw file hosts):
 
 ```php
@@ -61,6 +89,39 @@ wfLoadExtension( 'Mermaid' );
 ```
 
 2) Alternatively (dev-only), the UI will lazy-load Mermaid from a CDN for the graph panel. For production wikis, prefer installing the Mermaid extension to avoid external requests and to align with CSP.
+
+Configuration
+-------------
+
+Add or override options in LocalSettings.php:
+
+```php
+// Content sources (label => manifest URL)
+$wgLabkiContentSources = [
+    'Lab Packs (Default)' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
+    // ...
+];
+
+// Default branch/tag hint for sources that support branches
+$wgLabkiDefaultBranch = 'main';
+
+// Cache TTL (seconds) for fetched manifests
+$wgLabkiCacheTTL = 300;
+
+// Manifest schema index (for validation) and its cache TTL
+$wgLabkiSchemaIndexUrl = 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/index.json';
+$wgLabkiSchemaCacheTTL = 300;
+
+// Optional global prefix for collision avoidance during plan/rename
+// If set, pages that would otherwise collide are renamed using this prefix
+// Namespaced pages keep their namespace and get "Prefix/Subpage"; Main namespace uses
+// a real namespace if the prefix matches one, otherwise "Prefix:Title"
+$wgLabkiGlobalPrefix = '';
+```
+
+Notes:
+- Namespaced content (Template:, Form:, Module:, etc.) keeps its namespace when applying global prefix (e.g., Template:PackX/Page).
+- If you want all colliding pages moved into a dedicated namespace, create/register that namespace and set `$wgLabkiGlobalPrefix` to its canonical name.
 
 Demo without MediaWiki
 ----------------------

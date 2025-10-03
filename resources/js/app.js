@@ -11,17 +11,80 @@
 		previewPagesSet: new Set(),
 		uids: 0,
 		uidPrefix: (Math.random().toString(36).slice(2)),
-		mermaidReady: false
+		mermaidReady: false,
+		resolverOpen: false,
+		planDraft: { globalPrefix: '', pages: {} },
+		lastPlan: null,
+		lastSentPlanKey: null
 	};
+
+	// Shared constants/utilities
+	const LOCAL_STORAGE_GLOBAL_PREFIX_KEY = 'lpm_global_prefix';
+	const KNOWN_NS = new Set([
+		'Template','Form','Module','Category','Property','Help','User','File','Image','Project','MediaWiki','Media','Special','Talk','User talk','Project talk','File talk','MediaWiki talk','Template talk','Help talk','Category talk','Module talk'
+	]);
+	function isKnownNamespace(ns){ return KNOWN_NS.has(ns); }
+
+	// Restore last used global prefix from localStorage
+	try {
+		const gp = localStorage.getItem(LOCAL_STORAGE_GLOBAL_PREFIX_KEY);
+		if (typeof gp === 'string' && gp) { state.planDraft.globalPrefix = gp; }
+	} catch(e) {}
 
 	function isExpanded(id){
 		return state.expanded[id] !== undefined ? state.expanded[id] : true;
+	}
+
+	// Compute final title given current per-page rename and global prefix, preserving namespaces
+	function finalTitleFor(title){
+		const p = (state.planDraft.pages||{})[title]||{};
+		const gp = state.planDraft.globalPrefix||'';
+		// If explicit rename provided, combine with global prefix while preserving namespace of original
+		if (p.action === 'rename' && typeof p.renameTo === 'string' && p.renameTo){
+			const idxR = title.indexOf(':');
+			if (idxR > 0){
+				const ns = title.slice(0, idxR);
+				if ( isKnownNamespace(ns) ){
+					if (gp){ if (p.renameTo.startsWith(gp + '/')) return ns + ':' + p.renameTo; return ns + ':' + gp + '/' + p.renameTo; }
+					return ns + ':' + p.renameTo;
+				}
+			}
+			// No recognized namespace (treat as main)
+			if (gp){ if (p.renameTo.startsWith(gp + ':')) return p.renameTo; return gp + ':' + p.renameTo; }
+			return p.renameTo;
+		}
+		// Apply global prefix to original title
+		if (!gp){ return title; }
+		const idx = title.indexOf(':');
+		if (idx > 0){
+			const ns = title.slice(0, idx); const rest = title.slice(idx+1);
+			if ( isKnownNamespace(ns) ){
+				if (rest.startsWith(gp + '/')) return title;
+				return ns + ':' + gp + '/' + rest;
+			}
+			if (title.startsWith(gp + ':')) return title;
+			return gp + ':' + title;
+		}
+		if (title.startsWith(gp + ':')) return title;
+		return gp + ':' + title;
+	}
+
+	// Utilities for accessible form controls
+	function safeIdFromTitle(prefix, title){
+		return prefix + '-' + state.uidPrefix + '-' + String(title).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+	}
+	function makeSrLabel(text){
+		const lab = document.createElement('label');
+		lab.textContent = text;
+		lab.style.position = 'absolute'; lab.style.left = '-10000px'; lab.style.width='1px'; lab.style.height='1px'; lab.style.overflow='hidden';
+		return lab;
 	}
 
 	function apiUrl(selected, opts){
 		let base = mw.util.wikiScript('api') + '?action=labkipacks&format=json&formatversion=2';
 		if (state.repo) base += '&repo=' + encodeURIComponent(state.repo);
 		if (opts && opts.refresh) base += '&refresh=1';
+		if (opts && opts.plan){ try { base += '&plan=' + encodeURIComponent(JSON.stringify(opts.plan)); } catch(e){} }
 		if (!selected || !selected.length) return base;
 		return base + selected.map(s => '&selected[]=' + encodeURIComponent(s)).join('');
 	}
@@ -41,6 +104,7 @@
 			}
 			state.previewPacksSet = new Set(Array.isArray(state.data?.preview?.packs) ? state.data.preview.packs : []);
 			state.previewPagesSet = new Set(Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : []);
+			state.lastPlan = state.data?.plan || null;
 			render();
 		} catch (e) {
 			mw.notify('Failed to load data: ' + e, { type: 'error' });
@@ -63,6 +127,36 @@
 		return isDirectSelected(id);
 	}
 function isPageIncluded(id){ return state.previewPagesSet.has(id); }
+function isPageSkipped(id){ const p = (state.planDraft.pages||{})[id]; return !!(p && p.action === 'skip'); }
+function isPageCollidingNow(title){
+    const lists = (state.data && state.data.preflight && state.data.preflight.lists) || {};
+    const ext = new Set(lists.external_collisions || []);
+    const ppc = new Set(lists.pack_pack_conflicts || []);
+    if (isPageSkipped(title)) return false;
+    const initiallyColliding = ext.has(title) || ppc.has(title);
+    if (!initiallyColliding) return false;
+    // If mapping changes the final title, collision is considered resolved
+    return finalTitleFor(title) === title;
+}
+
+// Update existing tree page badges (dot colors) without re-rendering the whole tree
+function refreshTreeBadges(){
+    document.querySelectorAll('.lpm-row').forEach(row => {
+        const pageLabel = row.querySelector('.lpm-page-label');
+        const inc = row.querySelector('.lpm-inc');
+        if (!pageLabel || !inc) return;
+        const title = pageLabel.textContent;
+        const skipped = isPageSkipped(title);
+        const colliding = isPageCollidingNow(title);
+        if (skipped){
+            inc.className = 'lpm-inc'; inc.style.background='#facc15'; inc.style.border='1px solid #eab308'; inc.title = 'Skipped';
+        } else if (colliding){
+            inc.className = 'lpm-inc'; inc.style.background='#fecaca'; inc.style.border='1px solid #ef4444'; inc.title = 'Collision';
+        } else {
+            inc.className = 'lpm-inc' + (isPageIncluded(title) ? ' on' : ''); inc.style.background=''; inc.style.border=''; inc.title = isPageIncluded(title) ? 'Included' : 'Not included';
+        }
+    });
+}
 
 function recomputePreviewLocally(){
     const edges = Array.isArray(state.data?.edges) ? state.data.edges : [];
@@ -89,7 +183,26 @@ function recomputePreviewLocally(){
     state.previewPagesSet = pages;
 }
 
-const fetchDebounced = (()=>{ let t=null,last=null; return opts=>{ last=opts||null; if(t)clearTimeout(t); t=setTimeout(()=>{t=null;fetchData(last);},50); }; })();
+// Debounced fetch with request coalescing: avoid flooding the server with identical plan drafts
+const fetchDebounced = (()=>{
+    let t=null,last=null;
+    return opts=>{
+        last=opts||null;
+        if(t) clearTimeout(t);
+        t=setTimeout(()=>{
+            t=null;
+            // If we're sending a plan, skip if identical to last one sent
+            if (last && last.plan){
+                try{
+                    const key = JSON.stringify(last.plan);
+                    if (state.lastSentPlanKey === key){ return; }
+                    state.lastSentPlanKey = key;
+                }catch(e){}
+            }
+            fetchData(last);
+        }, 80);
+    };
+})();
 
 function onTogglePack(id){
     if (isDirectSelected(id)){
@@ -102,7 +215,8 @@ function onTogglePack(id){
 			state.selected[id] = true;
 		}
     recomputePreviewLocally();
-    fetchDebounced();
+    // Fetch immediately so API receives selected[] and returns preview/preflight/plan
+    fetchData();
 	}
 
 	function treeNode(node){
@@ -156,9 +270,18 @@ function onTogglePack(id){
 			head.appendChild(ver);
 			const desc = document.createElement('span'); desc.className = 'lpm-desc-cell'; desc.textContent = info.description || '';
 			head.appendChild(desc);
-		} else {
-			const inc = document.createElement('span'); inc.className = 'lpm-inc' + (isPageIncluded(node.id) ? ' on' : ''); inc.title = isPageIncluded(node.id) ? 'Included' : 'Not included';
-			head.appendChild(inc);
+        } else {
+            const skipped = isPageSkipped(node.id);
+            const colliding = isPageCollidingNow(node.id);
+            const inc = document.createElement('span');
+            if (skipped){
+                inc.className = 'lpm-inc'; inc.style.background='#facc15'; inc.style.border='1px solid #eab308'; inc.title = 'Skipped';
+            } else if (colliding){
+                inc.className = 'lpm-inc'; inc.style.background='#fecaca'; inc.style.border='1px solid #ef4444'; inc.title = 'Collision';
+            } else {
+                inc.className = 'lpm-inc' + (isPageIncluded(node.id) ? ' on' : ''); inc.title = isPageIncluded(node.id) ? 'Included' : 'Not included';
+            }
+            head.appendChild(inc);
 			const label = document.createElement('span'); label.className = 'lpm-page-label'; label.textContent = node.id;
 			head.appendChild(label);
 		}
@@ -210,23 +333,48 @@ function onTogglePack(id){
 		if (state.data?.preflight){
 			const pf = state.data.preflight;
 			const pfBox = document.createElement('div'); pfBox.className = 'lpm-summary';
-			pfBox.textContent = `Pre-flight: Create ${pf.create || 0} | Update (unchanged) ${pf.update_unchanged || 0} | Update (modified) ${pf.update_modified || 0} | Pack-pack ${pf.pack_pack_conflicts || 0} | External ${pf.external_collisions || 0}`;
-			root.appendChild(pfBox);
 			// Simple drill-down lists toggled inline
 			const makeList = (label, list) => {
 				if (!Array.isArray(list) || !list.length) return null;
 				const wrap = document.createElement('div'); wrap.style.marginTop = '4px';
 				const btn = document.createElement('button'); btn.type='button'; btn.className='cdx-button'; btn.textContent = label + ` (${list.length})`;
 				const ul = document.createElement('ul'); ul.style.margin='4px 0 0 16px'; ul.style.display='none';
-				for (const t of list){ const li=document.createElement('li'); li.textContent=t; ul.appendChild(li); }
+				for (const t of list){ const li=document.createElement('li'); const f=finalTitleFor(t); li.textContent = (f && f!==t) ? (t + ' \u2192 ' + f) : t; ul.appendChild(li); }
 				btn.addEventListener('click', ()=>{ ul.style.display = (ul.style.display==='none') ? 'block' : 'none'; });
 				wrap.appendChild(btn); wrap.appendChild(ul); return wrap;
 			};
-			const lists = pf.lists || {};
-			for (const [key,label] of [ ['create','Create'], ['update_unchanged','Update (unchanged)'], ['update_modified','Update (modified)'], ['pack_pack_conflicts','Pack-pack conflicts'], ['external_collisions','External collisions'] ]){
-				const el = makeList(label, lists[key] || []);
+            const lists = pf.lists || {};
+            // Recalculate visible collision lists based on current final names: if final name differs, treat as resolved
+            const isResolvedByMapping = (t) => finalTitleFor(t) !== t;
+			const resolvedFromCollisions = []
+				.concat((lists.pack_pack_conflicts||[]).filter(t => isResolvedByMapping(t)))
+				.concat((lists.external_collisions||[]).filter(t => isResolvedByMapping(t)));
+			const filteredLists = {
+				create: (lists.create || []).concat(resolvedFromCollisions),
+                update_unchanged: lists.update_unchanged || [],
+                update_modified: lists.update_modified || [],
+                pack_pack_conflicts: (lists.pack_pack_conflicts || []).filter(t => !isResolvedByMapping(t)),
+                external_collisions: (lists.external_collisions || []).filter(t => !isResolvedByMapping(t))
+            };
+			// Dynamic counts using filtered lists
+			pfBox.textContent = `Pre-flight: Create ${filteredLists.create.length} | Update (unchanged) ${filteredLists.update_unchanged.length} | Update (modified) ${filteredLists.update_modified.length} | Pack-pack ${filteredLists.pack_pack_conflicts.length} | External ${filteredLists.external_collisions.length}`;
+			root.appendChild(pfBox);
+            for (const [key,label] of [ ['create','Create'], ['update_unchanged','Update (unchanged)'], ['update_modified','Update (modified)'], ['pack_pack_conflicts','Pack-pack conflicts'], ['external_collisions','External collisions'] ]){
+                const el = makeList(label, filteredLists[key] || []);
 				if (el) root.appendChild(el);
 			}
+			// Show intra-selection conflicts (multiple selected packs own same page)
+			if (Array.isArray(pf.selection_conflicts) && pf.selection_conflicts.length){
+				const wrap = document.createElement('div'); wrap.style.marginTop='4px';
+				const btn = document.createElement('button'); btn.type='button'; btn.className='cdx-button'; btn.textContent = `Selection conflicts (${pf.selection_conflicts.length})`;
+				const ul = document.createElement('ul'); ul.style.margin='4px 0 0 16px'; ul.style.display='none';
+				for (const row of pf.selection_conflicts){ const li=document.createElement('li'); li.textContent = `${row.page} ← owners: ${row.owners.join(', ')}`; ul.appendChild(li); }
+				btn.addEventListener('click', ()=>{ ul.style.display = (ul.style.display==='none') ? 'block' : 'none'; });
+				wrap.appendChild(btn); wrap.appendChild(ul); root.appendChild(wrap);
+			}
+            const hasCollisions = (filteredLists.pack_pack_conflicts && filteredLists.pack_pack_conflicts.length) || (filteredLists.external_collisions && filteredLists.external_collisions.length);
+			// Always show resolver so users can set global prefix even without collisions
+			root.appendChild(renderResolverPanel(filteredLists, pf));
 		}
 
     // Details table for selected packs with version, installed/update, and description
@@ -254,6 +402,212 @@ function onTogglePack(id){
 	}
 	table.appendChild(tbody);
 	root.appendChild(table);
+
+		// Plan preview and downloads: ensure plan reflects current draft; trigger update on render if stale
+		if (state.previewPagesSet.size){
+			fetchDebounced({ plan: buildPlanFromDraft() });
+		}
+		if (state.lastPlan){
+			const planBox = document.createElement('div'); planBox.className = 'lpm-summary';
+			const s = state.lastPlan.summary || {};
+			const collisionCount = s.collision || 0;
+			planBox.textContent = `Plan: Create ${s.create||0} | Update ${s.update||0} | Rename ${s.rename||0} | Skip ${s.skip||0} | Backup ${s.backup||0}` + (collisionCount ? ` | Collisions ${collisionCount}` : '');
+			const btnJson = document.createElement('button'); btnJson.type='button'; btnJson.className='cdx-button'; btnJson.style.marginLeft='6px'; btnJson.textContent = 'Download JSON';
+			btnJson.addEventListener('click', ()=>downloadText('labki-plan.json', JSON.stringify(state.lastPlan, null, 2)) );
+			const btnCsv = document.createElement('button'); btnCsv.type='button'; btnCsv.className='cdx-button'; btnCsv.style.marginLeft='4px'; btnCsv.textContent = 'Download CSV';
+			btnCsv.addEventListener('click', ()=>downloadText('labki-plan.csv', planToCsv(state.lastPlan)) );
+			if (!collisionCount){ planBox.appendChild(btnJson); planBox.appendChild(btnCsv); }
+			root.appendChild(planBox);
+
+			// Warning banner for partial installs due to skipped pages
+			if ((s.skip||0) > 0){
+				const warn = document.createElement('div');
+				warn.setAttribute('role','alert');
+				warn.style.marginTop = '6px';
+				warn.style.padding = '6px 8px';
+				warn.style.border = '1px solid #f59e0b';
+				warn.style.background = '#fffbeb';
+				warn.style.color = '#92400e';
+				warn.textContent = `Warning: ${s.skip} page(s) will be skipped. Import will be partial.`;
+				root.appendChild(warn);
+			}
+		}
+	}
+
+function renderResolverPanel(lists, pf){
+		const wrap = document.createElement('div'); wrap.style.marginTop='8px';
+		const h = document.createElement('div'); h.textContent = 'Resolve collisions'; h.style.fontWeight='600'; wrap.appendChild(h);
+		const prefixWrap = document.createElement('div');
+		const lbl = document.createElement('label'); lbl.textContent = 'Global prefix for renames:'; lbl.style.marginRight='6px';
+		const inp = document.createElement('input'); inp.type='text'; inp.value = state.planDraft.globalPrefix || ''; inp.style.minWidth='160px';
+		const gpId = safeIdFromTitle('lpm-gp', 'global'); inp.id = gpId; lbl.htmlFor = gpId; inp.name = 'lpm-global-prefix'; inp.autocomplete = 'off';
+        // Update preview, persist prefix, and refresh type colors when global prefix changes (no fetch to avoid focus loss)
+        inp.addEventListener('input', ()=>{
+            state.planDraft.globalPrefix = inp.value;
+            try { localStorage.setItem(LOCAL_STORAGE_GLOBAL_PREFIX_KEY, inp.value || ''); } catch(e) {}
+            renderPreviewTable();
+            refreshTreeBadges();
+            updateGraph();
+        });
+        // Send plan once the field loses focus
+        inp.addEventListener('blur', ()=>{ fetchDebounced({ plan: buildPlanFromDraft() }); });
+		prefixWrap.appendChild(lbl); prefixWrap.appendChild(inp); wrap.appendChild(prefixWrap);
+
+		// Live preview of resulting titles after applying per-page rename or global prefix
+		const prev = document.createElement('div'); prev.className = 'lpm-summary'; prev.style.marginTop='6px';
+		function effectiveFinal(title){
+			const p = (state.planDraft.pages||{})[title]||{};
+			const gp = state.planDraft.globalPrefix||'';
+			// When a rename is requested, combine rename leaf with global prefix while preserving namespace
+			if (p.action === 'rename' && typeof p.renameTo === 'string' && p.renameTo){
+				const idx = title.indexOf(':');
+				if (idx > 0){
+					const ns = title.slice(0, idx);
+					const knownNs = new Set(['Template','Form','Module','Category','Property','Help','User','File','Image','Project','MediaWiki','Media','Special','Talk','User talk','Project talk','File talk','MediaWiki talk','Template talk','Help talk','Category talk','Module talk']);
+					if (knownNs.has(ns)){
+						if (gp){
+							if (p.renameTo.startsWith(gp + '/')) return ns + ':' + p.renameTo;
+							return ns + ':' + gp + '/' + p.renameTo;
+						}
+						return ns + ':' + p.renameTo;
+					}
+				}
+				// No recognized namespace → treat as main-namespace style
+				if (gp){ if (p.renameTo.startsWith(gp + ':')) return p.renameTo; return gp + ':' + p.renameTo; }
+				return p.renameTo;
+			}
+			if (!gp){ return title; }
+			// Avoid double-applying global prefix
+			const idx = title.indexOf(':');
+			if (idx > 0){
+				const ns = title.slice(0, idx); const rest = title.slice(idx+1);
+				// Known MW namespaces where we should keep namespace and use subpage prefixing
+				const knownNs = new Set(['Template','Form','Module','Category','Property','Help','User','File','Image','Project','MediaWiki','Media','Special','Talk','User talk','Project talk','File talk','MediaWiki talk','Template talk','Help talk','Category talk','Module talk']);
+				if (knownNs.has(ns)){
+					if (rest.startsWith(gp + '/')) return title;
+					return ns + ':' + gp + '/' + rest;
+				}
+				// Otherwise treat as plain title (e.g., 'Main:Foo' is part of title)
+				if (title.startsWith(gp + ':')) return title;
+				return gp + ':' + title;
+			}
+			// No colon → main namespace
+			if (title.startsWith(gp + ':')) return title;
+			return gp + ':' + title;
+		}
+		function renderPreviewTable(){
+			prev.innerHTML = '';
+			const hdr = document.createElement('div'); hdr.textContent = 'Resulting titles preview'; hdr.style.fontWeight='600'; prev.appendChild(hdr);
+			const table = document.createElement('table'); table.className='lpm-table';
+			const thead = document.createElement('thead'); const trh = document.createElement('tr');
+			for (const h of ['Original','Collides with (owner)','Final (after rename/prefix)']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
+			thead.appendChild(trh); table.appendChild(thead);
+			const tbody = document.createElement('tbody');
+			const owners = (pf && pf.owners) || {};
+			const allPages = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages.slice().sort() : [];
+			for (const t of allPages){
+				const tr = document.createElement('tr');
+				const cWith = owners[t] ? (owners[t].pack_id + ' @ ' + (owners[t].source_repo||'')) : '';
+				const td1 = document.createElement('td'); td1.textContent = t; tr.appendChild(td1);
+				const td2 = document.createElement('td'); td2.textContent = cWith; tr.appendChild(td2);
+				const td3 = document.createElement('td'); td3.textContent = effectiveFinal(t); tr.appendChild(td3);
+				tbody.appendChild(tr);
+			}
+			table.appendChild(tbody); prev.appendChild(table);
+		}
+		renderPreviewTable();
+		wrap.appendChild(prev);
+
+		// (makeRow helper removed; inline row creation below is the single source of truth)
+
+        const table = document.createElement('table'); table.className='lpm-table';
+        const thead = document.createElement('thead'); const trh = document.createElement('tr');
+        for (const h of ['Page','Type','Action','Rename to','Backup']){ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        // Use original (unfiltered) preflight lists to determine initial collision types for correct "Resolved" classification
+        const extSet0 = new Set((pf && pf.lists && pf.lists.external_collisions) || []);
+        const ppcSet0 = new Set((pf && pf.lists && pf.lists.pack_pack_conflicts) || []);
+        const allPages = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages.slice().sort() : [];
+        const computeType = (title) => {
+            const p = (state.planDraft.pages||{})[title] || {};
+            if (p.action === 'skip') return 'Skip';
+            const initiallyPackPack = ppcSet0.has(title);
+            const initiallyExternal = extSet0.has(title);
+            const finalT = finalTitleFor(title);
+            if ((initiallyPackPack || initiallyExternal) && finalT !== title) return 'Resolved';
+            if (initiallyPackPack) return 'Pack-pack';
+            if (initiallyExternal) return 'External';
+            return 'OK';
+        };
+        const typeColor = (type) => {
+            if (type === 'External' || type === 'Pack-pack') return '#b91c1c'; // red-700
+            if (type === 'Resolved' || type === 'OK') return '#16a34a'; // green-600
+            if (type === 'Skip') return '#ca8a04'; // yellow-600
+            return '';
+        };
+        const rowRefs = [];
+        for (const t of allPages){
+            const type = computeType(t);
+            const tr = document.createElement('tr');
+            const tdTitle = document.createElement('td'); tdTitle.textContent = t; tr.appendChild(tdTitle);
+            const tdType = document.createElement('td'); tdType.textContent = type; tdType.style.fontWeight='600'; tdType.style.color = typeColor(type); tr.appendChild(tdType);
+            const tdAction = document.createElement('td');
+            const selectAction = document.createElement('select');
+            selectAction.id = safeIdFromTitle('lpm-action', t); selectAction.name = 'lpm-action';
+            const selLabel = makeSrLabel('Action'); selLabel.htmlFor = selectAction.id; tdAction.appendChild(selLabel);
+            const options = (type === 'External' || type === 'Pack-pack') ? [ ['', '---'], ['skip','Skip'], ['update','Backup & Overwrite'], ['rename','Rename…'] ] : [ ['', '---'], ['skip','Skip'], ['rename','Rename…'] ];
+            const pageDraft = state.planDraft.pages[t] || {};
+            for (const [val,label] of options){ const o=document.createElement('option'); o.value=val; o.textContent=label; if ((pageDraft.action|| '')===val) o.selected=true; selectAction.appendChild(o); }
+            selectAction.addEventListener('change', (ev)=>{ const v = ev.target.value; if (!v) { if (state.planDraft.pages[t]) delete state.planDraft.pages[t].action; } else { state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { action: v }); } renderPreviewTable(); const ty=computeType(t); tdType.textContent=ty; tdType.style.color=typeColor(ty); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); });
+            tdAction.appendChild(selectAction); tr.appendChild(tdAction);
+            const tdRename = document.createElement('td'); const renameInput = document.createElement('input'); renameInput.type='text'; renameInput.value = pageDraft.renameTo || ''; renameInput.disabled = (selectAction.value!=='rename');
+            renameInput.id = safeIdFromTitle('lpm-rename', t); renameInput.name = 'lpm-rename-to';
+            const rnLabel = makeSrLabel('Rename to'); rnLabel.htmlFor = renameInput.id; tdRename.appendChild(rnLabel);
+            renameInput.addEventListener('input', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { renameTo: ev.target.value, action: 'rename' }); selectAction.value='rename'; renameInput.disabled=false; renderPreviewTable(); const ty=computeType(t); tdType.textContent = ty; tdType.style.color = typeColor(ty); refreshTreeBadges(); updateGraph(); /* no fetch here to preserve focus while typing */ });
+            renameInput.addEventListener('blur', ()=>{ fetchDebounced({ plan: buildPlanFromDraft() }); });
+            tdRename.appendChild(renameInput); tr.appendChild(tdRename);
+            const tdBackup = document.createElement('td'); const backupCheckbox = document.createElement('input'); backupCheckbox.type='checkbox'; backupCheckbox.checked = !!pageDraft.backup; backupCheckbox.disabled = !(type==='External' || type==='Pack-pack') || (selectAction.value!=='update');
+            backupCheckbox.id = safeIdFromTitle('lpm-backup', t); backupCheckbox.name = 'lpm-backup';
+            const bkLabel = makeSrLabel('Backup existing page'); bkLabel.htmlFor = backupCheckbox.id; tdBackup.appendChild(bkLabel);
+            backupCheckbox.addEventListener('change', (ev)=>{ state.planDraft.pages[t] = Object.assign({}, state.planDraft.pages[t]||{}, { backup: ev.target.checked }); refreshTreeBadges(); updateGraph(); fetchDebounced({ plan: buildPlanFromDraft() }); }); tdBackup.appendChild(backupCheckbox); tr.appendChild(tdBackup);
+            tbody.appendChild(tr);
+            rowRefs.push({ title: t, tdType });
+        }
+        table.appendChild(tbody); wrap.appendChild(table);
+
+        // Update types live when global prefix changes
+        inp.addEventListener('input', ()=>{ for (const r of rowRefs){ const ty=computeType(r.title); r.tdType.textContent = ty; r.tdType.style.color = typeColor(ty); } });
+
+        return wrap;
+	}
+
+    function buildPlanFromDraft(){
+        const plan = { globalPrefix: (state.planDraft.globalPrefix||'') || undefined, pages: {} };
+        for (const [title, cfg] of Object.entries(state.planDraft.pages||{})){
+            const rec = {};
+            if (cfg.action) rec.action = cfg.action;
+            if (cfg.renameTo) rec.renameTo = cfg.renameTo;
+            if (cfg.backup) rec.backup = true;
+            plan.pages[title] = rec;
+        }
+        return plan;
+    }
+
+	function planToCsv(plan){
+		const rows = [['title','finalTitle','action','backup']];
+		const pages = Array.isArray(plan?.pages) ? plan.pages : (plan?.pages || []);
+		if (Array.isArray(pages)){
+			for (const p of pages){ rows.push([p.title, p.finalTitle, p.action, String(!!p.backup)]); }
+		}else{
+			for (const p of (plan.list||[])) rows.push([p.title,p.finalTitle,p.action,String(!!p.backup)]);
+		}
+		return rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+	}
+
+	function downloadText(filename, text){
+		const blob = new Blob([text], { type: 'text/plain' });
+		const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 	}
 
 	function renderRepoPicker(container){
@@ -338,7 +692,9 @@ function updateGraph(){
     const clsLines = [
         'classDef selected stroke:#2563eb,stroke-width:2px;',
         'classDef implied stroke:#10b981,stroke-width:2px;',
-        'classDef pageIncluded stroke:#22c55e,stroke-width:2px,fill:#ecfdf5;'
+        'classDef pageIncluded stroke:#22c55e,stroke-width:2px,fill:#ecfdf5;',
+        'classDef pageSkipped stroke:#d97706,stroke-width:2px,fill:#fffbeb;',
+        'classDef pageCollision stroke:#ef4444,stroke-width:2px,fill:#fee2e2;'
     ];
 	const selectedIds = toIds(direct);
 	const impliedIds = toIds(sel.filter(k => direct.indexOf(k) === -1));
@@ -346,11 +702,26 @@ function updateGraph(){
 	if (impliedIds.length) clsLines.push('class ' + impliedIds.join(',') + ' implied;');
 	// Pages: color them green when included (match tree dot)
     const pageIncluded = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages : [];
-    const pageIds = pageIncluded.map(p => idMap['page:' + p]).filter(Boolean);
+    const skippedPages = Object.entries(state.planDraft.pages||{}).filter(([k,v]) => v && v.action === 'skip').map(([k])=>k);
+    const skippedSet = new Set(skippedPages);
+    // Included pages should exclude those explicitly skipped
+    const pageIds = pageIncluded.filter(p => !skippedSet.has(p)).map(p => idMap['page:' + p]).filter(Boolean);
     if (pageIds.length) {
         clsLines.push('class ' + pageIds.join(',') + ' pageIncluded;');
     }
-	const code = base + '\n' + clsLines.join('\n');
+    // Skipped pages
+    const skippedIds = skippedPages.map(p => idMap['page:' + p]).filter(Boolean);
+    if (skippedIds.length){
+        clsLines.push('class ' + skippedIds.join(',') + ' pageSkipped;');
+    }
+    // Colliding pages (unresolved)
+    const lists = (state.data && state.data.preflight && state.data.preflight.lists) || {};
+    const extSet = new Set(lists.external_collisions || []);
+    const ppcSet = new Set(lists.pack_pack_conflicts || []);
+    const collidingUnresolved = Array.isArray(state.data?.preview?.pages) ? state.data.preview.pages.filter(t => (extSet.has(t)||ppcSet.has(t)) && finalTitleFor(t)===t && !isPageSkipped(t)) : [];
+    const collidingIds = collidingUnresolved.map(p => idMap['page:' + p]).filter(Boolean);
+    if (collidingIds.length){ clsLines.push('class ' + collidingIds.join(',') + ' pageCollision;'); }
+    const code = base + '\n' + clsLines.join('\n');
 	// simple render using mermaidAPI through global mermaid
 	try {
 		// mermaid 10 ESM default init in module; re-render by setting innerHTML

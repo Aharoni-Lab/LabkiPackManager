@@ -22,6 +22,7 @@ final class SchemaHooks {
         if ( file_exists( $tablesFile ) ) {
             $updater->addExtensionTable( 'labki_pack_registry', $tablesFile );
             $updater->addExtensionTable( 'labki_pack_pages', $tablesFile );
+            $updater->addExtensionTable( 'labki_page_mapping', $tablesFile );
         }
     }
 }

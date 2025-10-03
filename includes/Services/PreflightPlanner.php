@@ -12,12 +12,14 @@ use MediaWiki\Revision\SlotRecord;
  */
 final class PreflightPlanner {
     /**
-     * @param array{packs:string[],pages:string[],pageOwners?:array<string,string[]>} $resolved SelectionResolver result plus optional pageOwners mapping
+     * @param array{packs:string[],pages:string[],pageOwners?:array<string,string[]>,pageOwnerUids?:array<string,string[]>,repoUrl?:string} $resolved SelectionResolver result plus optional owners and repo
      * @return array{
      *   create:int,update_unchanged:int,update_modified:int,pack_pack_conflicts:int,external_collisions:int,
      *   lists:array{
      *     create:string[],update_unchanged:string[],update_modified:string[],pack_pack_conflicts:string[],external_collisions:string[]
-     *   }
+     *   },
+     *   selection_conflicts?:array<int,array{page:string,owners:string[]}>,
+     *   owners?:array<string,array{pack_id:?string,source_repo:?string,pack_uid:?string}>
      * }
      */
     public function plan( array $resolved ): array {
@@ -28,9 +30,33 @@ final class PreflightPlanner {
 
         $create = 0; $updateUnchanged = 0; $updateModified = 0; $packPack = 0; $external = 0;
         $createList = []; $updateUnchangedList = []; $updateModifiedList = []; $packPackList = []; $externalList = [];
+        $ownersMap = [];
+        $priorMap = [];
 
+        $currentRepo = isset($resolved['repoUrl']) && is_string($resolved['repoUrl']) ? (string)$resolved['repoUrl'] : null;
         foreach ( $resolved['pages'] as $prefixed ) {
-            $title = $titleFactory->newFromText( $prefixed );
+            // Resolve prior mapping: use selected pack owner to compute pack_uid and look up final_title in labki_page_mapping
+            $checkTitleText = $prefixed;
+            $packIdFromSelection = null;
+            if ( isset($resolved['pageOwners']) && is_array($resolved['pageOwners']) ) {
+                $ownersSel = $resolved['pageOwners'][$prefixed] ?? null;
+                if ( is_array($ownersSel) && count($ownersSel) ) { $packIdFromSelection = (string)$ownersSel[0]; }
+            }
+            if ( $packIdFromSelection && $currentRepo ) {
+                $packUidForSelection = sha1( $currentRepo . ':' . $packIdFromSelection );
+                $mapped = $dbr->newSelectQueryBuilder()
+                    ->select( 'final_title' )
+                    ->from( 'labki_page_mapping' )
+                    ->where( [ 'pack_uid' => $packUidForSelection, 'page_key' => $prefixed ] )
+                    ->caller( __METHOD__ )
+                    ->fetchField();
+                if ( is_string( $mapped ) && $mapped !== '' ) {
+                    $checkTitleText = $mapped;
+                    $priorMap[$prefixed] = $mapped;
+                }
+            }
+
+            $title = $titleFactory->newFromText( $checkTitleText );
             if ( !$title ) { continue; }
             $pageId = (int)$title->getArticleID();
             if ( $pageId === 0 ) { $create++; $createList[] = $prefixed; continue; }
@@ -39,17 +65,24 @@ final class PreflightPlanner {
             $pp = $dbr->newSelectQueryBuilder()
                 ->select( [ 'pp_propname', 'pp_value' ] )
                 ->from( 'page_props' )
-                ->where( [ 'pp_page' => $pageId, 'pp_propname' => [ 'labki.pack_id', 'labki.content_hash' ] ] )
+                ->where( [ 'pp_page' => $pageId, 'pp_propname' => [ 'labki.pack_id', 'labki.content_hash', 'labki.source_repo', 'labki.pack_uid' ] ] )
                 ->fetchResultSet();
             $props = [];
             foreach ( $pp as $row ) { $props[(string)$row->pp_propname] = (string)$row->pp_value; }
 
             $packId = $props['labki.pack_id'] ?? null;
+            if ( $packId !== null ) {
+                $ownersMap[$prefixed] = [
+                    'pack_id' => $packId,
+                    'source_repo' => $props['labki.source_repo'] ?? null,
+                    'pack_uid' => $props['labki.pack_uid'] ?? null,
+                ];
+            }
             if ( $packId === null ) { $external++; $externalList[] = $prefixed; continue; }
 
-            // If existing page is owned by a different pack than any selected owners -> pack-pack conflict
-            $owners = (array)( $resolved['pageOwners'][$prefixed] ?? [] );
-            if ( $owners && !in_array( $packId, $owners, true ) ) {
+            // If existing page is owned by a different repo, treat as pack-pack conflict
+            $existingRepo = $props['labki.source_repo'] ?? null;
+            if ( $existingRepo && $currentRepo && $existingRepo !== $currentRepo ) {
                 $packPack++; $packPackList[] = $prefixed; continue;
             }
 
@@ -75,6 +108,16 @@ final class PreflightPlanner {
         // For now, approximate by counting duplicates in input (SelectionResolver ensures unique pages per closure),
         // so conflicts are 0 unless we later include pack->page mapping in resolved payload.
 
+        // Intra-selection conflicts: multiple selected packs own the same page in this selection
+        $selectionConflicts = [];
+        if ( isset($resolved['pageOwners']) && is_array($resolved['pageOwners']) ) {
+            foreach ( $resolved['pageOwners'] as $p => $owners ) {
+                if ( is_array($owners) && count($owners) > 1 ) {
+                    $selectionConflicts[] = [ 'page' => $p, 'owners' => array_values(array_unique($owners)) ];
+                }
+            }
+        }
+
         return [
             'create' => $create,
             'update_unchanged' => $updateUnchanged,
@@ -88,6 +131,9 @@ final class PreflightPlanner {
                 'pack_pack_conflicts' => $packPackList,
                 'external_collisions' => $externalList,
             ],
+            'selection_conflicts' => $selectionConflicts,
+            'owners' => $ownersMap,
+            'prior_titles' => $priorMap,
         ];
     }
 

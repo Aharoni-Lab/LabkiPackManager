@@ -16,6 +16,7 @@ use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Services\InstalledRegistry;
 use LabkiPackManager\Util\SemVer;
 use LabkiPackManager\Services\PreflightPlanner;
+use LabkiPackManager\Services\PlanResolver;
 
 final class ApiLabkiPacks extends ApiBase {
 	public function __construct( ApiMain $main, string $name ) {
@@ -69,11 +70,15 @@ final class ApiLabkiPacks extends ApiBase {
             if ( !is_array( $node ) || ($node['type'] ?? null) !== 'pack' ) { continue; }
             $id = isset($node['id']) && str_starts_with((string)$node['id'], 'pack:') ? substr((string)$node['id'], 5) : null;
             if ( !$id ) { continue; }
+            // Build repo-scoped pack UID for lookup
+            $repoUrl = ContentSourceHelper::getManifestUrlForLabel( $sources, $repoLabel );
+            $packUid = sha1( $repoUrl . ':' . $id );
             $available = $node['version'] ?? null;
-            $inst = $installedMap[$id]['version'] ?? null;
+            $inst = $installedMap[$packUid]['version'] ?? null;
             $node['installed'] = $inst !== null;
             $node['installedVersion'] = $inst;
             $node['updateAvailable'] = ($inst !== null && $available !== null && SemVer::sameMajor( (string)$inst, (string)$available ) && SemVer::compare( (string)$available, (string)$inst ) > 0);
+            $node['packUid'] = $packUid;
         }
         unset($node);
 		$resolver = new SelectionResolver();
@@ -99,13 +104,30 @@ final class ApiLabkiPacks extends ApiBase {
         }
 
         $selected = $this->getRequest()->getArray( 'selected' ) ?: [];
+        $plan = null;
         $preview = [];
         $preflight = null;
         if ( $selected ) {
             $preview = $resolver->resolveWithLocks( $domain['packs'], $selected );
             // Pre-flight summary based on current wiki state
             $planner = new PreflightPlanner();
-            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [] ] );
+            $preflight = $planner->plan( [ 'packs' => $preview['packs'], 'pages' => $preview['pages'], 'pageOwners' => $preview['pageOwners'] ?? [], 'repoUrl' => $manifestUrl ] );
+            // Optional mapping input for plan (rename/prefix). Accept as JSON in 'plan' param.
+            $rawPlan = $this->getRequest()->getVal( 'plan' );
+            $plan = null;
+            $defaultPrefix = (string)$this->getConfig()->get( 'LabkiGlobalPrefix' );
+            $decoded = (is_string( $rawPlan ) && $rawPlan !== '') ? json_decode( $rawPlan, true ) : [];
+            
+            if ( !isset( $decoded['globalPrefix'] ) && $defaultPrefix !== '' ) { 
+                $decoded['globalPrefix'] = $defaultPrefix; 
+            }
+            
+            $plan = ( new PlanResolver() )->resolve( [ 
+                'packs' => $preview['packs'], 
+                'pages' => $preview['pages']], 
+                $decoded, 
+                [ 'lists' => $preflight['lists'] ?? [] ] 
+            );
         }
 
 		$payload = [
@@ -121,6 +143,8 @@ final class ApiLabkiPacks extends ApiBase {
 			'mermaid' => [ 'code' => $diagram['code'], 'idMap' => $diagram['idMap'] ],
             'preview' => $preview,
             'preflight' => $preflight,
+            'plan' => $plan,
+            'defaults' => [ 'globalPrefix' => (string)$this->getConfig()->get( 'LabkiGlobalPrefix' ) ],
 			'dataVersion' => 1,
 		];
 		if ( isset( $domain['errorKey'] ) ) {
@@ -134,6 +158,7 @@ final class ApiLabkiPacks extends ApiBase {
 			'repo' => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
 			'selected' => [ self::PARAM_TYPE => 'string', self::PARAM_ISMULTI => true, self::PARAM_DFLT => [] ],
 			'refresh' => [ self::PARAM_TYPE => 'boolean', self::PARAM_DFLT => false ],
+            'plan' => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
 		];
 	}
 

@@ -53,9 +53,21 @@ jobs:
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
           ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
 
+      - name: Sanity check extension code (pack_uid present)
+        working-directory: mediawiki
+        run: |
+          grep -n "pack_uid" extensions/LabkiPackManager/includes/Import/PackImporter.php
+          head -n 30 extensions/LabkiPackManager/includes/Import/PackImporter.php
+
       - name: Update DB schema (run extension schema updates)
         working-directory: mediawiki
         run: php maintenance/update.php --quick
+
+      - name: Verify labki table columns
+        working-directory: mediawiki
+        run: |
+          php maintenance/sql.php --query="SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'labki_%';"
+          php maintenance/sql.php --query="PRAGMA table_info(labki_pack_pages);"
 
       - name: PHPUnit unit
         working-directory: mediawiki

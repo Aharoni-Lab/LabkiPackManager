@@ -48,15 +48,17 @@ final class PackImporter {
 		$lb = $services->getDBLoadBalancer();
 		$dbw = $lb->getConnection( DB_PRIMARY );
 		$logger = LoggerFactory::getInstance( 'LabkiPackManager' );
+		$sourceRepo = (string)($source['source_repo'] ?? '');
+		$packUid = sha1( $sourceRepo . ':' . $packId );
 
 		$created = 0; $updated = 0;
 		$lastRevIdPerPage = [];
 
-		foreach ( $pages as $p ) {
+        foreach ( $pages as $p ) {
 			$titleText = (string)$p['title'];
 			$ns = isset( $p['namespace'] ) ? (int)$p['namespace'] : NS_MAIN;
 			$text = (string)$p['text'];
-			$pageKey = isset( $p['page_key'] ) ? (string)$p['page_key'] : $titleText;
+            $pageKey = isset( $p['page_key'] ) ? (string)$p['page_key'] : $titleText;
 
 			$title = $titleFactory->makeTitleSafe( $ns, $titleText );
 			if ( !$title ) { continue; }
@@ -87,6 +89,7 @@ final class PackImporter {
 				$lastRevIdPerPage[$title->getPrefixedText()] = $existingRev ? (int)$existingRev->getId() : 0;
 				self::writePageProps( $dbw, (int)$title->getArticleID(), [
 					'labki.pack_id' => $packId,
+					'labki.pack_uid' => $packUid,
 					'labki.pack_version' => (string)$packVersion,
 					'labki.source_repo' => (string)($source['source_repo'] ?? ''),
 					'labki.source_ref' => (string)($source['source_ref'] ?? ''),
@@ -109,8 +112,9 @@ final class PackImporter {
 			$pageId = (int)$title->getArticleID();
 			$lastRevIdPerPage[$title->getPrefixedText()] = $revId;
 
-			self::writePageProps( $dbw, $pageId, [
+            self::writePageProps( $dbw, $pageId, [
 				'labki.pack_id' => $packId,
+				'labki.pack_uid' => $packUid,
 				'labki.pack_version' => (string)$packVersion,
 				'labki.source_repo' => (string)($source['source_repo'] ?? ''),
 				'labki.source_ref' => (string)($source['source_ref'] ?? ''),
@@ -126,11 +130,11 @@ final class PackImporter {
 		// Upsert registry for pack and pages
 		$dbw->upsert(
 			'labki_pack_registry',
-			[ 'pack_id' => $packId, 'version' => $packVersion, 'source_repo' => $source['source_repo'] ?? null, 'source_ref' => $source['source_ref'] ?? null, 'source_commit' => $source['source_commit'] ?? null, 'installed_at' => time(), 'installed_by' => $user->getId() ],
-			[ 'pack_id' ],
-			[ 'version' => $packVersion, 'source_repo' => $source['source_repo'] ?? null, 'source_ref' => $source['source_ref'] ?? null, 'source_commit' => $source['source_commit'] ?? null, 'installed_at' => time(), 'installed_by' => $user->getId() ]
+			[ 'pack_uid' => $packUid, 'pack_id' => $packId, 'version' => $packVersion, 'source_repo' => $source['source_repo'] ?? null, 'source_ref' => $source['source_ref'] ?? null, 'source_commit' => $source['source_commit'] ?? null, 'installed_at' => time(), 'installed_by' => $user->getId() ],
+			[ 'pack_uid' ],
+			[ 'pack_id' => $packId, 'version' => $packVersion, 'source_repo' => $source['source_repo'] ?? null, 'source_ref' => $source['source_ref'] ?? null, 'source_commit' => $source['source_commit'] ?? null, 'installed_at' => time(), 'installed_by' => $user->getId() ]
 		);
-		foreach ( $pages as $p ) {
+        foreach ( $pages as $p ) {
 			$titleText = (string)$p['title'];
 			$ns = isset( $p['namespace'] ) ? (int)$p['namespace'] : NS_MAIN;
 			$title = $titleFactory->makeTitleSafe( $ns, $titleText );
@@ -142,6 +146,7 @@ final class PackImporter {
 			$dbw->upsert(
 				'labki_pack_pages',
 				[
+					'pack_uid' => $packUid,
 					'pack_id' => $packId,
 					'page_title' => $prefixed,
 					'page_namespace' => $ns,
@@ -149,9 +154,24 @@ final class PackImporter {
 					'last_rev_id' => $revId,
 					'content_hash' => $hash,
 				],
-				[ [ 'pack_id', 'page_title' ] ],
-				[ 'page_namespace' => $ns, 'page_id' => $pageId, 'last_rev_id' => $revId, 'content_hash' => $hash ]
+				[ [ 'pack_uid', 'page_title' ] ],
+				[ 'pack_id' => $packId, 'page_namespace' => $ns, 'page_id' => $pageId, 'last_rev_id' => $revId, 'content_hash' => $hash ]
 			);
+
+            // Persist original-to-final mapping for future updates
+            $pageKey = isset( $p['page_key'] ) ? (string)$p['page_key'] : $titleText;
+            $dbw->upsert(
+                'labki_page_mapping',
+                [
+                    'pack_uid' => $packUid,
+                    'pack_id' => $packId,
+                    'page_key' => $pageKey,
+                    'final_title' => $prefixed,
+                    'created_at' => time(),
+                ],
+                [ [ 'pack_uid', 'page_key' ] ],
+                [ 'pack_id' => $packId, 'final_title' => $prefixed, 'created_at' => time() ]
+            );
 		}
 
 		return [ 'created' => $created, 'updated' => $updated ];
