@@ -1,33 +1,49 @@
-CREATE TABLE IF NOT EXISTS /*_*/labki_pack_registry (
-  pack_uid VARBINARY(64) NOT NULL,
-  pack_id VARBINARY(255) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS /*_*/labki_content_repo (
+  repo_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  repo_url VARBINARY(512) NOT NULL,
+  default_ref VARBINARY(255) DEFAULT NULL,
+  created_at BINARY(14) DEFAULT NULL,
+  updated_at BINARY(14) DEFAULT NULL,
+  PRIMARY KEY (repo_id),
+  UNIQUE KEY uq_repo_url (repo_url)
+) /*$wgDBTableOptions*/;
+
+CREATE TABLE IF NOT EXISTS /*_*/labki_pack (
+  pack_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  repo_id INT UNSIGNED NOT NULL,
+  name VARBINARY(255) NOT NULL,
   version VARBINARY(64) DEFAULT NULL,
-  source_repo VARBINARY(512) DEFAULT NULL,
   source_ref VARBINARY(255) DEFAULT NULL,
   source_commit VARBINARY(64) DEFAULT NULL,
   installed_at BINARY(14) DEFAULT NULL,
   installed_by INT UNSIGNED DEFAULT NULL,
-  PRIMARY KEY (pack_uid)
+  updated_at BINARY(14) DEFAULT NULL,
+  status VARBINARY(16) DEFAULT 'installed',
+  PRIMARY KEY (pack_id),
+  UNIQUE KEY uq_repo_name_version (repo_id, name, version),
+  CONSTRAINT fk_pack_repo_id FOREIGN KEY (repo_id) REFERENCES /*_*/labki_content_repo (repo_id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_pack_installed_by FOREIGN KEY (installed_by) REFERENCES /*_*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE
 ) /*$wgDBTableOptions*/;
 
-CREATE TABLE IF NOT EXISTS /*_*/labki_pack_pages (
-  pack_uid VARBINARY(64) NOT NULL,
-  pack_id VARBINARY(255) DEFAULT NULL,
-  page_title VARBINARY(512) NOT NULL,
+CREATE TABLE IF NOT EXISTS /*_*/labki_page (
+  page_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  pack_id INT UNSIGNED NOT NULL,
+  name VARBINARY(512) NOT NULL,
+  final_title VARBINARY(512) NOT NULL,
   page_namespace INT NOT NULL,
-  page_id INT UNSIGNED DEFAULT NULL,
+  wiki_page_id INT UNSIGNED DEFAULT NULL,
   last_rev_id INT UNSIGNED DEFAULT NULL,
   content_hash VARBINARY(64) DEFAULT NULL,
-  PRIMARY KEY (pack_uid, page_title)
-) /*$wgDBTableOptions*/;
-
-CREATE TABLE IF NOT EXISTS /*_*/labki_page_mapping (
-  pack_uid VARBINARY(64) NOT NULL,
-  pack_id VARBINARY(255) DEFAULT NULL,
-  page_key VARBINARY(512) NOT NULL,
-  final_title VARBINARY(512) NOT NULL,
   created_at BINARY(14) DEFAULT NULL,
-  PRIMARY KEY (pack_uid, page_key)
+  updated_at BINARY(14) DEFAULT NULL,
+  PRIMARY KEY (page_id),
+  UNIQUE KEY uq_pack_name (pack_id, name),
+  UNIQUE KEY uq_pack_final_title (pack_id, final_title),
+  CONSTRAINT fk_page_pack_id FOREIGN KEY (pack_id) REFERENCES /*_*/labki_pack (pack_id) ON DELETE CASCADE ON UPDATE CASCADE
 ) /*$wgDBTableOptions*/;
 
-
+-- Helpful indexes
+CREATE INDEX /*i*/idx_labki_pack_repo ON /*_*/labki_pack (repo_id);
+CREATE INDEX /*i*/idx_labki_page_pack ON /*_*/labki_page (pack_id);
+CREATE INDEX /*i*/idx_labki_page_final_title ON /*_*/labki_page (final_title);
+CREATE INDEX /*i*/idx_labki_page_wiki_page_id ON /*_*/labki_page (wiki_page_id);
