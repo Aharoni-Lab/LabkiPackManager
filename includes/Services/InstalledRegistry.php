@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+/**
+ * @deprecated
+ * This file is marked for removal.
+ * Replaced by LabkiRepoRegistry, LabkiPackRegistry, and LabkiPageRegistry.
+ * The old InstalledRegistry.php stored installed pack data in memory or ad hoc formats.
+ * The new system uses normalized SQL tables: labki_content_repo, labki_pack, and labki_page.
+ * Once the new registries are integrated and verified, this file will be removed.
+ */
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
