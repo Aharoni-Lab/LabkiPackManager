@@ -4,51 +4,60 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Domain;
 
-final class Pack implements ContentNode {
-	private PackId $id;
-	private ?string $description;
-	private ?string $version;
-	/** @var PackId[] */
-	private array $containedPacks;
-	/** @var PackId[] */
-	private array $dependsOnPacks;
-	/** @var PageId[] */
-	private array $includedPages;
+/**
+ * Domain model representing a content pack.
+ *
+ * A pack belongs to a single repository and contains one or more Pages.
+ */
+final class Pack {
+    private PackId $id;
+    private ContentRepoId $content_repo_id;
+    private string $name;
+    private ?string $version;
+    private ?string $sourceRef;
+    private ?string $sourceCommit;
+    private ?int $installedAt;
+    private ?int $installedBy;
 
-	/**
-	 * @param PackId[] $containedPacks
-	 * @param PackId[] $dependsOnPacks
-	 * @param PageId[] $includedPages
-	 */
-	public function __construct(
-		PackId $id,
-		?string $description = null,
-		?string $version = null,
-		array $containedPacks = [],
-		array $dependsOnPacks = [],
-		array $includedPages = []
-	) {
-		$this->id = $id;
-		$this->description = $description;
-		$this->version = $version;
-		$this->containedPacks = $containedPacks;
-		$this->dependsOnPacks = $dependsOnPacks;
-		$this->includedPages = $includedPages;
-	}
+    public function __construct(
+        PackId $id,
+        ContentRepoId $content_repo_id,
+        string $name,
+        ?string $version = null,
+        ?string $sourceRef = null,
+        ?string $sourceCommit = null,
+        ?int $installedAt = null,
+        ?int $installedBy = null
+    ) {
+        $this->id = $id;
+        $this->content_repo_id = $content_repo_id;
+        $this->name = $name;
+        $this->version = $version;
+        $this->sourceRef = $sourceRef;
+        $this->sourceCommit = $sourceCommit;
+        $this->installedAt = $installedAt;
+        $this->installedBy = $installedBy;
+    }
 
-	public function getId(): PackId { return $this->id; }
-	public function getIdString(): string { return (string)$this->id; }
-	public function getNodeType(): string { return 'pack'; }
-	public function getDescription(): ?string { return $this->description; }
-	public function getVersion(): ?string { return $this->version; }
-	/** @return PackId[] */
-	public function getContainedPacks(): array { return $this->containedPacks; }
-	/** @return PackId[] */
-	public function getDependsOnPacks(): array { return $this->dependsOnPacks; }
-	/** @return PageId[] */
-	public function getIncludedPages(): array { return $this->includedPages; }
-	/** @return PageId[] Alias for getIncludedPages for semantic clarity. */
-	public function getContainedPages(): array { return $this->includedPages; }
+    public function id(): PackId { return $this->id; }
+    public function content_repo_id(): ContentRepoId { return $this->content_repo_id; }
+    public function name(): string { return $this->name; }
+    public function version(): ?string { return $this->version; }
+    public function sourceRef(): ?string { return $this->sourceRef; }
+    public function sourceCommit(): ?string { return $this->sourceCommit; }
+    public function installedAt(): ?int { return $this->installedAt; }
+    public function installedBy(): ?int { return $this->installedBy; }
+
+    public function toArray(): array {
+        return [
+            'pack_id' => $this->id->toInt(),
+            'content_repo_id' => $this->content_repo_id()->toInt(),
+            'name' => $this->name,
+            'version' => $this->version,
+            'source_ref' => $this->sourceRef,
+            'source_commit' => $this->sourceCommit,
+            'installed_at' => $this->installedAt,
+            'installed_by' => $this->installedBy,
+        ];
+    }
 }
-
-

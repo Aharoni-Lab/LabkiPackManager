@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace LabkiPackManager\Domain;
 
 /**
- * Strongly-typed identifier for a Pack.
+ * Strongly-typed identifier for a content repository.
  */
-final class PackId {
+final class ContentRepoId {
     private int $id;
 
     public function __construct(int $id) {
@@ -18,7 +18,7 @@ final class PackId {
         return $this->id;
     }
 
-    public function equals(PackId $other): bool {
+    public function equals(ContentRepoId $other): bool {
         return $this->id === $other->id;
     }
 

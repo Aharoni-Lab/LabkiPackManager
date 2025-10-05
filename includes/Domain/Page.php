@@ -4,22 +4,63 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Domain;
 
-final class Page implements ContentNode {
-	private PageId $id;
-	private ?string $title;
-	private ?string $sourcePath;
+/**
+ * Domain model representing an installed page within a Pack.
+ */
+final class Page {
+    private PageId $id;
+    private PackId $packId;
+    private string $name;
+    private string $finalTitle;
+    private int $namespace;
+    private ?int $wikiPageId;
+    private ?int $lastRevId;
+    private ?string $contentHash;
+    private ?int $createdAt;
 
-	public function __construct( PageId $id, ?string $title = null, ?string $sourcePath = null ) {
-		$this->id = $id;
-		$this->title = $title;
-		$this->sourcePath = $sourcePath;
-	}
+    public function __construct(
+        PageId $id,
+        PackId $packId,
+        string $name,
+        string $finalTitle,
+        int $namespace,
+        ?int $wikiPageId = null,
+        ?int $lastRevId = null,
+        ?string $contentHash = null,
+        ?int $createdAt = null
+    ) {
+        $this->id = $id;
+        $this->packId = $packId;
+        $this->name = $name;
+        $this->finalTitle = $finalTitle;
+        $this->namespace = $namespace;
+        $this->wikiPageId = $wikiPageId;
+        $this->lastRevId = $lastRevId;
+        $this->contentHash = $contentHash;
+        $this->createdAt = $createdAt;
+    }
 
-	public function getId(): PageId { return $this->id; }
-	public function getIdString(): string { return (string)$this->id; }
-	public function getNodeType(): string { return 'page'; }
-	public function getTitle(): ?string { return $this->title; }
-	public function getSourcePath(): ?string { return $this->sourcePath; }
+    public function id(): PageId { return $this->id; }
+    public function packId(): PackId { return $this->packId; }
+    public function name(): string { return $this->name; }
+    public function finalTitle(): string { return $this->finalTitle; }
+    public function namespace(): int { return $this->namespace; }
+    public function wikiPageId(): ?int { return $this->wikiPageId; }
+    public function lastRevId(): ?int { return $this->lastRevId; }
+    public function contentHash(): ?string { return $this->contentHash; }
+    public function createdAt(): ?int { return $this->createdAt; }
+
+    public function toArray(): array {
+        return [
+            'page_id' => $this->id->toInt(),
+            'pack_id' => $this->packId->toInt(),
+            'name' => $this->name,
+            'final_title' => $this->finalTitle,
+            'page_namespace' => $this->namespace,
+            'wiki_page_id' => $this->wikiPageId,
+            'last_rev_id' => $this->lastRevId,
+            'content_hash' => $this->contentHash,
+            'created_at' => $this->createdAt,
+        ];
+    }
 }
-
-
