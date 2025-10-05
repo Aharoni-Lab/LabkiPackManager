@@ -9,6 +9,8 @@ use ApiMain;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiPackRegistry;
 use LabkiPackManager\Services\LabkiPageRegistry;
+use LabkiPackManager\Domain\PackId;
+use LabkiPackManager\Domain\PageId;
 
 final class ApiLabkiUpdate extends ApiBase {
     public function __construct( ApiMain $main, string $name ) {
@@ -32,13 +34,17 @@ final class ApiLabkiUpdate extends ApiBase {
 
         switch ( $action ) {
             case 'installPack':
-                $repoUrl = (string)( $params['repoUrl'] ?? '' );
+                $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
                 $packName = (string)( $params['packName'] ?? '' );
                 $version = (string)( $params['version'] ?? '' );
-                $repoId = $repoReg->ensureRepo( $repoUrl );
+                $repoId = $repoReg->ensureRepo( $contentRepoUrl );
                 $packId = $packReg->registerPack( $repoId, $packName, $version, $this->getUser()->getId() );
                 $result['success'] = $packId !== null;
-                $result['packId'] = $packId;
+                $result['packId'] = $packId instanceof PackId ? $packId->toInt() : (int)$packId;
+                $packInfo = $packReg->getPackInfo( $packId );
+                if ( $packInfo && method_exists( $packInfo, 'toArray' ) ) {
+                    $result['pack'] = $packInfo->toArray();
+                }
                 break;
 
             case 'removePack':
@@ -52,8 +58,9 @@ final class ApiLabkiUpdate extends ApiBase {
                 $finalTitle = (string)( $params['finalTitle'] ?? '' );
                 $ns = (int)( $params['pageNamespace'] ?? 0 );
                 $wikiPageId = (int)( $params['wikiPageId'] ?? 0 );
-                $pageReg->recordInstalledPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
-                $result['success'] = true;
+                $pageId = $pageReg->recordInstalledPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
+                $result['success'] = $pageId !== null;
+                $result['pageId'] = $pageId instanceof PageId ? $pageId->toInt() : (int)$pageId;
                 break;
 
             default:
@@ -66,7 +73,7 @@ final class ApiLabkiUpdate extends ApiBase {
     public function getAllowedParams(): array {
         return [
             'actionType'    => [ self::PARAM_TYPE => 'string', self::PARAM_REQUIRED => true ],
-            'repoUrl'       => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
+            'contentRepoUrl'       => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'packName'      => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'version'       => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'packId'        => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => null ],

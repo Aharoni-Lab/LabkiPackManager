@@ -9,6 +9,8 @@ use ApiMain;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiPackRegistry;
 use LabkiPackManager\Services\LabkiPageRegistry;
+use LabkiPackManager\Domain\ContentRepoId;
+use LabkiPackManager\Domain\PackId;
 
 /**
  * Action API module for hierarchical, read-only queries across Labki content.
@@ -76,7 +78,8 @@ final class ApiLabkiQuery extends ApiBase {
 
         // Case 1: No repo → list all repositories
         if ( !$repoParam ) {
-            $result['repos'] = $repoReg->listRepos();
+            $repos = $repoReg->listRepos();
+            $result['repos'] = $this->mapToArray( $repos );
 
         } else {
             // Resolve repo ID (integer or URL)
@@ -89,11 +92,15 @@ final class ApiLabkiQuery extends ApiBase {
             }
 
             // Always include repo metadata
-            $result['repo'] = $repoReg->getRepoInfo( $repoId ) ?? [ 'repo_id' => $repoId ];
+            $repoInfo = $repoReg->getRepoInfo( $repoId );
+            $result['repo'] = $repoInfo && method_exists( $repoInfo, 'toArray' )
+                ? $repoInfo->toArray()
+                : [ 'repo_id' => ($repoId instanceof ContentRepoId ? $repoId->toInt() : (int)$repoId) ];
 
             // Case 2: Repo only → list packs in repo
             if ( !$packParam ) {
-                $result['packs'] = $packReg->listPacksByRepo( $repoId ) ?? [];
+                $packs = $packReg->listPacksByRepo( $repoId ) ?? [];
+                $result['packs'] = $this->mapToArray( $packs );
 
             } else {
                 // Case 3: Specific pack (and maybe page)
@@ -103,11 +110,15 @@ final class ApiLabkiQuery extends ApiBase {
                 }
 
                 // Always include pack metadata
-                $result['pack'] = $packReg->getPackInfo( $packId ) ?? [ 'pack_id' => $packId ];
+                $packInfo = $packReg->getPackInfo( $packId );
+                $result['pack'] = $packInfo && method_exists( $packInfo, 'toArray' )
+                    ? $packInfo->toArray()
+                    : [ 'pack_id' => ($packId instanceof PackId ? $packId->toInt() : (int)$packId) ];
 
                 // Case 3a: Pack only → list pages
                 if ( !$pageParam ) {
-                    $result['pages'] = $pageReg->listPagesByPack( $packId ) ?? [];
+                    $pages = $pageReg->listPagesByPack( $packId ) ?? [];
+                    $result['pages'] = $this->mapToArray( $pages );
 
                 } else {
                     // Case 4: Specific page
@@ -115,7 +126,7 @@ final class ApiLabkiQuery extends ApiBase {
                     if ( $pageInfo === null ) {
                         $this->dieWithError( [ 'apierror-page-not-found', $pageParam ], 'page_not_found' );
                     }
-                    $result['page'] = $pageInfo;
+                    $result['page'] = method_exists( $pageInfo, 'toArray' ) ? $pageInfo->toArray() : (array)$pageInfo;
                 }
             }
         }
@@ -131,6 +142,20 @@ final class ApiLabkiQuery extends ApiBase {
         ];
 
         $this->getResult()->addValue( null, $this->getModuleName(), $result );
+    }
+
+    /**
+     * Normalize a list of domain objects or arrays into plain arrays for API output.
+     * @param iterable $items
+     * @return array<int,array>
+     */
+    private function mapToArray( iterable $items ): array {
+        return array_map(
+            static function ( $obj ) {
+                return is_object( $obj ) && method_exists( $obj, 'toArray' ) ? $obj->toArray() : (array)$obj;
+            },
+            is_array( $items ) ? $items : iterator_to_array( $items, false )
+        );
     }
 
     /**
