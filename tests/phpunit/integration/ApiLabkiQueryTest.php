@@ -31,7 +31,7 @@ final class ApiLabkiQueryTest extends \MediaWikiIntegrationTestCase {
         $this->assertArrayHasKey( 'repos', $out1 );
 
         // packs by repo (use repoId param)
-        $req2 = new \MediaWiki\Request\FauxRequest( [ 'action' => 'labkiquery', 'format' => 'json', 'repo' => (string)$repoId ] );
+        $req2 = new \MediaWiki\Request\FauxRequest( [ 'action' => 'labkiquery', 'format' => 'json', 'repo' => (string)$repoId->toInt() ] );
         $api2 = new \ApiMain( $req2 );
         $api2->execute();
         $data2 = $api2->getResult()->getResultData( null );
@@ -39,7 +39,7 @@ final class ApiLabkiQueryTest extends \MediaWikiIntegrationTestCase {
         $this->assertArrayHasKey( 'packs', $out2 );
 
         // pages by pack
-        $req3 = new \MediaWiki\Request\FauxRequest( [ 'action' => 'labkiquery', 'format' => 'json', 'repo' => (string)$repoId, 'pack' => 'chemistry' ] );
+        $req3 = new \MediaWiki\Request\FauxRequest( [ 'action' => 'labkiquery', 'format' => 'json', 'repo' => (string)$repoId->toInt(), 'pack' => 'chemistry' ] );
         $api3 = new \ApiMain( $req3 );
         $api3->execute();
         $data3 = $api3->getResult()->getResultData( null );

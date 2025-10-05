@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use LabkiPackManager\Services\LabkiRepoRegistry;
+use LabkiPackManager\Domain\ContentRepoId;
+use LabkiPackManager\Domain\ContentRepo;
 
 /**
  * @group Database
@@ -16,26 +18,30 @@ final class RepoRegistryTest extends \MediaWikiIntegrationTestCase {
         $url = 'https://example.com/repoA/manifest.yml';
 
         $id = $svc->addRepo( $url, 'main' );
-        $this->assertIsInt( $id );
-        $this->assertGreaterThan( 0, $id );
+        $this->assertInstanceOf( ContentRepoId::class, $id );
+        $this->assertGreaterThan( 0, $id->toInt() );
 
         $same = $svc->ensureRepo( $url );
-        $this->assertSame( $id, $same );
+        $this->assertInstanceOf( ContentRepoId::class, $same );
+        $this->assertTrue( $id->equals( $same ) );
 
         $found = $svc->getRepoIdByUrl( $url );
-        $this->assertSame( $id, $found );
+        $this->assertInstanceOf( ContentRepoId::class, $found );
+        $this->assertTrue( $id->equals( $found ) );
 
         $info = $svc->getRepoById( $id );
-        $this->assertNotNull( $info );
-        $this->assertSame( $url, $info['repo_url'] );
-        $this->assertSame( 'main', $info['default_ref'] );
+        $this->assertInstanceOf( ContentRepo::class, $info );
+        $this->assertSame( $url, $info->url() );
+        $this->assertSame( 'main', $info->defaultRef() );
 
         $svc->updateRepo( $id, [ 'default_ref' => 'develop' ] );
         $info2 = $svc->getRepoById( $id );
-        $this->assertSame( 'develop', $info2['default_ref'] );
+        $this->assertInstanceOf( ContentRepo::class, $info2 );
+        $this->assertSame( 'develop', $info2->defaultRef() );
 
         $all = $svc->listRepos();
         $this->assertNotEmpty( $all );
+        $this->assertInstanceOf( ContentRepo::class, $all[0] );
 
         $svc->deleteRepo( $id );
         $info3 = $svc->getRepoById( $id );

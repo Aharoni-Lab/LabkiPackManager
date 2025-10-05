@@ -30,6 +30,7 @@ final class ApiLabkiUpdateTest extends \MediaWikiIntegrationTestCase {
         $this->assertTrue( (bool)( $out1['success'] ?? false ) );
         $packId = (int)( $out1['packId'] ?? 0 );
         $this->assertGreaterThan( 0, $packId );
+        $this->assertIsArray( $out1['pack'] ?? null );
 
         // Verify pack exists in DB via read API
         $reqRead = new \MediaWiki\Request\FauxRequest( [ 'action' => 'labkiquery', 'format' => 'json', 'repo' => 'https://example.com/repoE/manifest.yml' ] );
