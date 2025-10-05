@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
+use LabkiPackManager\Domain\ContentRepo;
+use LabkiPackManager\Domain\ContentRepoId;
+
 /**
  * Repository-level registry service for labki_content_repo table.
  */
@@ -13,7 +16,7 @@ final class LabkiRepoRegistry {
     /**
      * Insert a repository if not present and return repo_id.
      */
-    public function addRepo( string $url, ?string $defaultRef = null ): int {
+    public function addRepo( string $url, ?string $defaultRef = null ): ContentRepoId {
         $existingId = $this->getRepoIdByUrl( $url );
         if ( $existingId !== null ) {
             return $existingId;
@@ -35,13 +38,13 @@ final class LabkiRepoRegistry {
 
         $id = (int)$dbw->insertId();
         wfDebugLog( 'Labki', 'Added repo ' . $url . ' (repo_id=' . $id . ')' );
-        return $id;
+        return new ContentRepoId( $id );
     }
 
     /**
      * Get a repository ID by its URL.
      */
-    public function getRepoIdByUrl( string $url ): ?int {
+    public function getRepoIdByUrl( string $url ): ?ContentRepoId {
         $dbr = wfGetDB( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
             ->select( 'repo_id' )
@@ -52,41 +55,41 @@ final class LabkiRepoRegistry {
         if ( !$row ) {
             return null;
         }
-        return (int)$row->repo_id;
+        return new ContentRepoId( (int)$row->repo_id );
     }
 
     /**
      * Fetch full repository record by ID.
-     * @return array{repo_id:int,repo_url:string,default_ref:?string,created_at:?int,updated_at:?int}|null
+     * @return ContentRepo|null
      */
-    public function getRepoById( int $repoId ): ?array {
+    public function getRepoById( int|ContentRepoId $repoId ): ?ContentRepo {
         $dbr = wfGetDB( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
-            ->select( [ 'repo_id', 'repo_url', 'default_ref', 'created_at', 'updated_at' ] )
+            ->select( ContentRepo::FIELDS )
             ->from( self::TABLE )
-            ->where( [ 'repo_id' => $repoId ] )
+            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->caller( __METHOD__ )
             ->fetchRow();
         if ( !$row ) {
             return null;
         }
-        return [
-            'repo_id' => (int)$row->repo_id,
-            'repo_url' => (string)$row->repo_url,
-            'default_ref' => $row->default_ref !== null ? (string)$row->default_ref : null,
-            'created_at' => $row->created_at !== null ? (int)$row->created_at : null,
-            'updated_at' => $row->updated_at !== null ? (int)$row->updated_at : null,
-        ];
+        return new ContentRepo(
+            new ContentRepoId( (int)$row->repo_id ),
+            (string)$row->repo_url,
+            $row->default_ref !== null ? (string)$row->default_ref : null,
+            $row->created_at !== null ? (int)$row->created_at : null,
+            $row->updated_at !== null ? (int)$row->updated_at : null,
+        );
     }
 
     /** Small helper used by API: return same as getRepoById but named getRepoInfo */
     // We can see which function name we like more and remove the other probably
-    public function getRepoInfo( int $repoId ): ?array {
+    public function getRepoInfo( int|ContentRepoId $repoId ): ?ContentRepo {
         return $this->getRepoById( $repoId );
     }
 
     /** Ensure repo exists by URL and return its ID. */
-    public function ensureRepo( string $url ): int {
+    public function ensureRepo( string $url ): ContentRepoId {
         $id = $this->getRepoIdByUrl( $url );
         if ( $id !== null ) {
             return $id;
@@ -96,25 +99,19 @@ final class LabkiRepoRegistry {
 
     /**
      * List all repositories.
-     * @return array<int,array{repo_id:int,repo_url:string,default_ref:?string,created_at:?int,updated_at:?int}>
+     * @return array<int,ContentRepo>
      */
     public function listRepos(): array {
         $dbr = wfGetDB( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
-            ->select( [ 'repo_id', 'repo_url', 'default_ref', 'created_at', 'updated_at' ] )
+            ->select( ContentRepo::FIELDS )
             ->from( self::TABLE )
             ->orderBy( 'repo_id', SelectQueryBuilder::SORT_ASC )
             ->caller( __METHOD__ )
             ->fetchResultSet();
         $out = [];
         foreach ( $res as $row ) {
-            $out[] = [
-                'repo_id' => (int)$row->repo_id,
-                'repo_url' => (string)$row->repo_url,
-                'default_ref' => $row->default_ref !== null ? (string)$row->default_ref : null,
-                'created_at' => $row->created_at !== null ? (int)$row->created_at : null,
-                'updated_at' => $row->updated_at !== null ? (int)$row->updated_at : null,
-            ];
+            $out[] = ContentRepo::fromRow( $row );
         }
         return $out;
     }
@@ -123,7 +120,7 @@ final class LabkiRepoRegistry {
      * Update repository fields; always touches updated_at unless explicitly provided.
      * @param array<string,mixed> $fields
      */
-    public function updateRepo( int $repoId, array $fields ): void {
+    public function updateRepo( int|ContentRepoId $repoId, array $fields ): void {
         $dbw = wfGetDB( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
             $fields['updated_at'] = time();
@@ -131,7 +128,7 @@ final class LabkiRepoRegistry {
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
-            ->where( [ 'repo_id' => $repoId ] )
+            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->caller( __METHOD__ )
             ->execute();
     }
@@ -139,11 +136,11 @@ final class LabkiRepoRegistry {
     /**
      * Delete repository (cascade removes packs/pages).
      */
-    public function deleteRepo( int $repoId ): void {
+    public function deleteRepo( int|ContentRepoId $repoId ): void {
         $dbw = wfGetDB( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
-            ->where( [ 'repo_id' => $repoId ] )
+            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->caller( __METHOD__ )
             ->execute();
     }

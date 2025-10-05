@@ -10,6 +10,19 @@ namespace LabkiPackManager\Domain;
  * A pack belongs to a single repository and contains one or more Pages.
  */
 final class Pack {
+    public const TABLE = 'labki_pack';
+    /** @var string[] */
+    public const FIELDS = [ 
+		'pack_id',
+		'content_repo_id',
+		'name','version',
+		'source_ref',
+		'source_commit',
+		'installed_at',
+		'installed_by',
+		'updated_at',
+		'status',
+	];
     private PackId $id;
     private ContentRepoId $content_repo_id;
     private string $name;
@@ -59,5 +72,21 @@ final class Pack {
             'installed_at' => $this->installedAt,
             'installed_by' => $this->installedBy,
         ];
+    }
+
+    /**
+     * Build from a database row having columns in self::FIELDS
+     */
+    public static function fromRow( object $row ): self {
+        return new self(
+            new PackId( (int)$row->pack_id ),
+            new ContentRepoId( (int)$row->content_repo_id ),
+            (string)$row->name,
+            isset( $row->version ) && $row->version !== null ? (string)$row->version : null,
+            isset( $row->source_ref ) && $row->source_ref !== null ? (string)$row->source_ref : null,
+            isset( $row->source_commit ) && $row->source_commit !== null ? (string)$row->source_commit : null,
+            isset( $row->installed_at ) && $row->installed_at !== null ? (int)$row->installed_at : null,
+            isset( $row->installed_by ) && $row->installed_by !== null ? (int)$row->installed_by : null,
+        );
     }
 }

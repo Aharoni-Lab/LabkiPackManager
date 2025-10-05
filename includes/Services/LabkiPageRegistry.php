@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
+use LabkiPackManager\Domain\Page as DomainPage;
+use LabkiPackManager\Domain\PageId;
+use LabkiPackManager\Domain\PackId;
+
 /**
  * Page-level registry service for labki_page table.
  */
@@ -14,11 +18,11 @@ final class LabkiPageRegistry {
      * Add a page to a pack and return page_id.
      * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int} $pageData
      */
-    public function addPage( int $packId, array $pageData ): int {
+    public function addPage( int|PackId $packId, array $pageData ): PageId {
         $now = time();
         $dbw = wfGetDB( DB_PRIMARY );
         $row = [
-            'pack_id' => $packId,
+            'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
             'name' => $pageData['name'],
             'final_title' => $pageData['final_title'],
             'page_namespace' => (int)$pageData['page_namespace'],
@@ -35,17 +39,17 @@ final class LabkiPageRegistry {
             ->execute();
         $id = (int)$dbw->insertId();
         wfDebugLog( 'Labki', 'Added page ' . $pageData['final_title'] . ' (page_id=' . $id . ', pack_id=' . $packId . ')' );
-        return $id;
+        return new PageId( $id );
     }
 
     /**
      * Find an installed page by final title.
-     * @return array{page_id:int,pack_id:int,name:string,final_title:string,page_namespace:int,wiki_page_id:?int,last_rev_id:?int,content_hash:?string,created_at:?int,updated_at:?int}|null
+     * @return DomainPage|null
      */
-    public function getPageByTitle( string $finalTitle ): ?array {
+    public function getPageByTitle( string $finalTitle ): ?DomainPage {
         $dbr = wfGetDB( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
-            ->select( [ 'page_id','pack_id','name','final_title','page_namespace','wiki_page_id','last_rev_id','content_hash','created_at','updated_at' ] )
+            ->select( Page::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'final_title' => $finalTitle ] )
             ->caller( __METHOD__ )
@@ -53,73 +57,40 @@ final class LabkiPageRegistry {
         if ( !$row ) {
             return null;
         }
-        return [
-            'page_id' => (int)$row->page_id,
-            'pack_id' => (int)$row->pack_id,
-            'name' => (string)$row->name,
-            'final_title' => (string)$row->final_title,
-            'page_namespace' => (int)$row->page_namespace,
-            'wiki_page_id' => $row->wiki_page_id !== null ? (int)$row->wiki_page_id : null,
-            'last_rev_id' => $row->last_rev_id !== null ? (int)$row->last_rev_id : null,
-            'content_hash' => $row->content_hash !== null ? (string)$row->content_hash : null,
-            'created_at' => $row->created_at !== null ? (int)$row->created_at : null,
-            'updated_at' => $row->updated_at !== null ? (int)$row->updated_at : null,
-        ];
+        return DomainPage::fromRow( $row );
     }
 
     /** Convenience for API: get page by pack and name */
-    public function getPageByName( int $packId, string $name ): ?array {
+    public function getPageByName( int|PackId $packId, string $name ): ?DomainPage {
         $dbr = wfGetDB( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
-            ->select( [ 'page_id','pack_id','name','final_title','page_namespace','wiki_page_id','last_rev_id','content_hash','created_at','updated_at' ] )
+            ->select( Page::FIELDS )
             ->from( self::TABLE )
-            ->where( [ 'pack_id' => $packId, 'name' => $name ] )
+            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId, 'name' => $name ] )
             ->caller( __METHOD__ )
             ->fetchRow();
         if ( !$row ) {
             return null;
         }
-        return [
-            'page_id' => (int)$row->page_id,
-            'pack_id' => (int)$row->pack_id,
-            'name' => (string)$row->name,
-            'final_title' => (string)$row->final_title,
-            'page_namespace' => (int)$row->page_namespace,
-            'wiki_page_id' => $row->wiki_page_id !== null ? (int)$row->wiki_page_id : null,
-            'last_rev_id' => $row->last_rev_id !== null ? (int)$row->last_rev_id : null,
-            'content_hash' => $row->content_hash !== null ? (string)$row->content_hash : null,
-            'created_at' => $row->created_at !== null ? (int)$row->created_at : null,
-            'updated_at' => $row->updated_at !== null ? (int)$row->updated_at : null,
-        ];
+        return DomainPage::fromRow( $row );
     }
 
     /**
      * List pages for a pack.
-     * @return array<int,array{page_id:int,pack_id:int,name:string,final_title:string,page_namespace:int,wiki_page_id:?int,last_rev_id:?int,content_hash:?string,created_at:?int,updated_at:?int}>
+     * @return array<int,DomainPage>
      */
-    public function listPagesByPack( int $packId ): array {
+    public function listPagesByPack( int|PackId $packId ): array {
         $dbr = wfGetDB( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
-            ->select( [ 'page_id','pack_id','name','final_title','page_namespace','wiki_page_id','last_rev_id','content_hash','created_at','updated_at' ] )
+            ->select( Page::FIELDS )
             ->from( self::TABLE )
-            ->where( [ 'pack_id' => $packId ] )
+            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->orderBy( 'page_id' )
             ->caller( __METHOD__ )
             ->fetchResultSet();
         $out = [];
         foreach ( $res as $row ) {
-            $out[] = [
-                'page_id' => (int)$row->page_id,
-                'pack_id' => (int)$row->pack_id,
-                'name' => (string)$row->name,
-                'final_title' => (string)$row->final_title,
-                'page_namespace' => (int)$row->page_namespace,
-                'wiki_page_id' => $row->wiki_page_id !== null ? (int)$row->wiki_page_id : null,
-                'last_rev_id' => $row->last_rev_id !== null ? (int)$row->last_rev_id : null,
-                'content_hash' => $row->content_hash !== null ? (string)$row->content_hash : null,
-                'created_at' => $row->created_at !== null ? (int)$row->created_at : null,
-                'updated_at' => $row->updated_at !== null ? (int)$row->updated_at : null,
-            ];
+            $out[] = DomainPage::fromRow( $row );
         }
         return $out;
     }
@@ -128,7 +99,7 @@ final class LabkiPageRegistry {
      * Update a page record; updates updated_at unless provided.
      * @param array<string,mixed> $fields
      */
-    public function updatePage( int $pageId, array $fields ): void {
+    public function updatePage( int|PageId $pageId, array $fields ): void {
         $dbw = wfGetDB( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
             $fields['updated_at'] = time();
@@ -136,7 +107,7 @@ final class LabkiPageRegistry {
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
-            ->where( [ 'page_id' => $pageId ] )
+            ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
             ->caller( __METHOD__ )
             ->execute();
         wfDebugLog( 'Labki', 'Updated page ' . $pageId );
@@ -145,18 +116,18 @@ final class LabkiPageRegistry {
     /**
      * Remove all pages for a pack.
      */
-    public function removePagesByPack( int $packId ): void {
+    public function removePagesByPack( int|PackId $packId ): void {
         $dbw = wfGetDB( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
-            ->where( [ 'pack_id' => $packId ] )
+            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )
             ->execute();
         wfDebugLog( 'Labki', 'Removed pages for pack ' . $packId );
     }
 
     /** Record a page installation event with required fields */
-    public function recordInstalledPage( int $packId, string $name, string $finalTitle, int $pageNamespace, int $wikiPageId ): int {
+    public function recordInstalledPage( int|PackId $packId, string $name, string $finalTitle, int $pageNamespace, int $wikiPageId ): PageId {
         return $this->addPage( $packId, [
             'name' => $name,
             'final_title' => $finalTitle,

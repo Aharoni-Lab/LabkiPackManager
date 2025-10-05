@@ -2,12 +2,12 @@
 --  labki_content_repo: top-level content repository
 -- ===========================================================
 CREATE TABLE IF NOT EXISTS labki_content_repo (
-  repo_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  repo_url TEXT NOT NULL,
+  content_repo_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_repo_url TEXT NOT NULL,
   default_ref TEXT,
   created_at INTEGER,
   updated_at INTEGER,
-  UNIQUE (repo_url)
+  UNIQUE (content_repo_url)
 );
 
 -- ===========================================================
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS labki_content_repo (
 -- ===========================================================
 CREATE TABLE IF NOT EXISTS labki_pack (
   pack_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  repo_id INTEGER NOT NULL,
+  content_repo_id INTEGER NOT NULL,
   name TEXT NOT NULL,
   version TEXT,
   source_ref TEXT,
@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS labki_pack (
   installed_by INTEGER,
   updated_at INTEGER,
   status TEXT CHECK(status IN ('installed','pending','removed','error')) DEFAULT 'installed',
-  UNIQUE (repo_id, name, version),
-  FOREIGN KEY (repo_id) REFERENCES labki_content_repo (repo_id)
+  UNIQUE (content_repo_id, name, version),
+  FOREIGN KEY (content_repo_id) REFERENCES labki_content_repo (content_repo_id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   FOREIGN KEY (installed_by) REFERENCES user (user_id)
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS labki_page (
 --  Helpful indexes
 -- ===========================================================
 CREATE INDEX IF NOT EXISTS idx_labki_pack_repo
-  ON labki_pack (repo_id);
+  ON labki_pack (content_repo_id);
 
 CREATE INDEX IF NOT EXISTS idx_labki_page_pack
   ON labki_page (pack_id);

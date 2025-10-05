@@ -11,6 +11,16 @@ namespace LabkiPackManager\Domain;
  * This class is a pure data container with no persistence logic.
  */
 final class ContentRepo {
+    public const TABLE = 'labki_content_repo';
+    /** @var string[] */
+    public const FIELDS = [ 
+        'content_repo_id', 
+        'repo_url', 
+        'default_ref', 
+        'created_at', 
+        'updated_at', 
+    ];
+
     private ContentRepoId $id;
     private string $url;
     private ?string $defaultRef;
@@ -45,5 +55,18 @@ final class ContentRepo {
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];
+    }
+
+    /**
+     * Build from a database row having columns in self::FIELDS
+     */
+    public static function fromRow( object $row ): self {
+        return new self(
+            new ContentRepoId( (int)$row->content_repo_id ),
+            (string)$row->content_repo_url,
+            isset( $row->default_ref ) && $row->default_ref !== null ? (string)$row->default_ref : null,
+            isset( $row->created_at ) && $row->created_at !== null ? (int)$row->created_at : null,
+            isset( $row->updated_at ) && $row->updated_at !== null ? (int)$row->updated_at : null,
+        );
     }
 }

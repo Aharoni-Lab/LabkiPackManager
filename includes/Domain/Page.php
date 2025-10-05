@@ -8,6 +8,20 @@ namespace LabkiPackManager\Domain;
  * Domain model representing an installed page within a Pack.
  */
 final class Page {
+    public const TABLE = 'labki_page';
+    /** @var string[] */
+    public const FIELDS = [ 
+		'page_id',
+		'pack_id',
+		'name',
+		'final_title',
+		'page_namespace',
+		'wiki_page_id',
+		'last_rev_id',
+		'content_hash',
+		'created_at',
+		'updated_at', 
+	];
     private PageId $id;
     private PackId $packId;
     private string $name;
@@ -62,5 +76,22 @@ final class Page {
             'content_hash' => $this->contentHash,
             'created_at' => $this->createdAt,
         ];
+    }
+
+    /**
+     * Build from a database row having columns in self::FIELDS
+     */
+    public static function fromRow( object $row ): self {
+        return new self(
+            new PageId( (int)$row->page_id ),
+            new PackId( (int)$row->pack_id ),
+            (string)$row->name,
+            (string)$row->final_title,
+            (int)$row->page_namespace,
+            isset( $row->wiki_page_id ) && $row->wiki_page_id !== null ? (int)$row->wiki_page_id : null,
+            isset( $row->last_rev_id ) && $row->last_rev_id !== null ? (int)$row->last_rev_id : null,
+            isset( $row->content_hash ) && $row->content_hash !== null ? (string)$row->content_hash : null,
+            isset( $row->created_at ) && $row->created_at !== null ? (int)$row->created_at : null,
+        );
     }
 }
