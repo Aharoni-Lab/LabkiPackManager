@@ -79,6 +79,21 @@ final class LabkiRepoRegistry {
         ];
     }
 
+    /** Small helper used by API: return same as getRepoById but named getRepoInfo */
+    // We can see which function name we like more and remove the other probably
+    public function getRepoInfo( int $repoId ): ?array {
+        return $this->getRepoById( $repoId );
+    }
+
+    /** Ensure repo exists by URL and return its ID. */
+    public function ensureRepo( string $url ): int {
+        $id = $this->getRepoIdByUrl( $url );
+        if ( $id !== null ) {
+            return $id;
+        }
+        return $this->addRepo( $url, null );
+    }
+
     /**
      * List all repositories.
      * @return array<int,array{repo_id:int,repo_url:string,default_ref:?string,created_at:?int,updated_at:?int}>

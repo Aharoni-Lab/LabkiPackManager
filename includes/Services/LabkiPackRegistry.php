@@ -128,6 +128,27 @@ final class LabkiPackRegistry {
         return $out;
     }
 
+    /** Alias for API: getPackInfo by ID */
+    public function getPackInfo( int $packId ): ?array {
+        return $this->getPack( $packId );
+    }
+
+    /** Register or update a pack for install; returns pack_id */
+    public function registerPack( int $repoId, string $name, ?string $version, int $installedBy ): ?int {
+        $existing = $this->getPackIdByName( $repoId, $name, $version );
+        if ( $existing !== null ) {
+            $this->updatePack( $existing, [ 'installed_at' => time(), 'installed_by' => $installedBy, 'status' => 'installed' ] );
+            return $existing;
+        }
+        return $this->addPack( $repoId, $name, [ 'version' => $version, 'installed_by' => $installedBy, 'status' => 'installed' ] );
+    }
+
+    /** Delete a pack; return success */
+    public function deletePack( int $packId ): bool {
+        $this->removePack( $packId );
+        return true;
+    }
+
     /**
      * Update pack fields, touching updated_at unless provided.
      * @param array<string,mixed> $fields

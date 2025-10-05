@@ -67,6 +67,32 @@ final class LabkiPageRegistry {
         ];
     }
 
+    /** Convenience for API: get page by pack and name */
+    public function getPageByName( int $packId, string $name ): ?array {
+        $dbr = wfGetDB( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
+            ->select( [ 'page_id','pack_id','name','final_title','page_namespace','wiki_page_id','last_rev_id','content_hash','created_at','updated_at' ] )
+            ->from( self::TABLE )
+            ->where( [ 'pack_id' => $packId, 'name' => $name ] )
+            ->caller( __METHOD__ )
+            ->fetchRow();
+        if ( !$row ) {
+            return null;
+        }
+        return [
+            'page_id' => (int)$row->page_id,
+            'pack_id' => (int)$row->pack_id,
+            'name' => (string)$row->name,
+            'final_title' => (string)$row->final_title,
+            'page_namespace' => (int)$row->page_namespace,
+            'wiki_page_id' => $row->wiki_page_id !== null ? (int)$row->wiki_page_id : null,
+            'last_rev_id' => $row->last_rev_id !== null ? (int)$row->last_rev_id : null,
+            'content_hash' => $row->content_hash !== null ? (string)$row->content_hash : null,
+            'created_at' => $row->created_at !== null ? (int)$row->created_at : null,
+            'updated_at' => $row->updated_at !== null ? (int)$row->updated_at : null,
+        ];
+    }
+
     /**
      * List pages for a pack.
      * @return array<int,array{page_id:int,pack_id:int,name:string,final_title:string,page_namespace:int,wiki_page_id:?int,last_rev_id:?int,content_hash:?string,created_at:?int,updated_at:?int}>
@@ -127,6 +153,16 @@ final class LabkiPageRegistry {
             ->caller( __METHOD__ )
             ->execute();
         wfDebugLog( 'Labki', 'Removed pages for pack ' . $packId );
+    }
+
+    /** Record a page installation event with required fields */
+    public function recordInstalledPage( int $packId, string $name, string $finalTitle, int $pageNamespace, int $wikiPageId ): int {
+        return $this->addPage( $packId, [
+            'name' => $name,
+            'final_title' => $finalTitle,
+            'page_namespace' => $pageNamespace,
+            'wiki_page_id' => $wikiPageId,
+        ] );
     }
 
     /**
