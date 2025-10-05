@@ -56,7 +56,8 @@
     }
   },
   "APIModules": {
-    "labkipacks": "LabkiPackManager\\API\\ApiLabkiPacks"
+    "labkipacks": "LabkiPackManager\\API\\ApiLabkiPacks",
+    "labkiquery": "LabkiPackManager\\API\\ApiLabkiQuery"
   },
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates"

@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+// @deprecated
+// This file will be removed after migration to ApiLabkiQuery.php (read-only)
+// and ApiLabkiManage.php (write operations). Do not extend or modify.
 namespace LabkiPackManager\API;
 
 use ApiBase;
