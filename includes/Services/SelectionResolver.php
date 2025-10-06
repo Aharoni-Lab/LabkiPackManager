@@ -6,6 +6,7 @@ namespace LabkiPackManager\Services;
 
 use LabkiPackManager\Domain\Pack;
 
+// THIS IS GOING TO GET ABSORBED INTO FRONTEND
 /**
  * Resolves dependency closure and final page list without I/O.
  */

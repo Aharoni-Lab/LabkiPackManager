@@ -7,6 +7,7 @@ namespace LabkiPackManager\Services;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\SlotRecord;
 
+// THIS IS GOING TO GET ABSORBED INTO FRONTEND
 /**
  * Computes a pre-flight plan for selected packs: creates, updates, and collisions.
  */
