@@ -27,8 +27,8 @@ final class SpecialLabkiDBViewer extends SpecialPage {
 
     public function execute($subPage): void {
         $this->checkPermissions();
-        global $wgLabkiEnableDBViewer;
-        if (!$wgLabkiEnableDBViewer) {
+        $config = $this->getConfig();
+        if ( !$config->get( 'LabkiEnableDBViewer' ) ) {
             throw new PermissionsError('labkipackmanager-error-dbviewer-disabled');
         }
 

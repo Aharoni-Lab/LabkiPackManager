@@ -102,6 +102,10 @@
     "LabkiGlobalPrefix": {
       "value": "",
       "description": "Optional global prefix to apply to renamed pages (collision avoidance)."
+    },
+    "LabkiEnableDBViewer": {
+      "value": false,
+      "description": "If true, enables the Labki database viewer special page."
     }
   },
   "AvailableRights": [
