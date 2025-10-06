@@ -11,10 +11,10 @@ use WANObjectCache;
 /**
  * ManifestStore
  *
- * Handles short-term caching of manifest data fetched from remote Labki content repositories.
- * This avoids redundant network requests while keeping data relatively fresh.
+ * Caches parsed manifest data from Labki content repositories.
+ * Prevents redundant network fetches and speeds up manifest access.
  *
- * Payload structure:
+ * Cached payload structure:
  * [
  *   'schemaVersion' => string|null,
  *   'manifestUrl'   => string,
@@ -44,37 +44,49 @@ final class ManifestStore {
     }
 
     /**
-     * Retrieve manifest data, using cache if valid or fetching fresh if missing/stale.
+     * Retrieve manifest data, refreshing if missing or forced.
      *
-     * @param bool $forceRefresh If true, bypass cache and re-fetch.
+     * @param bool $forceRefresh Whether to bypass cache.
      * @return StatusValue::newGood(array $manifest) or newFatal(error)
      */
     public function get(bool $forceRefresh = false): StatusValue {
         $cached = $this->getCached();
-        if ( !$forceRefresh && $cached !== null ) {
-            return StatusValue::newGood($cached);
+
+        // Serve cached manifest if fresh and not forced
+        if (!$forceRefresh && $cached !== null && !$this->needsRefresh($cached)) {
+            return StatusValue::newGood($cached + ['from_cache' => true]);
         }
 
+        // Fetch fresh manifest from network or local source
         $fetched = $this->fetcher->fetch($this->manifestUrl);
-        if ( !$fetched->isOK() ) {
-            // Return stale cache if available
-            if ( $cached !== null ) {
-                return StatusValue::newGood($cached);
+        if (!$fetched->isOK()) {
+            // Return stale cache as fallback if available
+            if ($cached !== null) {
+                return StatusValue::newGood($cached + ['stale' => true]);
             }
             return $fetched;
         }
 
         $data = $fetched->getValue();
         $this->save($data);
-        return StatusValue::newGood($data);
+
+        return StatusValue::newGood($data + ['from_cache' => false]);
     }
 
     /**
-     * Return cached manifest if available.
+     * Retrieve cached manifest, if available.
      */
     public function getCached(): ?array {
         $val = $this->cache->get($this->cacheKey);
         return (is_array($val) && isset($val['packs']) && is_array($val['packs'])) ? $val : null;
+    }
+
+    /**
+     * Determine if the cached manifest is older than its TTL.
+     */
+    public function needsRefresh(array $cached): bool {
+        $age = time() - ((int)($cached['fetchedAt'] ?? 0));
+        return $age > $this->ttlSeconds;
     }
 
     /**
@@ -93,17 +105,19 @@ final class ManifestStore {
     }
 
     /**
-     * Clear cached manifest.
+     * Delete manifest cache entry.
      */
     public function clear(): void {
         $this->cache->delete($this->cacheKey);
     }
 
+    /**
+     * Resolve MediaWiki cache or provide local fallback.
+     */
     private function resolveCache(): WANObjectCache|object {
         try {
             return MediaWikiServices::getInstance()->getMainWANObjectCache();
-        } catch ( \Throwable $e ) {
-            // Fallback in-memory cache for dev/testing
+        } catch (\Throwable $e) {
             return new class() {
                 private array $store = [];
                 public function get(string $key) { return $this->store[$key] ?? null; }
