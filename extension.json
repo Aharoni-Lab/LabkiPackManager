@@ -67,7 +67,12 @@
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
   },
   "SpecialPages": {
-    "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
+    "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager",
+    "LabkiDBViewer": "LabkiPackManager\\Special\\SpecialLabkiDBViewer"
+  },
+  "SpecialPageGroups": {
+      "LabkiPackManager": "labki",
+      "LabkiDBViewer": "labki"
   },
   "config": {
     "LabkiContentSources": {
@@ -106,7 +111,6 @@
     "sysop": {
       "labkipackmanager-manage": true
     }
-  },
-  "ConfigRegistry": {}
+  }
 }
 

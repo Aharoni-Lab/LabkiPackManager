@@ -8,7 +8,10 @@
   "labkipackmanager-summary": "Manage and import Labki content packs into this wiki.",
   "specialpages-group-labki": "Labki",
   "labkipackmanager-special-title": "LabkiPackManager",
+  "labkipackmanager-dbviewer-title": "View Labki database tables",
   "labkipackmanager-special-placeholder": "This is a placeholder for the LabkiPackManager import UI.",
+  "right-labkipackmanager-manage": "Manage Labki content packs and related data",
+  "labkipackmanager-error-dbviewer-disabled": "The Labki database viewer is currently disabled by the site administrator.",
 
   "labkipackmanager-list-title": "Available Content Packs",
   "labkipackmanager-list-empty": "No packs found in the manifest.",
