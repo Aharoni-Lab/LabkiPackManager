@@ -31,6 +31,8 @@ final class Pack {
     private ?string $sourceCommit;
     private ?int $installedAt;
     private ?int $installedBy;
+	private ?int $updatedAt;
+	private ?string $status;
 
     public function __construct(
         PackId $id,
@@ -40,7 +42,9 @@ final class Pack {
         ?string $sourceRef = null,
         ?string $sourceCommit = null,
         ?int $installedAt = null,
-        ?int $installedBy = null
+		?int $installedBy = null,
+		?int $updatedAt = null,
+		?string $status = null
     ) {
         $this->id = $id;
         $this->content_repo_id = $content_repo_id;
@@ -49,7 +53,9 @@ final class Pack {
         $this->sourceRef = $sourceRef;
         $this->sourceCommit = $sourceCommit;
         $this->installedAt = $installedAt;
-        $this->installedBy = $installedBy;
+		$this->installedBy = $installedBy;
+		$this->updatedAt = $updatedAt;
+		$this->status = $status;
     }
 
     public function id(): PackId { return $this->id; }
@@ -60,6 +66,8 @@ final class Pack {
     public function sourceCommit(): ?string { return $this->sourceCommit; }
     public function installedAt(): ?int { return $this->installedAt; }
     public function installedBy(): ?int { return $this->installedBy; }
+	public function updatedAt(): ?int { return $this->updatedAt; }
+	public function status(): ?string { return $this->status; }
 
     public function toArray(): array {
         return [
@@ -71,6 +79,8 @@ final class Pack {
             'source_commit' => $this->sourceCommit,
             'installed_at' => $this->installedAt,
             'installed_by' => $this->installedBy,
+			'updated_at' => $this->updatedAt,
+			'status' => $this->status,
         ];
     }
 
@@ -86,7 +96,9 @@ final class Pack {
             isset( $row->source_ref ) && $row->source_ref !== null ? (string)$row->source_ref : null,
             isset( $row->source_commit ) && $row->source_commit !== null ? (string)$row->source_commit : null,
             isset( $row->installed_at ) && $row->installed_at !== null ? (int)$row->installed_at : null,
-            isset( $row->installed_by ) && $row->installed_by !== null ? (int)$row->installed_by : null,
+			isset( $row->installed_by ) && $row->installed_by !== null ? (int)$row->installed_by : null,
+			isset( $row->updated_at ) && $row->updated_at !== null ? (int)$row->updated_at : null,
+			isset( $row->status ) && $row->status !== null ? (string)$row->status : null,
         );
     }
 }

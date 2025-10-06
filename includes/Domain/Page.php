@@ -31,6 +31,7 @@ final class Page {
     private ?int $lastRevId;
     private ?string $contentHash;
     private ?int $createdAt;
+    private ?int $updatedAt;
 
     public function __construct(
         PageId $id,
@@ -41,7 +42,8 @@ final class Page {
         ?int $wikiPageId = null,
         ?int $lastRevId = null,
         ?string $contentHash = null,
-        ?int $createdAt = null
+        ?int $createdAt = null,
+        ?int $updatedAt = null
     ) {
         $this->id = $id;
         $this->packId = $packId;
@@ -52,6 +54,7 @@ final class Page {
         $this->lastRevId = $lastRevId;
         $this->contentHash = $contentHash;
         $this->createdAt = $createdAt;
+        $this->updatedAt = $updatedAt;
     }
 
     public function id(): PageId { return $this->id; }
@@ -63,6 +66,7 @@ final class Page {
     public function lastRevId(): ?int { return $this->lastRevId; }
     public function contentHash(): ?string { return $this->contentHash; }
     public function createdAt(): ?int { return $this->createdAt; }
+    public function updatedAt(): ?int { return $this->updatedAt; }
 
     public function toArray(): array {
         return [
@@ -75,6 +79,7 @@ final class Page {
             'last_rev_id' => $this->lastRevId,
             'content_hash' => $this->contentHash,
             'created_at' => $this->createdAt,
+            'updated_at' => $this->updatedAt,
         ];
     }
 
@@ -92,6 +97,7 @@ final class Page {
             isset( $row->last_rev_id ) && $row->last_rev_id !== null ? (int)$row->last_rev_id : null,
             isset( $row->content_hash ) && $row->content_hash !== null ? (string)$row->content_hash : null,
             isset( $row->created_at ) && $row->created_at !== null ? (int)$row->created_at : null,
+            isset( $row->updated_at ) && $row->updated_at !== null ? (int)$row->updated_at : null,
         );
     }
 }

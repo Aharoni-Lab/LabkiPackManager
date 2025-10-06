@@ -15,7 +15,7 @@ final class ContentRepo {
     /** @var string[] */
     public const FIELDS = [ 
         'content_repo_id', 
-        'repo_url', 
+        'content_repo_url', 
         'default_ref', 
         'created_at', 
         'updated_at', 
