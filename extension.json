@@ -58,7 +58,7 @@
   "APIModules": {
     "labkiquery": "LabkiPackManager\\API\\ApiLabkiQuery",
     "labkiupdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
-    "labkiplan": "LabkiPackManager\\API\\ApiLabkiPlan"
+    "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest"
   },
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates"
