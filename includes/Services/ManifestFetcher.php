@@ -1,121 +1,88 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Status\StatusValue;
 use LabkiPackManager\Parser\ManifestParser;
 
-class ManifestFetcher {
-    /**
-     * Optional HTTP request factory for testability. When null, resolves via MediaWikiServices.
-     * @var object|null
-     */
+final class ManifestFetcher {
+
     private $httpRequestFactory;
-    /** @var array<string,mixed>|null */
-    private ?array $configuredSources = null;
 
-    public function __construct( $httpRequestFactory = null, ?array $sources = null ) {
-        $this->httpRequestFactory = $httpRequestFactory;
-        $this->configuredSources = $sources;
-    }
-    /**
-     * Fetch and parse the manifest from the configured URL.
-     *
-     * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
-     */
-    public function fetchManifest() {
-        // Prefer explicitly provided sources (tests) → global → MW services
-        $sources = $this->configuredSources ?? ( $GLOBALS['wgLabkiContentSources'] ?? null );
-        if ( $sources === null && class_exists( '\MediaWiki\MediaWikiServices' ) ) {
-            try {
-                $config = MediaWikiServices::getInstance()->getMainConfig();
-                $sources = $config->get( 'LabkiContentSources' );
-            } catch ( \LogicException $e ) {
-                // Unit tests without MW service container; keep $sources as null
-            }
-        }
-        if ( is_array( $sources ) && $sources ) {
-            $first = reset( $sources );
-            $url = (string)$first;
-            if ( $url !== '' ) {
-                return $this->fetchManifestFromUrl( $url );
-            }
-        }
-        return $this->newFatal( 'labkipackmanager-error-no-sources' );
+    public function __construct( $httpRequestFactory = null ) {
+        $this->httpRequestFactory = $httpRequestFactory
+            ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
     }
 
     /**
-     * Fetch and parse the root YAML manifest from a specific URL.
+     * Fetch and parse a manifest from the given URL or file path.
      *
-     * @param string $url
-     * @return StatusValue StatusValue::newGood( array $data ) on success; newFatal on failure
+     * @param string $url URL or file:// path
+     * @return StatusValue containing ['packs' => array, 'schema_version' => string|null]
      */
-    public function fetchManifestFromUrl( string $url ) {
-        $factory = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
-
-        // Support local file paths in addition to HTTP(S)
-        $body = null;
-        $trimUrl = trim( $url );
-        $isFileScheme = str_starts_with( $trimUrl, 'file://' );
-        $isAbsolutePath = !$isFileScheme && ( preg_match( '~^/|^[A-Za-z]:[\\/]~', $trimUrl ) === 1 );
-        if ( $isFileScheme || $isAbsolutePath ) {
-            $path = $isFileScheme ? substr( $trimUrl, 7 ) : $trimUrl;
-            if ( !is_readable( $path ) ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $content = @file_get_contents( $path );
-            if ( $content === false || $content === '' ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $body = $content;
-        } else {
-            $req = $factory->create( $trimUrl, [ 'method' => 'GET', 'timeout' => 10 ] );
-            $status = $req->execute();
-            if ( !$status->isOK() ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $code = $req->getStatus();
-            $content = $req->getContent();
-            if ( $code !== 200 || $content === '' ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $body = $content;
+    public function fetch( string $url ): StatusValue {
+        $body = $this->getRawManifest($url);
+        if ( !$body->isOK() ) {
+            return $body;
         }
 
-        // Validate manifest (schema_version presence and schema structure)
-        $validator = new ManifestValidator( $factory );
-        $validation = $validator->validate( $body );
-        if ( !$validation->isOK() ) {
-            return $validation;
-        }
-        $decoded = $validation->getValue();
-        $schemaVersion = is_array( $decoded ) ? ( $decoded['schema_version'] ?? null ) : null;
-
-        // Parse validated manifest to normalized packs list
         $parser = new ManifestParser();
         try {
-            $packs = $parser->parse( $body );
-        } catch ( \InvalidArgumentException $e ) {
-            $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
-            return $this->newFatal( $msg );
+            $parsed = $parser->parse( $body->getValue() );
+        } catch ( \Throwable $e ) {
+            return StatusValue::newFatal( 'labkipackmanager-error-parse' );
         }
 
-        return $this->newGood( [ 'packs' => $packs, 'schema_version' => $schemaVersion ] );
+        return StatusValue::newGood([
+            'packs' => $parsed['packs'] ?? [],
+            'schema_version' => $parsed['schema_version'] ?? null,
+        ]);
     }
 
-    private function newFatal( string $key ) {
-        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-            ? '\\MediaWiki\\Status\\StatusValue'
-            : '\\StatusValue';
-        return $statusClass::newFatal( $key );
-    }
+    /**
+     * Retrieve the raw manifest file contents, local or remote.
+     *
+     * @param string $url
+     * @return StatusValue::newGood(string $body) or newFatal(error)
+     */
+    private function getRawManifest( string $url ): StatusValue {
+        $trim = trim($url);
 
-    private function newGood( $value ) {
-        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-            ? '\\MediaWiki\\Status\\StatusValue'
-            : '\\StatusValue';
-        return $statusClass::newGood( $value );
+        // Case 1: Local file (supports file:// or absolute path)
+        if ( str_starts_with($trim, 'file://') || preg_match('~^/|^[A-Za-z]:[\\/]~', $trim) ) {
+            $path = str_starts_with($trim, 'file://') ? substr($trim, 7) : $trim;
+            if ( !is_readable($path) ) {
+                return StatusValue::newFatal('labkipackmanager-error-fetch');
+            }
+            $content = @file_get_contents($path);
+            return ($content && $content !== '')
+                ? StatusValue::newGood($content)
+                : StatusValue::newFatal('labkipackmanager-error-fetch');
+        }
+
+        // Case 2: Remote HTTP(S)
+        try {
+            $req = $this->httpRequestFactory->create($trim, [
+                'method' => 'GET',
+                'timeout' => 10,
+            ]);
+            $status = $req->execute();
+            if ( !$status->isOK() ) {
+                return StatusValue::newFatal('labkipackmanager-error-fetch');
+            }
+
+            $content = $req->getContent();
+            $code = $req->getStatus();
+            if ( $code !== 200 || $content === '' ) {
+                return StatusValue::newFatal('labkipackmanager-error-fetch');
+            }
+
+            return StatusValue::newGood($content);
+        } catch ( \Throwable $e ) {
+            return StatusValue::newFatal('labkipackmanager-error-fetch');
+        }
     }
 }
-
-
