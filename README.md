@@ -34,11 +34,13 @@ cd ~/dev/LabkiPackManager
 chmod +x reset_mw_test.sh
 ./reset_mw_test.sh
 ```
+Note: Docker needs to be running
 
 Then:
 
 - Open `http://localhost:8080/w` to use the wiki
 - Run unit tests:
+cd into the mediawiki directory then
   ```bash
   docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit'
   ```
