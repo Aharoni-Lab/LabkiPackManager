@@ -5,133 +5,111 @@ declare(strict_types=1);
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Status\StatusValue;
 use WANObjectCache;
 
 /**
  * ManifestStore
  *
  * Handles short-term caching of manifest data fetched from remote Labki content repositories.
- * Used to avoid redundant network requests and speed up page loads.
+ * This avoids redundant network requests while keeping data relatively fresh.
  *
- * Data stored here is ephemeral (cache only, not persistent DB state).
- *
- * Typical payload structure:
+ * Payload structure:
  * [
- *   'schemaVersion' => '1.0.0',
- *   'manifestUrl'   => 'https://example.com/manifest.yml',
- *   'fetchedAt'     => 1728345000,
- *   'packs'         => [ ... ]
+ *   'schemaVersion' => string|null,
+ *   'manifestUrl'   => string,
+ *   'fetchedAt'     => int,
+ *   'packs'         => array
  * ]
  */
 final class ManifestStore {
-    /** @var string Cache key for the manifest */
+
+    private string $manifestUrl;
     private string $cacheKey;
-
-    /** @var WANObjectCache|object|null */
-    private $cache;
-
-    /** @var int Cache time-to-live (seconds) */
+    private WANObjectCache|object $cache;
     private int $ttlSeconds;
+    private ManifestFetcher $fetcher;
 
-    /**
-     * @param string $manifestUrl  URL identifying the manifest.
-     * @param WANObjectCache|null $wanObjectCache Optional MediaWiki cache instance.
-     * @param int|null $ttlSeconds Optional TTL override in seconds (default 1 day).
-     */
-    public function __construct(string $manifestUrl, $wanObjectCache = null, ?int $ttlSeconds = null) {
-        $this->cacheKey = $this->buildCacheKey($manifestUrl);
+    public function __construct(
+        string $manifestUrl,
+        ?WANObjectCache $wanObjectCache = null,
+        ?int $ttlSeconds = null,
+        ?ManifestFetcher $fetcher = null
+    ) {
+        $this->manifestUrl = $manifestUrl;
+        $this->cacheKey = 'labki:manifest:' . sha1($manifestUrl);
         $this->cache = $wanObjectCache ?? $this->resolveCache();
-        $this->ttlSeconds = $ttlSeconds ?? (24 * 60 * 60);
+        $this->ttlSeconds = $ttlSeconds ?? 86400; // 1 day default
+        $this->fetcher = $fetcher ?? new ManifestFetcher();
     }
 
     /**
-     * Generate a stable cache key for the manifest.
-     */
-    private function buildCacheKey(string $url): string {
-        return 'labki:manifest:' . sha1($url);
-    }
-
-    /**
-     * Return cached manifest data if available.
+     * Retrieve manifest data, using cache if valid or fetching fresh if missing/stale.
      *
-     * @return array|null Manifest payload or null if not cached.
+     * @param bool $forceRefresh If true, bypass cache and re-fetch.
+     * @return StatusValue::newGood(array $manifest) or newFatal(error)
      */
-    public function getManifestOrNull(): ?array {
+    public function get(bool $forceRefresh = false): StatusValue {
+        $cached = $this->getCached();
+        if ( !$forceRefresh && $cached !== null ) {
+            return StatusValue::newGood($cached);
+        }
+
+        $fetched = $this->fetcher->fetch($this->manifestUrl);
+        if ( !$fetched->isOK() ) {
+            // Return stale cache if available
+            if ( $cached !== null ) {
+                return StatusValue::newGood($cached);
+            }
+            return $fetched;
+        }
+
+        $data = $fetched->getValue();
+        $this->save($data);
+        return StatusValue::newGood($data);
+    }
+
+    /**
+     * Return cached manifest if available.
+     */
+    public function getCached(): ?array {
         $val = $this->cache->get($this->cacheKey);
-        if (!is_array($val)) {
-            return null;
-        }
-        // Validate expected payload structure
-        if (!isset($val['packs']) || !is_array($val['packs'])) {
-            return null;
-        }
-        return $val;
+        return (is_array($val) && isset($val['packs']) && is_array($val['packs'])) ? $val : null;
     }
 
     /**
-     * Save manifest data to cache.
+     * Save manifest payload to cache.
      *
-     * @param array $packs  Array of pack metadata.
-     * @param array|null $meta Optional meta info: ['schemaVersion', 'manifestUrl', 'fetchedAt']
+     * @param array $data Must contain at least 'packs' key.
      */
-    public function saveManifest(array $packs, ?array $meta = null): void {
+    public function save(array $data): void {
         $payload = [
-            'schemaVersion' => $meta['schemaVersion'] ?? $meta['schema_version'] ?? null,
-            'manifestUrl'   => $meta['manifestUrl'] ?? $meta['manifest_url'] ?? null,
-            'fetchedAt'     => $meta['fetchedAt'] ?? time(),
-            'packs'         => $packs,
+            'schemaVersion' => $data['schemaVersion'] ?? $data['schema_version'] ?? null,
+            'manifestUrl'   => $data['manifestUrl'] ?? $this->manifestUrl,
+            'fetchedAt'     => $data['fetchedAt'] ?? time(),
+            'packs'         => $data['packs'] ?? [],
         ];
         $this->cache->set($this->cacheKey, $payload, $this->ttlSeconds);
     }
 
     /**
-     * Return only manifest metadata.
-     *
-     * @return array|null e.g. ['schemaVersion' => ..., 'manifestUrl' => ..., 'fetchedAt' => ...]
-     */
-    public function getMetaOrNull(): ?array {
-        $val = $this->cache->get($this->cacheKey);
-        if (!is_array($val)) {
-            return null;
-        }
-        return [
-            'schemaVersion' => $val['schemaVersion'] ?? $val['schema_version'] ?? null,
-            'manifestUrl'   => $val['manifestUrl'] ?? $val['manifest_url'] ?? null,
-            'fetchedAt'     => $val['fetchedAt'] ?? null,
-        ];
-    }
-
-    /**
-     * Clear manifest cache entry.
+     * Clear cached manifest.
      */
     public function clear(): void {
         $this->cache->delete($this->cacheKey);
     }
 
-    /**
-     * Resolve MediaWiki WAN cache if possible, else fallback to in-memory cache.
-     */
-    private function resolveCache() {
-        if (class_exists(MediaWikiServices::class)) {
-            try {
-                return MediaWikiServices::getInstance()->getMainWANObjectCache();
-            } catch (\Throwable $e) {
-                // Fallback to local memory cache if MW cache is unavailable.
-            }
+    private function resolveCache(): WANObjectCache|object {
+        try {
+            return MediaWikiServices::getInstance()->getMainWANObjectCache();
+        } catch ( \Throwable $e ) {
+            // Fallback in-memory cache for dev/testing
+            return new class() {
+                private array $store = [];
+                public function get(string $key) { return $this->store[$key] ?? null; }
+                public function set(string $key, $value, int $ttl): void { $this->store[$key] = $value; }
+                public function delete(string $key): void { unset($this->store[$key]); }
+            };
         }
-
-        // Simple in-memory fallback cache for tests or non-MW contexts.
-        return new class() {
-            private array $store = [];
-            public function get(string $key) {
-                return $this->store[$key] ?? null;
-            }
-            public function set(string $key, $value, int $ttl): void {
-                $this->store[$key] = $value;
-            }
-            public function delete(string $key): void {
-                unset($this->store[$key]);
-            }
-        };
     }
 }
