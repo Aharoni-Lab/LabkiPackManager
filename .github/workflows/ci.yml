@@ -53,12 +53,6 @@ jobs:
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
           ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
 
-      - name: Sanity check extension code (pack_uid present)
-        working-directory: mediawiki
-        run: |
-          grep -n "pack_uid" extensions/LabkiPackManager/includes/Import/PackImporter.php
-          head -n 30 extensions/LabkiPackManager/includes/Import/PackImporter.php
-
       - name: Update DB schema (run extension schema updates)
         working-directory: mediawiki
         run: php maintenance/update.php --quick
