@@ -50,7 +50,7 @@
           const res = await fetch(url, { credentials: 'same-origin' });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const json = await res.json();
-          return json.labkimanifest || json;
+          return json.labkiManifest || json;
         } catch (e) {
           console.error('Fetch error:', e);
           mw.notify(`Failed to load manifest: ${e}`, { type: 'error' });

@@ -56,8 +56,8 @@
     }
   },
   "APIModules": {
-    "labkiquery": "LabkiPackManager\\API\\ApiLabkiQuery",
-    "labkiupdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
+    "labkiQuery": "LabkiPackManager\\API\\ApiLabkiQuery",
+    "labkiUpdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
     "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest"
   },
   "Hooks": {
