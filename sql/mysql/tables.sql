@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS /*_*/labki_content_repo (
   content_repo_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   content_repo_url VARBINARY(512) NOT NULL,
+  content_repo_name VARBINARY(255) DEFAULT NULL,
   default_ref VARBINARY(255) DEFAULT NULL,
   created_at BINARY(14) DEFAULT NULL,
   updated_at BINARY(14) DEFAULT NULL,

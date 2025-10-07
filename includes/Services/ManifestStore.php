@@ -88,6 +88,8 @@ final class ManifestStore {
         $hierarchy = (new HierarchyBuilder())->buildViewModel($packs);
         $graph = (new GraphBuilder())->build($packs);
 
+        $repoName = isset($manifestData['name']) && is_string($manifestData['name']) ? $manifestData['name'] : null;
+
         $data = [
             'hash' => $manifestHash,
             'manifest' => $manifestData,
@@ -97,6 +99,7 @@ final class ManifestStore {
                 'schemaVersion' => 1,
                 'manifestUrl' => $this->manifestUrl,
                 'fetchedAt' => time(),
+                'repoName' => $repoName,
             ],
         ];
 

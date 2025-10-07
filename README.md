@@ -57,9 +57,9 @@ Notes:
 
 ```php
 $wgLabkiContentSources = [
-    'Lab Packs (Default)' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
+    'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
     // Add more sources as needed
-    'Custom Packs Repo' => 'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
+    'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
 ];
 ```
 
@@ -98,9 +98,9 @@ Configuration
 Add or override options in LocalSettings.php:
 
 ```php
-// Content sources (label => manifest URL)
+// Content sources: array of manifest URLs
 $wgLabkiContentSources = [
-    'Lab Packs (Default)' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
+    'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
     // ...
 ];
 

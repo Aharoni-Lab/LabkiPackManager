@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS labki_content_repo (
   content_repo_id INTEGER PRIMARY KEY AUTOINCREMENT,
   content_repo_url TEXT NOT NULL,
+  content_repo_name TEXT,
   default_ref TEXT,
   created_at INTEGER,
   updated_at INTEGER,

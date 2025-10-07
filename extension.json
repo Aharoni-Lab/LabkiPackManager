@@ -76,12 +76,12 @@
   },
   "config": {
     "LabkiContentSources": {
-      "value": {
-        "Lab Packs (Default)": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
-        "Test Packs": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/tests/fixtures/basic_repo/manifest.yml",
-        "Empty Packs": "var/www/html/w/extensions/LabkiPackManager/tests/fixtures/manifest-empty.yml"
-      },
-      "description": "Associative array of content pack repositories (label => manifestUrl)."
+      "value": [
+        "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
+        "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/tests/fixtures/basic_repo/manifest.yml",
+        "var/www/html/w/extensions/LabkiPackManager/tests/fixtures/manifest-empty.yml"
+      ],
+      "description": "Array of content pack manifest URLs."
     },
     "LabkiDefaultBranch": {
       "value": "main",
