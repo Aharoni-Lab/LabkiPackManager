@@ -122,11 +122,6 @@ final class ManifestFetcher {
             return $scheme . '://' . $host . $path . $query . $fragment;
         };
 
-        // If already points to a manifest file, return as-is
-        if ($path !== '' && (str_ends_with($path, '/manifest.yml') || str_ends_with($path, '/manifest.yaml') || preg_match('~manifest\.(ya?ml)$~i', basename($path)))) {
-            return $trimRepoUrl;
-        }
-
         // GitHub canonical URLs → raw.githubusercontent.com
         if ($host === 'github.com' || $host === 'www.github.com') {
             $segments = array_values(array_filter(explode('/', trim($path, '/'))));
@@ -165,6 +160,11 @@ final class ManifestFetcher {
                 return $rebuild($raw);
             }
             // If not enough segments, fall through to generic behavior
+        }
+
+        // If already points to a manifest file, return as-is
+        if ($path !== '' && (str_ends_with($path, '/manifest.yml') || str_ends_with($path, '/manifest.yaml') || preg_match('~manifest\.(ya?ml)$~i', basename($path)))) {
+            return $trimRepoUrl;
         }
 
         // raw.githubusercontent.com base without explicit file → ensure manifest.yml

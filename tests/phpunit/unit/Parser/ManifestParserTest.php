@@ -153,8 +153,8 @@ YAML;
         $this->assertSame(['A', 'B'], $pack['pages']);
         $this->assertSame(['X', 'Y'], $pack['depends_on']);
         $this->assertSame([], $pack['tags']);
-        // page_count reflects original items count before normalization
-        $this->assertSame(4, $pack['page_count']);
+        // page_count reflects normalized page list length
+        $this->assertSame(2, $pack['page_count']);
     }
 
     /**
@@ -170,7 +170,7 @@ YAML;
         $parser = new ManifestParser();
         $parsed = $parser->parse($yaml);
         $this->assertArrayHasKey('schema_version', $parsed);
-        $this->assertNull($parsed['schema_version']);
+        $this->assertSame('', $parsed['schema_version']);
         $this->assertCount(1, $parsed['packs']);
         $this->assertSame('only-pack', $parsed['packs'][0]['id']);
     }

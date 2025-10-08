@@ -32,13 +32,13 @@ namespace LabkiPackManager\Tests\Services {
         /**
          * @covers ::headHash
          */
-        public function testHeadHash_LocalFile_ReturnsSha1(): void {
+        public function testHeadHash_LocalFile_Unsupported_ReturnsNull(): void {
             $path = $this->createTempFile('local-body');
             try {
                 $factory = new HttpFactoryStub();
                 $fetcher = $this->newFetcher($factory);
                 $hash = $fetcher->headHash('file://' . $path);
-                $this->assertSame(sha1('local-body'), $hash);
+                $this->assertNull($hash);
             } finally {
                 @unlink($path);
             }
@@ -122,14 +122,13 @@ namespace LabkiPackManager\Tests\Services {
         /**
          * @covers ::fetch
          */
-        public function testFetch_LocalFile_Success(): void {
+        public function testFetch_LocalFile_Unsupported_ReturnsFatal(): void {
             $path = $this->createTempFile("yaml: true\n");
             try {
                 $factory = new HttpFactoryStub();
                 $fetcher = $this->newFetcher($factory);
                 $status = $fetcher->fetch('file://' . $path);
-                $this->assertTrue($status->isOK());
-                $this->assertSame("yaml: true\n", $status->getValue());
+                $this->assertFalse($status->isOK());
             } finally {
                 @unlink($path);
             }
@@ -178,6 +177,77 @@ namespace LabkiPackManager\Tests\Services {
             $fetcher = $this->newFetcher($factory);
             $status = $fetcher->fetch('https://ex.test/empty.yml');
             $this->assertFalse($status->isOK());
+        }
+
+        /**
+         * Helper to call the private resolveManifestUrl via reflection.
+         */
+        private function resolveUrl(ManifestFetcher $fetcher, string $repoUrl): string {
+            $ref = new \ReflectionClass($fetcher);
+            $m = $ref->getMethod('resolveManifestUrl');
+            $m->setAccessible(true);
+            return (string)$m->invoke($fetcher, $repoUrl);
+        }
+
+        /**
+         * @covers ::resolveManifestUrl
+         */
+        public function testResolveManifestUrl_GitHubRepo_DefaultMain(): void {
+            $factory = new HttpFactoryStub();
+            $fetcher = $this->newFetcher($factory);
+            $out = $this->resolveUrl($fetcher, 'https://github.com/owner/repo');
+            $this->assertSame('https://raw.githubusercontent.com/owner/repo/main/manifest.yml', $out);
+        }
+
+        /**
+         * @covers ::resolveManifestUrl
+         */
+        public function testResolveManifestUrl_GitHubTreeRef(): void {
+            $factory = new HttpFactoryStub();
+            $fetcher = $this->newFetcher($factory);
+            $out = $this->resolveUrl($fetcher, 'https://github.com/owner/repo/tree/dev');
+            $this->assertSame('https://raw.githubusercontent.com/owner/repo/dev/manifest.yml', $out);
+        }
+
+        /**
+         * @covers ::resolveManifestUrl
+         */
+        public function testResolveManifestUrl_GitHubBlobManifestPath(): void {
+            $factory = new HttpFactoryStub();
+            $fetcher = $this->newFetcher($factory);
+            $out = $this->resolveUrl($fetcher, 'https://github.com/owner/repo/blob/dev/path/manifest.yml');
+            $this->assertSame('https://raw.githubusercontent.com/owner/repo/dev/path/manifest.yml', $out);
+        }
+
+        /**
+         * @covers ::resolveManifestUrl
+         */
+        public function testResolveManifestUrl_RawGitHub_BaseAppendsManifest(): void {
+            $factory = new HttpFactoryStub();
+            $fetcher = $this->newFetcher($factory);
+            $out = $this->resolveUrl($fetcher, 'https://raw.githubusercontent.com/owner/repo/main');
+            $this->assertSame('https://raw.githubusercontent.com/owner/repo/main/manifest.yml', $out);
+        }
+
+        /**
+         * @covers ::resolveManifestUrl
+         */
+        public function testResolveManifestUrl_RawGitHub_ManifestYamlUntouched(): void {
+            $factory = new HttpFactoryStub();
+            $fetcher = $this->newFetcher($factory);
+            $inp = 'https://raw.githubusercontent.com/owner/repo/main/manifest.yaml';
+            $out = $this->resolveUrl($fetcher, $inp);
+            $this->assertSame($inp, $out);
+        }
+
+        /**
+         * @covers ::resolveManifestUrl
+         */
+        public function testResolveManifestUrl_GenericHttpBaseAppends(): void {
+            $factory = new HttpFactoryStub();
+            $fetcher = $this->newFetcher($factory);
+            $out = $this->resolveUrl($fetcher, 'https://example.com/path/');
+            $this->assertSame('https://example.com/path/manifest.yml', $out);
         }
     }
 

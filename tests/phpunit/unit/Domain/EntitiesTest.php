@@ -22,11 +22,11 @@ class EntitiesTest extends TestCase {
         // ContentRepo
         $this->assertSame( 'labki_content_repo', ContentRepo::TABLE );
         $this->assertSame(
-            [ 'content_repo_id', 'content_repo_url', 'default_ref', 'created_at', 'updated_at' ],
+            [ 'content_repo_id', 'content_repo_url', 'content_repo_name', 'default_ref', 'created_at', 'updated_at' ],
             ContentRepo::FIELDS
         );
 
-        $repo = new ContentRepo( new ContentRepoId( 1 ), 'https://example.com/repo.yml', 'main', 100, 200 );
+        $repo = new ContentRepo( new ContentRepoId( 1 ), 'https://example.com/repo.yml', null, 'main', 100, 200 );
         $repoArr = $repo->toArray();
         $this->assertSame( 1, $repoArr['content_repo_id'] );
         $this->assertSame( 'https://example.com/repo.yml', $repoArr['content_repo_url'] );
@@ -37,6 +37,7 @@ class EntitiesTest extends TestCase {
         $repoRow = (object)[
             'content_repo_id' => 2,
             'content_repo_url' => 'https://example.com/r.yml',
+            'content_repo_name' => null,
             'default_ref' => 'dev',
             'created_at' => 1,
             'updated_at' => 2,
