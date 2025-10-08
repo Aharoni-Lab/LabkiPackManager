@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
-use MediaWiki\Status\StatusValue;
+use MediaWiki\Status\Status;
 
 /**
  * ManifestLoader
@@ -44,13 +44,13 @@ final class ManifestLoader {
      *        'fetched_at' => int
      *     ]
      */
-    public function load(string $manifestUrl, bool $refresh = false): StatusValue {
+    public function load(string $manifestUrl, bool $refresh = false): Status {
         $store = $this->store ?? new ManifestStore($manifestUrl);
         $cached = !$refresh ? $store->getManifestOrNull() : null;
 
         // Case 1: Use cached manifest if available
         if ($cached !== null) {
-            return StatusValue::newGood([
+            return Status::newGood([
                 'packs' => $cached['packs'] ?? [],
                 'schema_version' => $cached['schemaVersion'] ?? null,
                 'manifest_url' => $cached['manifestUrl'] ?? $manifestUrl,
@@ -76,7 +76,7 @@ final class ManifestLoader {
             'fetchedAt' => time(),
         ]);
 
-        return StatusValue::newGood([
+        return Status::newGood([
             'packs' => $packs,
             'schema_version' => $schema,
             'manifest_url' => $manifestUrl,

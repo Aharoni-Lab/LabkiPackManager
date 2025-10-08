@@ -10,14 +10,18 @@ use InvalidArgumentException;
 /**
  * ManifestParser
  *
- * Parses a Labki manifest YAML into a normalized structure.
+ * Parses a Labki manifest YAML file into a normalized associative array.
  *
- * Input YAML format:
+ * Input example:
  *  schema_version: "1.0.0"
+ *  last_updated: "2025-09-22T00:00:00Z"
+ *  name: "Test Manifest"
+ *  description: "A demonstration manifest for Labki content packs."
+ *  author: "Aharoni Lab"
  *  packs:
- *    my-pack:
+ *    onboarding:
  *      version: "0.3.1"
- *      description: "Example pack"
+ *      description: "Example onboarding pack"
  *      pages: [ "MainPage", "SubPage" ]
  *      depends_on: [ "base-pack" ]
  *      tags: [ "core", "example" ]
@@ -25,83 +29,141 @@ use InvalidArgumentException;
  * Output structure:
  * [
  *   'schema_version' => '1.0.0',
+ *   'last_updated'   => '2025-09-22T00:00:00Z',
+ *   'name'           => 'Test Manifest',
+ *   'description'    => 'A demonstration manifest...',
+ *   'author'         => 'Aharoni Lab',
  *   'packs' => [
- *      [
- *         'id'          => 'my-pack',
- *         'version'     => '0.3.1',
- *         'description' => 'Example pack',
- *         'pages'       => [ 'MainPage', 'SubPage' ],
- *         'page_count'  => 2,
- *         'depends_on'  => [ 'base-pack' ],
- *         'tags'        => [ 'core', 'example' ],
- *      ]
+ *     [
+ *       'id'          => 'onboarding',
+ *       'version'     => '0.3.1',
+ *       'description' => 'Example onboarding pack',
+ *       'pages'       => [ 'MainPage', 'SubPage' ],
+ *       'page_count'  => 2,
+ *       'depends_on'  => [ 'base-pack' ],
+ *       'tags'        => [ 'core', 'example' ]
+ *     ]
  *   ]
  * ]
  */
-final class ManifestParser {
-
-    public function parse(string $yaml): array {
+final class ManifestParser
+{
+    /**
+     * Parse YAML into structured manifest array.
+     *
+     * @param string $yaml Raw YAML text.
+     * @return array Normalized manifest structure.
+     * @throws InvalidArgumentException if YAML or schema invalid.
+     */
+    public function parse(string $yaml): array
+    {
         $data = $this->parseYaml($yaml);
-        $schemaVersion = isset($data['schema_version']) ? (string)$data['schema_version'] : null;
 
-        if (!isset($data['packs']) || !is_array($data['packs'])) {
-            throw new InvalidArgumentException('Invalid schema: missing "packs"');
+        // --- Top-level metadata normalization ---
+        $schemaVersion = (string)($data['schema_version'] ?? '');
+        $lastUpdated   = (string)($data['last_updated'] ?? '');
+        $name          = (string)($data['name'] ?? '');
+        $description   = (string)($data['description'] ?? '');
+        $author        = (string)($data['author'] ?? '');
+
+        // --- Validate packs section ---
+        if (!isset($data['packs']) || !is_array($data['packs']) || empty($data['packs'])) {
+            throw new InvalidArgumentException('Invalid schema: missing or empty "packs" section.');
         }
 
+        $packs = $this->parsePacks($data['packs']);
+
+        return [
+            'schema_version' => $schemaVersion,
+            'last_updated'   => $lastUpdated,
+            'name'           => $name,
+            'description'    => $description,
+            'author'         => $author,
+            'packs'          => $packs,
+        ];
+    }
+
+    /**
+     * Parse the packs section into normalized array of packs.
+     *
+     * @param array $packsRaw
+     * @return array
+     */
+    private function parsePacks(array $packsRaw): array
+    {
         $packs = [];
-        foreach ($data['packs'] as $id => $meta) {
+
+        foreach ($packsRaw as $id => $meta) {
             if (!is_string($id) || !is_array($meta)) {
-                continue;
+                continue; // skip invalid entries
             }
+
+            $pages = $this->normalizeStringArray($meta['pages'] ?? []);
+            $depends = $this->normalizeStringArray($meta['depends_on'] ?? []);
+            $tags = $this->normalizeStringArray($meta['tags'] ?? []);
 
             $packs[] = [
                 'id'          => $id,
                 'version'     => (string)($meta['version'] ?? ''),
                 'description' => (string)($meta['description'] ?? ''),
-                'pages'       => $this->normalizeStringArray($meta['pages'] ?? []),
-                'page_count'  => isset($meta['pages']) && is_array($meta['pages']) ? count($meta['pages']) : 0,
-                'depends_on'  => $this->normalizeStringArray($meta['depends_on'] ?? []),
-                'tags'        => $this->normalizeStringArray($meta['tags'] ?? []),
+                'pages'       => $pages,
+                'page_count'  => count($pages),
+                'depends_on'  => $depends,
+                'tags'        => $tags,
             ];
         }
 
-        return [
-            'schema_version' => $schemaVersion,
-            'packs' => $packs,
-        ];
+        if (empty($packs)) {
+            throw new InvalidArgumentException('Invalid manifest: "packs" section contained no valid entries.');
+        }
+
+        return $packs;
     }
 
     /**
      * Parse YAML safely and validate top-level structure.
+     *
+     * @param string $yaml
+     * @return array
+     * @throws InvalidArgumentException
      */
-    private function parseYaml(string $yaml): array {
+    private function parseYaml(string $yaml): array
+    {
         $trimmed = trim($yaml);
         if ($trimmed === '') {
-            throw new InvalidArgumentException('Empty YAML');
+            throw new InvalidArgumentException('Empty YAML manifest.');
         }
 
         try {
             $parsed = Yaml::parse($trimmed);
         } catch (\Throwable $e) {
-            throw new InvalidArgumentException('Invalid YAML');
+            throw new InvalidArgumentException('Invalid YAML: ' . $e->getMessage());
         }
 
         if (!is_array($parsed)) {
-            throw new InvalidArgumentException('Invalid schema: root must be a mapping');
+            throw new InvalidArgumentException('Invalid manifest root: expected mapping.');
         }
 
         return $parsed;
     }
 
     /**
-     * Filter and cast a list to an array of strings.
+     * Normalize any array-like value to a clean list of strings.
+     *
+     * @param mixed $value
+     * @return array<string>
      */
-    private function normalizeStringArray(mixed $value): array {
+    private function normalizeStringArray(mixed $value): array
+    {
         if (!is_array($value)) {
             return [];
         }
+
         return array_values(array_filter(
-            array_map(static fn($v) => is_string($v) ? trim($v) : '', $value),
+            array_map(
+                static fn($v) => is_string($v) ? trim($v) : '',
+                $value
+            ),
             static fn($v) => $v !== ''
         ));
     }

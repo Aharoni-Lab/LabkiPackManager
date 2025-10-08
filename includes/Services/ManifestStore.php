@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
-use MediaWiki\Status\StatusValue;
+use MediaWiki\Status\Status;
 use WANObjectCache;
 use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Services\HierarchyBuilder;
@@ -27,24 +27,25 @@ use LabkiPackManager\Services\GraphBuilder;
  *   '_meta' => [
  *       'schemaVersion' => int,
  *       'manifestUrl'   => string,
- *       'fetchedAt'     => int
+ *       'fetchedAt'     => int,
+ *       'repoName'      => string
  *   ]
  * ]
  */
 final class ManifestStore {
 
-    private string $manifestUrl;
+    private string $repoUrl;
     private string $cacheKey;
-    private WANObjectCache|object $cache;
+    private $cache;
     private ManifestFetcher $fetcher;
 
     public function __construct(
-        string $manifestUrl,
+        string $repoUrl,
         ?WANObjectCache $wanObjectCache = null,
         ?ManifestFetcher $fetcher = null
     ) {
-        $this->manifestUrl = $manifestUrl;
-        $this->cacheKey = 'labki:manifest:' . sha1($manifestUrl);
+        $this->repoUrl = $repoUrl;
+        $this->cacheKey = 'labki:manifest:' . sha1($repoUrl);
         $this->cache = $wanObjectCache ?? $this->resolveCache();
         $this->fetcher = $fetcher ?? new ManifestFetcher();
     }
@@ -52,23 +53,23 @@ final class ManifestStore {
     /**
      * Retrieve structured manifest data, refreshing only when changed or forced.
      */
-    public function get(bool $forceRefresh = false): StatusValue {
+    public function get(bool $forceRefresh = false): Status {
         $cached = $this->getCached();
 
         // --- Check if repo has changed ---
-        $remoteHash = $this->fetcher->headHash($this->manifestUrl);
+        $remoteHash = $this->fetcher->headHash($this->repoUrl);
         $hasChanged = $remoteHash && $cached && ($remoteHash !== ($cached['hash'] ?? ''));
 
         if (!$forceRefresh && !$hasChanged && $cached !== null) {
-            return StatusValue::newGood($cached + ['from_cache' => true]);
+            return Status::newGood($cached + ['from_cache' => true]);
         }
 
         // --- Fetch new manifest ---
-        $fetched = $this->fetcher->fetch($this->manifestUrl);
+        $fetched = $this->fetcher->fetch($this->repoUrl);
         if (!$fetched->isOK()) {
             // Return stale cache if available
             if ($cached !== null) {
-                return StatusValue::newGood($cached + ['stale' => true]);
+                return Status::newGood($cached + ['stale' => true]);
             }
             return $fetched;
         }
@@ -81,7 +82,7 @@ final class ManifestStore {
         try {
             $manifestData = $parser->parse($manifestYaml);
         } catch (\Throwable $e) {
-            return StatusValue::newFatal('labkipackmanager-error-parse');
+            return Status::newFatal('labkipackmanager-error-parse');
         }
 
         $packs = $manifestData['packs'] ?? [];
@@ -97,14 +98,14 @@ final class ManifestStore {
             'graph' => $graph,
             '_meta' => [
                 'schemaVersion' => 1,
-                'manifestUrl' => $this->manifestUrl,
+                'repoUrl' => $this->repoUrl,
                 'fetchedAt' => time(),
                 'repoName' => $repoName,
             ],
         ];
 
         $this->save($data);
-        return StatusValue::newGood($data + ['from_cache' => false]);
+        return Status::newGood($data + ['from_cache' => false]);
     }
 
     private function getCached(): ?array {
@@ -120,7 +121,7 @@ final class ManifestStore {
         $this->cache->delete($this->cacheKey);
     }
 
-    private function resolveCache(): WANObjectCache|object {
+    private function resolveCache() {
         try {
             return MediaWikiServices::getInstance()->getMainWANObjectCache();
         } catch (\Throwable $e) {

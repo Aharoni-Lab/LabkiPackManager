@@ -62,7 +62,7 @@ composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integra
 - Place pure PHP tests under `tests/phpunit/unit/`
 - Extend `PHPUnit\Framework\TestCase`
 
-Example assertions with `StatusValue`:
+Example assertions with `Status`:
 ```php
 $this->assertTrue($status->isOK());
 $this->assertFalse($status->isOK());
@@ -116,7 +116,7 @@ Extend `MediaWikiIntegrationTestCase` and run via the entrypoint above.
   - Parses valid YAML and normalizes pack entries
   - Throws exceptions on empty/invalid YAML or schema issues
 - `ManifestFetcher` (via stubs):
-  - Successful HTTP fetch + parse returns `StatusValue::newGood($packs)`
+  - Successful HTTP fetch + parse returns `Status::newGood($packs)`
   - HTTP failure, non-200 status, empty body → `labkipackmanager-error-fetch`
   - YAML parse failure → `labkipackmanager-error-parse`
   - Schema failure (e.g., missing `packs`) → `labkipackmanager-error-schema`

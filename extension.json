@@ -61,7 +61,8 @@
     "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest"
   },
   "Hooks": {
-    "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates"
+    "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
+    "BeforePageDisplay": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onBeforePageDisplay"
   },
   "MaintenanceScripts": {
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
@@ -77,9 +78,8 @@
   "config": {
     "LabkiContentSources": {
       "value": [
-        "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
-        "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/tests/fixtures/basic_repo/manifest.yml",
-        "var/www/html/w/extensions/LabkiPackManager/tests/fixtures/manifest-empty.yml"
+        "https://github.com/Aharoni-Lab/labki-packs",
+        "https://github.com/Aharoni-Lab/labki-packs"
       ],
       "description": "Array of content pack manifest URLs."
     },
