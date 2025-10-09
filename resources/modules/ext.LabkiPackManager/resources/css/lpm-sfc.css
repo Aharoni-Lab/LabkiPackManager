@@ -14,29 +14,36 @@
 }
 
 
-.lpm-tree[data-v-4b584986] {
-  overflow-x: auto;
+.lpm-tree[data-v-4b584986] { overflow-x: auto;
 }
-.lpm-tree-table[data-v-4b584986] {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 0.5rem;
+.lpm-tree-table[data-v-4b584986] { width: 100%; border-collapse: collapse; margin-top: 0.5rem;
 }
 .lpm-tree-table th[data-v-4b584986],
 .lpm-tree-table td[data-v-4b584986] {
   padding: 0.4rem 0.6rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color, #ddd);
+  vertical-align: middle;
 }
-.pack-row[data-v-4b584986] {
-  background-color: var(--pack-row-bg, #f9f9f9);
+.pack-row[data-v-4b584986] { background-color: var(--pack-row-bg, #f9f9f9);
 }
-.page-row[data-v-4b584986]:hover {
-  background-color: var(--page-hover-bg, #fafafa);
+.page-row[data-v-4b584986]:hover { background-color: var(--page-hover-bg, #fafafa);
 }
-.lpm-cell-pad-left[data-v-4b584986] {
-  padding-left: 2em;
-  font-style: italic;
+.lpm-cell-pad-left[data-v-4b584986] { padding-left: 2em; font-style: italic;
+}
+.lpm-caret[data-v-4b584986] {
+  margin-right: 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.lpm-status-cell[data-v-4b584986] { white-space: nowrap;
+}
+.lpm-status-included[data-v-4b584986] { color: var(--included-color, #16a34a); margin-right: 6px;
+}
+.lpm-status-warning[data-v-4b584986] { color: var(--warning-color, #d97706);
 }
 
 

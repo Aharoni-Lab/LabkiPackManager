@@ -41,14 +41,8 @@ function pretty(obj) {
  */
 export function mountApp(rootSelector = '#labki-pack-manager-root') {
   const app = Vue.createApp({
-    /**
-     * Root application template – renders composed components.
-     */
     template: '<lpm-root />',
 
-    /**
-     * Application state (see state.js for structure)
-     */
     data() {
       return createInitialState();
     },
@@ -91,14 +85,17 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         try {
           let manifest = repo?.data;
 
-          // If not cached, fetch from API
           if (!manifest) {
             this.pushMessage(MSG_TYPES.INFO, `Loading manifest for ${this.activeRepo}...`);
             manifest = await fetchManifestFor(this.activeRepo, false);
           }
 
-          // Backend returns wrapper { manifest, hierarchy, graph } → unwrap here
-          this.data = manifest && manifest.manifest ? manifest.manifest : manifest;
+          // Backend returns wrapper { manifest, hierarchy, graph }
+          this.data =
+            manifest && (manifest.hierarchy || manifest.manifest)
+              ? manifest
+              : { hierarchy: null };
+
           if (repo) repo.data = manifest;
 
           this.pushMessage(
@@ -127,7 +124,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
         try {
           const data = await fetchManifestFor(this.activeRepo, true);
-          this.data = data && data.manifest ? data.manifest : data;
+          this.data = data && (data.hierarchy || data.manifest) ? data : { hierarchy: null };
           const repo = this.repos.find(r => r.url === this.activeRepo);
           if (repo) repo.data = data;
 
@@ -143,23 +140,30 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /** Generate a unique key for pack+page combos. */
-      pageKey(pack, page) {
-        return `${pack.name}::${page.name}`;
-      },
-
-      /** Compute the final display name for a page after rename override. */
-      finalName(pack, page) {
-        const key = this.pageKey(pack, page);
-        const rename = this.renames[key];
-        return rename?.trim() || page.name;
+      /**
+       * Lightweight API helper that checks if a page exists in the wiki.
+       * Returns true if the page exists, false otherwise.
+       * (Used by LpmTree for live collision detection.)
+       */
+      async checkTitleExists(title) {
+        try {
+          const api = new mw.Api();
+          const res = await api.get({
+            action: 'labkiPageExists', // planned API module
+            format: 'json',
+            formatversion: '2',
+            title
+          });
+          // Response: { labkiPageExists: { exists: boolean } }
+          return Boolean(res && res.labkiPageExists && res.labkiPageExists.exists);
+        } catch (err) {
+          console.warn('[LabkiPackManager] checkTitleExists failed:', err);
+          return false;
+        }
       },
 
       /**
        * Push a message to the UI message stack.
-       * @param {string} type - One of MSG_TYPES
-       * @param {string} text - Display text
-       * @param {number} [timeout=5000] - Auto-dismiss timeout (ms)
        */
       pushMessage(type, text, timeout = 5000) {
         const id = this.nextMsgId++;
@@ -169,37 +173,29 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /** Remove a message by ID. */
       dismissMessage(id) {
         this.messages = this.messages.filter(m => m.id !== id);
       },
 
-      /** Show import confirmation dialog. */
       confirmImport() {
         this.showImportConfirm = true;
       },
 
-      /** Show update confirmation dialog. */
       confirmUpdate() {
         this.showUpdateConfirm = true;
       },
 
-      /** Execute import operation (placeholder). */
       doImport() {
         this.showImportConfirm = false;
         this.pushMessage(MSG_TYPES.SUCCESS, 'Import triggered.');
       },
 
-      /** Execute update operation (placeholder). */
       doUpdate() {
         this.showUpdateConfirm = false;
         this.pushMessage(MSG_TYPES.SUCCESS, 'Update triggered.');
       }
     },
 
-    /**
-     * On mount: initialize available repositories.
-     */
     async mounted() {
       await this.initRepos();
     }
@@ -209,7 +205,6 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
   // Register Codex Components
   // ------------------------------------------------------------
   function toKebabFromCdx(name) {
-    // CdxTextInput -> cdx-text-input, CdxButton -> cdx-button
     return name
       .replace(/^Cdx/, 'Cdx-')
       .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -252,6 +247,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           :selected-pages="$root.selectedPages"
           :prefixes="$root.prefixes"
           :renames="$root.renames"
+          :check-title-exists="$root.checkTitleExists"
           @update:selectedPacks="val => $root.selectedPacks = val"
           @update:selectedPages="val => $root.selectedPages = val"
           @update:prefixes="val => $root.prefixes = val"
