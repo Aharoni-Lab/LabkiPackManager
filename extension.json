@@ -51,30 +51,39 @@
       ],
       "dependencies": [
         "mediawiki.util",
-        "ext.LabkiPackManager.styles"
+        "ext.LabkiPackManager.styles",
+        "vue",
+        "@wikimedia/codex"
       ]
     }
   },
   "APIModules": {
-    "labkipacks": "LabkiPackManager\\API\\ApiLabkiPacks"
+    "labkiQuery": "LabkiPackManager\\API\\ApiLabkiQuery",
+    "labkiUpdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
+    "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest"
   },
   "Hooks": {
-    "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates"
+    "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
+    "BeforePageDisplay": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onBeforePageDisplay"
   },
   "MaintenanceScripts": {
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
   },
   "SpecialPages": {
-    "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager"
+    "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager",
+    "LabkiDBViewer": "LabkiPackManager\\Special\\SpecialLabkiDBViewer"
+  },
+  "SpecialPageGroups": {
+      "LabkiPackManager": "labki",
+      "LabkiDBViewer": "labki"
   },
   "config": {
     "LabkiContentSources": {
-      "value": {
-        "Lab Packs (Default)": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml",
-        "Test Packs": "https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/tests/fixtures/basic_repo/manifest.yml",
-        "Empty Packs": "var/www/html/w/extensions/LabkiPackManager/tests/fixtures/manifest-empty.yml"
-      },
-      "description": "Associative array of content pack repositories (label => manifestUrl)."
+      "value": [
+        "https://github.com/Aharoni-Lab/labki-packs",
+        "https://github.com/Aharoni-Lab/labki-packs"
+      ],
+      "description": "Array of content pack manifest URLs."
     },
     "LabkiDefaultBranch": {
       "value": "main",
@@ -95,6 +104,10 @@
     "LabkiGlobalPrefix": {
       "value": "",
       "description": "Optional global prefix to apply to renamed pages (collision avoidance)."
+    },
+    "LabkiEnableDBViewer": {
+      "value": false,
+      "description": "If true, enables the Labki database viewer special page."
     }
   },
   "AvailableRights": [
@@ -104,7 +117,6 @@
     "sysop": {
       "labkipackmanager-manage": true
     }
-  },
-  "ConfigRegistry": {}
+  }
 }
 

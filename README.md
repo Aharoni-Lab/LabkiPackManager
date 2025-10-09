@@ -34,11 +34,13 @@ cd ~/dev/LabkiPackManager
 chmod +x reset_mw_test.sh
 ./reset_mw_test.sh
 ```
+Note: Docker needs to be running
 
 Then:
 
 - Open `http://localhost:8080/w` to use the wiki
 - Run unit tests:
+cd into the mediawiki directory then
   ```bash
   docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit'
   ```
@@ -55,9 +57,9 @@ Notes:
 
 ```php
 $wgLabkiContentSources = [
-    'Lab Packs (Default)' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
+    'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
     // Add more sources as needed
-    'Custom Packs Repo' => 'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
+    'https://raw.githubusercontent.com/YourOrg/custom-packs/main/manifest.yml',
 ];
 ```
 
@@ -96,9 +98,9 @@ Configuration
 Add or override options in LocalSettings.php:
 
 ```php
-// Content sources (label => manifest URL)
+// Content sources: array of manifest URLs
 $wgLabkiContentSources = [
-    'Lab Packs (Default)' => 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
+    'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/main/manifest.yml',
     // ...
 ];
 
@@ -123,24 +125,9 @@ Notes:
 - Namespaced content (Template:, Form:, Module:, etc.) keeps its namespace when applying global prefix (e.g., Template:PackX/Page).
 - If you want all colliding pages moved into a dedicated namespace, create/register that namespace and set `$wgLabkiGlobalPrefix` to its canonical name.
 
-Demo without MediaWiki
-----------------------
+ 
 
-You can preview the rendered list UI without running MediaWiki by using the demo script. It reads `tests/fixtures/manifest.yml`, parses it, and generates a static HTML file.
-
-PowerShell (Windows):
-```powershell
-docker run --rm -v "${PWD}:/app" -w /app composer:2 php scripts/demo-render-packs.php > demo.html
-Start-Process demo.html
-```
-
-Bash (macOS/Linux):
-```bash
-docker run --rm -v "$PWD:/app" -w /app composer:2 php scripts/demo-render-packs.php > demo.html
-xdg-open demo.html || open demo.html
-```
-
-This uses `includes/Special/PackListRenderer.php` to render the same list layout the special page uses. The HTML is self-contained and safe to view locally.
+This demo script renders a simple HTML preview of the packs list using internal logic. For full functionality, use `Special:LabkiPackManager` inside MediaWiki.
 
 Development
 -----------
@@ -151,10 +138,10 @@ Development
 
 Run PHPUnit and PHPCS via MediaWiki’s composer setup in the MediaWiki root.
 
-Unit tests (no MediaWiki required)
-----------------------------------
+Unit tests
+----------
 
-Local Composer:
+Local Composer (inside MediaWiki environment):
 ```bash
 cd extensions/LabkiPackManager
 composer install --no-dev --prefer-dist --no-progress --no-interaction
@@ -162,7 +149,7 @@ composer install --dev --no-progress --no-interaction
 composer test
 ```
 
-Docker (Composer image):
+Docker (Composer image, inside MediaWiki environment):
 ```powershell
 # Install deps (including dev)
 docker run --rm -v "C:\Users\dbaha\Documents\Projects\LabkiPackManager:/app" -w /app composer:2 install --prefer-dist --no-progress --no-interaction

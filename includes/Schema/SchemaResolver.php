@@ -4,75 +4,44 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Schema;
 
-use MediaWiki\MediaWikiServices;
-
 /**
- * Resolves and fetches manifest JSON Schemas from labki-packs-tools (or a configured index).
+ * SchemaResolver
+ *
+ * Placeholder service for resolving and fetching manifest schema definitions.
+ *
+ * This class will eventually handle:
+ *   - Mapping a schema version (e.g. "1.0.0") to its JSON schema URL.
+ *   - Fetching and caching schema definitions from labki-packs-tools or other registries.
+ *   - Providing schema content for runtime or CI validation.
+ *
+ * For now, this is a no-op stub retained for forward compatibility.
  */
 final class SchemaResolver {
-    /** @var object|null */
-    private $httpRequestFactory;
 
-    /** @var array<string,mixed>|null */
-    private ?array $config;
-
-    public function __construct( $httpRequestFactory = null, ?array $config = null ) {
-        $this->httpRequestFactory = $httpRequestFactory;
-        $this->config = $config;
+    public function __construct() {
+        // Reserved for future configuration (e.g., schema index URL or cache)
     }
 
-    public function resolveManifestSchemaUrl( string $schemaVersion ) : ?string {
-        $indexUrl = $this->getConfigValue( 'LabkiSchemaIndexUrl' )
-            ?? 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/index.json';
-        try {
-            $data = $this->fetchJson( $indexUrl );
-            if ( !is_array( $data ) || !isset( $data['manifest'] ) || !is_array( $data['manifest'] ) ) {
-                return null;
-            }
-            $map = $data['manifest'];
-            $path = $map[$schemaVersion] ?? $map['latest'] ?? null;
-            if ( is_string( $path ) && $path !== '' ) {
-                return 'https://raw.githubusercontent.com/Aharoni-Lab/labki-packs-tools/main/schema/' . $path;
-            }
-        } catch ( \Throwable $e ) {
-            return null;
-        }
+    /**
+     * Resolve the URL or identifier of a schema version.
+     *
+     * @param string $schemaVersion Manifest schema version identifier (e.g. "1.0.0").
+     * @return string|null URL or file path for the schema, or null if unsupported.
+     */
+    public function resolveManifestSchemaUrl(string $schemaVersion): ?string {
+        // TODO: Implement when multiple manifest schema versions are supported.
+        // This will likely map schema versions to URLs in labki-packs-tools/schema/index.json.
         return null;
     }
 
     /**
-     * Fetch a JSON document as an associative array or null on failure.
+     * Fetch and return parsed schema JSON for a given URL or schema version.
+     *
+     * @param string $schemaUrlOrVersion Either a schema URL or version tag.
+     * @return array|null Parsed JSON schema as an associative array, or null if not found.
      */
-    public function fetchSchemaJson( string $url ) : mixed {
-        return $this->fetchJson( $url );
-    }
-
-    private function fetchJson( string $url ) : mixed {
-        $http = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
-        $req = $http->create( $url, [ 'method' => 'GET', 'timeout' => 10 ] );
-        $ok = $req->execute();
-        if ( !$ok->isOK() || $req->getStatus() !== 200 ) {
-            return null;
-        }
-        return json_decode( $req->getContent(), true );
-    }
-
-    private function getConfigValue( string $key ) {
-        if ( is_array( $this->config ) && array_key_exists( $key, $this->config ) ) {
-            return $this->config[$key];
-        }
-        // Try MW config if available
-        try {
-            $services = MediaWikiServices::getInstance();
-            $conf = $services->getMainConfig();
-            if ( $conf->has( $key ) ) {
-                return $conf->get( $key );
-            }
-        } catch ( \Throwable $e ) {
-            // ignore when not in MW runtime
-        }
+    public function fetchSchemaJson(string $schemaUrlOrVersion): ?array {
+        // TODO: In the future, fetch and cache schema JSON using HttpRequestFactory.
         return null;
     }
 }
-
-

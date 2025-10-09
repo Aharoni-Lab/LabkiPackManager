@@ -9,6 +9,7 @@ $specialPageAliases = [];
 /** English (English) */
 $specialPageAliases['en'] = [
     'LabkiPackManager' => [ 'LabkiPackManager' ],
+    'LabkiDBViewer' => [ 'LabkiDBViewer' ],
 ];
 
 

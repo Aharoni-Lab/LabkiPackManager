@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
+// THIS IS GOING TO GET ABSORBED INTO FRONTEND
 /**
  * Builds a deterministic import plan with safe defaults and optional renames.
  */

@@ -1,109 +1,136 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Status\Status;
+use WANObjectCache;
+use LabkiPackManager\Parser\ManifestParser;
+use LabkiPackManager\Services\HierarchyBuilder;
+use LabkiPackManager\Services\GraphBuilder;
 
-class ManifestStore {
+/**
+ * ManifestStore
+ *
+ * Caches full structured manifest data (parsed, hierarchy, and graph).
+ * Cache is retained indefinitely and refreshed only when the remote manifest changes
+ * or when a refresh is explicitly requested.
+ *
+ * Cached payload structure:
+ * [
+ *   'hash'          => string,  // SHA1 or ETag-equivalent
+ *   'manifest'      => array,
+ *   'hierarchy'     => array,
+ *   'graph'         => array,
+ *   '_meta' => [
+ *       'schemaVersion' => int,
+ *       'manifestUrl'   => string,
+ *       'fetchedAt'     => int,
+ *       'repoName'      => string
+ *   ]
+ * ]
+ */
+final class ManifestStore {
+
+    private string $repoUrl;
     private string $cacheKey;
-    /** @var object|null */
-    private $wanObjectCache = null;
-    private int $ttlSeconds;
+    private $cache;
+    private ManifestFetcher $fetcher;
 
-    public function __construct( string $manifestUrl, $wanObjectCache = null, ?int $ttlSeconds = null ) {
-        $this->cacheKey = $this->buildCacheKey( $manifestUrl );
-        $this->wanObjectCache = $wanObjectCache;
-        // Default TTL: 24 hours unless overridden
-        $this->ttlSeconds = $ttlSeconds ?? ( 24 * 60 * 60 );
-    }
-
-    private function buildCacheKey( string $url ) : string {
-        $hash = sha1( $url );
-        return "labkipackmanager:manifest:" . $hash;
+    public function __construct(
+        string $repoUrl,
+        ?WANObjectCache $wanObjectCache = null,
+        ?ManifestFetcher $fetcher = null
+    ) {
+        $this->repoUrl = $repoUrl;
+        $this->cacheKey = 'labki:manifest:' . sha1($repoUrl);
+        $this->cache = $wanObjectCache ?? $this->resolveCache();
+        $this->fetcher = $fetcher ?? new ManifestFetcher();
     }
 
     /**
-     * @return array|null Cached packs array or null if not set
+     * Retrieve structured manifest data, refreshing only when changed or forced.
      */
-    public function getPacksOrNull() : ?array {
-        $cache = $this->resolveCache();
-        $val = $cache->get( $this->cacheKey );
-        if ( is_array( $val ) ) {
-            // Support new payload shape { packs, schema_version?, fetched_at?, manifest_url? }
-            if ( array_key_exists( 'packs', $val ) && is_array( $val['packs'] ) ) {
-                return $val['packs'];
+    public function get(bool $forceRefresh = false): Status {
+        $cached = $this->getCached();
+
+        // --- Check if repo has changed ---
+        $remoteHash = $this->fetcher->headHash($this->repoUrl);
+        $hasChanged = $remoteHash && $cached && ($remoteHash !== ($cached['hash'] ?? ''));
+
+        if (!$forceRefresh && !$hasChanged && $cached !== null) {
+            return Status::newGood($cached + ['from_cache' => true]);
+        }
+
+        // --- Fetch new manifest ---
+        $fetched = $this->fetcher->fetch($this->repoUrl);
+        if (!$fetched->isOK()) {
+            // Return stale cache if available
+            if ($cached !== null) {
+                return Status::newGood($cached + ['stale' => true]);
             }
-            // Backward compatibility: value was stored as packs array directly
-            return $val;
+            return $fetched;
         }
-        return null;
-    }
 
-    /**
-     * @param array $packs
-     */
-    public function savePacks( array $packs, ?array $meta = null ) : void {
-        $cache = $this->resolveCache();
-        $payload = [
-            'packs' => $packs,
-            'schema_version' => $meta['schema_version'] ?? null,
-            'fetched_at' => $meta['fetched_at'] ?? time(),
-            'manifest_url' => $meta['manifest_url'] ?? null,
+        $manifestYaml = $fetched->getValue();
+        $manifestHash = $remoteHash ?: sha1($manifestYaml);
+
+        // --- Parse and structure ---
+        $parser = new ManifestParser();
+        try {
+            $manifestData = $parser->parse($manifestYaml);
+        } catch (\Throwable $e) {
+            return Status::newFatal('labkipackmanager-error-parse');
+        }
+
+        $packs = $manifestData['packs'] ?? [];
+        $hierarchy = (new HierarchyBuilder())->buildViewModel($packs);
+        $graph = (new GraphBuilder())->build($packs);
+
+        $repoName = isset($manifestData['name']) && is_string($manifestData['name']) ? $manifestData['name'] : null;
+
+        $data = [
+            'hash' => $manifestHash,
+            'manifest' => $manifestData,
+            'hierarchy' => $hierarchy,
+            'graph' => $graph,
+            '_meta' => [
+                'schemaVersion' => 1,
+                'repoUrl' => $this->repoUrl,
+                'fetchedAt' => time(),
+                'repoName' => $repoName,
+            ],
         ];
-        $cache->set( $this->cacheKey, $payload, $this->ttlSeconds );
+
+        $this->save($data);
+        return Status::newGood($data + ['from_cache' => false]);
     }
 
-    public function clear() : void {
-        $cache = $this->resolveCache();
-        $cache->delete( $this->cacheKey );
+    private function getCached(): ?array {
+        $val = $this->cache->get($this->cacheKey);
+        return is_array($val) && isset($val['manifest']) ? $val : null;
     }
 
-    /**
-     * @return array|null { schema_version?:string, fetched_at?:int, manifest_url?:string }
-     */
-    public function getMetaOrNull() : ?array {
-        $cache = $this->resolveCache();
-        $val = $cache->get( $this->cacheKey );
-        if ( !is_array( $val ) ) {
-            return null;
-        }
-        if ( array_key_exists( 'packs', $val ) ) {
-            return [
-                'schema_version' => $val['schema_version'] ?? null,
-                'fetched_at' => $val['fetched_at'] ?? null,
-                'manifest_url' => $val['manifest_url'] ?? null,
-            ];
-        }
-        return null;
+    private function save(array $data): void {
+        $this->cache->set($this->cacheKey, $data, WANObjectCache::TTL_INDEFINITE);
+    }
+
+    public function clear(): void {
+        $this->cache->delete($this->cacheKey);
     }
 
     private function resolveCache() {
-        if ( $this->wanObjectCache ) {
-            return $this->wanObjectCache;
+        try {
+            return MediaWikiServices::getInstance()->getMainWANObjectCache();
+        } catch (\Throwable $e) {
+            return new class() {
+                private array $store = [];
+                public function get(string $key) { return $this->store[$key] ?? null; }
+                public function set(string $key, $value, int $ttl): void { $this->store[$key] = $value; }
+                public function delete(string $key): void { unset($this->store[$key]); }
+            };
         }
-        // Try MediaWiki cache if available and initialized
-        if ( class_exists( '\\MediaWiki\\MediaWikiServices' ) ) {
-            try {
-                return MediaWikiServices::getInstance()->getMainWANObjectCache();
-            } catch ( \LogicException $e ) {
-                // Fall through to local cache
-            }
-        }
-        // Local in-memory cache fallback for unit tests without MW container
-        $this->wanObjectCache = new class() {
-            private array $store = [];
-            public function get( string $key ) {
-                return $this->store[$key] ?? null;
-            }
-            public function set( string $key, $value, int $ttl ) : void {
-                $this->store[$key] = $value;
-            }
-            public function delete( string $key ) : void {
-                unset( $this->store[$key] );
-            }
-        };
-        return $this->wanObjectCache;
     }
 }
-
-

@@ -1,121 +1,219 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Status\Status;
 use LabkiPackManager\Parser\ManifestParser;
 
-class ManifestFetcher {
-    /**
-     * Optional HTTP request factory for testability. When null, resolves via MediaWikiServices.
-     * @var object|null
-     */
+/**
+ * ManifestFetcher
+ *
+ * Responsible for retrieving manifest YAML files, either from local storage or
+ * a remote HTTP(S) source, and providing change detection via lightweight HEAD
+ * or hash requests.
+ */
+final class ManifestFetcher {
+
     private $httpRequestFactory;
-    /** @var array<string,mixed>|null */
-    private ?array $configuredSources = null;
 
-    public function __construct( $httpRequestFactory = null, ?array $sources = null ) {
-        $this->httpRequestFactory = $httpRequestFactory;
-        $this->configuredSources = $sources;
+    public function __construct($httpRequestFactory = null) {
+        $this->httpRequestFactory = $httpRequestFactory
+            ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
     }
+
     /**
-     * Fetch and parse the manifest from the configured URL.
+     * Fetch and parse a manifest from the given URL or file path.
      *
-     * @return StatusValue StatusValue::newGood( array $packs ) on success; newFatal on failure
+     * @param string $url URL or file:// path
+     * @return Status containing string YAML body on success or fatal error
      */
-    public function fetchManifest() {
-        // Prefer explicitly provided sources (tests) → global → MW services
-        $sources = $this->configuredSources ?? ( $GLOBALS['wgLabkiContentSources'] ?? null );
-        if ( $sources === null && class_exists( '\MediaWiki\MediaWikiServices' ) ) {
-            try {
-                $config = MediaWikiServices::getInstance()->getMainConfig();
-                $sources = $config->get( 'LabkiContentSources' );
-            } catch ( \LogicException $e ) {
-                // Unit tests without MW service container; keep $sources as null
-            }
+    public function fetch(string $repoUrl): Status {
+        $manifestUrl = $this->resolveManifestUrl($repoUrl);        
+        $body = $this->getRawManifest($manifestUrl);
+        if (!$body->isOK()) {
+            return $body;
         }
-        if ( is_array( $sources ) && $sources ) {
-            $first = reset( $sources );
-            $url = (string)$first;
-            if ( $url !== '' ) {
-                return $this->fetchManifestFromUrl( $url );
-            }
-        }
-        return $this->newFatal( 'labkipackmanager-error-no-sources' );
+
+        // Return the raw YAML content (parsing happens higher up)
+        return $body;
     }
 
     /**
-     * Fetch and parse the root YAML manifest from a specific URL.
+     * Perform a lightweight hash or revision check on the given URL.
+     *
+     * Attempts to extract a stable content signature using:
+     *   - ETag header (preferred)
+     *   - Last-Modified header (fallback)
+     *   - SHA1 of local file contents (for file://)
+     *   - SHA1 of fetched body (fallback only if headers not available)
      *
      * @param string $url
-     * @return StatusValue StatusValue::newGood( array $data ) on success; newFatal on failure
+     * @return string|null Unique hash string or null if unavailable
      */
-    public function fetchManifestFromUrl( string $url ) {
-        $factory = $this->httpRequestFactory ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
+    public function headHash(string $repoUrl): ?string {
+        $manifestUrl = $this->resolveManifestUrl($repoUrl);
+        $trimManifestUrl = trim($manifestUrl);
 
-        // Support local file paths in addition to HTTP(S)
-        $body = null;
-        $trimUrl = trim( $url );
-        $isFileScheme = str_starts_with( $trimUrl, 'file://' );
-        $isAbsolutePath = !$isFileScheme && ( preg_match( '~^/|^[A-Za-z]:[\\/]~', $trimUrl ) === 1 );
-        if ( $isFileScheme || $isAbsolutePath ) {
-            $path = $isFileScheme ? substr( $trimUrl, 7 ) : $trimUrl;
-            if ( !is_readable( $path ) ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $content = @file_get_contents( $path );
-            if ( $content === false || $content === '' ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $body = $content;
-        } else {
-            $req = $factory->create( $trimUrl, [ 'method' => 'GET', 'timeout' => 10 ] );
-            $status = $req->execute();
-            if ( !$status->isOK() ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $code = $req->getStatus();
-            $content = $req->getContent();
-            if ( $code !== 200 || $content === '' ) {
-                return $this->newFatal( 'labkipackmanager-error-fetch' );
-            }
-            $body = $content;
-        }
+        // Local filesystem paths are no longer supported
 
-        // Validate manifest (schema_version presence and schema structure)
-        $validator = new ManifestValidator( $factory );
-        $validation = $validator->validate( $body );
-        if ( !$validation->isOK() ) {
-            return $validation;
-        }
-        $decoded = $validation->getValue();
-        $schemaVersion = is_array( $decoded ) ? ( $decoded['schema_version'] ?? null ) : null;
-
-        // Parse validated manifest to normalized packs list
-        $parser = new ManifestParser();
+        // Remote HTTP(S)
         try {
-            $packs = $parser->parse( $body );
-        } catch ( \InvalidArgumentException $e ) {
-            $msg = $e->getMessage() === 'Invalid YAML' ? 'labkipackmanager-error-parse' : 'labkipackmanager-error-schema';
-            return $this->newFatal( $msg );
+            $req = $this->httpRequestFactory->create($trimManifestUrl, [
+                'method' => 'HEAD',
+                'timeout' => 5,
+            ]);
+            $status = $req->execute();
+            if (!$status->isOK()) {
+                return null;
+            }
+
+            $headers = $req->getResponseHeaders();
+            if (isset($headers['etag'][0])) {
+                return trim($headers['etag'][0], '"\'');
+            }
+
+            if (isset($headers['last-modified'][0])) {
+                return sha1($headers['last-modified'][0]);
+            }
+
+            // Fallback: if HEAD didn’t give a signature, do a light GET to hash
+            $fallback = $this->getRawManifest($manifestUrl);
+            if ($fallback->isOK()) {
+                return sha1($fallback->getValue());
+            }
+        } catch (\Throwable $e) {
+            return null;
         }
 
-        return $this->newGood( [ 'packs' => $packs, 'schema_version' => $schemaVersion ] );
+        return null;
     }
 
-    private function newFatal( string $key ) {
-        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-            ? '\\MediaWiki\\Status\\StatusValue'
-            : '\\StatusValue';
-        return $statusClass::newFatal( $key );
+    /**
+     * Resolve a repository/base URL to the concrete manifest file location.
+     *
+     * Supported forms:
+     *  - github.com repo URLs (optionally with /tree/<ref> or /blob/<ref>/manifest.yml)
+     *    are converted to raw.githubusercontent.com URLs targeting manifest.yml
+     *  - raw.githubusercontent.com base URLs: ensure trailing manifest.yml when pointing at a dir
+     *  - Generic HTTP(S) base URLs ending with a slash get manifest.yml appended
+     */
+    private function resolveManifestUrl(string $repoUrl): string {
+        $trimRepoUrl = trim($repoUrl);
+
+        if ($trimRepoUrl === '') {
+            return $trimRepoUrl;
+        }
+
+        // --- HTTP(S) URLs ---
+        $parts = @parse_url($trimRepoUrl) ?: [];
+        $host = strtolower($parts['host'] ?? '');
+        $path = $parts['path'] ?? '';
+
+        // Helper to rebuild URL from parts
+        $rebuild = function(array $p): string {
+            $scheme = $p['scheme'] ?? 'https';
+            $host = $p['host'] ?? '';
+            $path = $p['path'] ?? '';
+            $query = isset($p['query']) ? ('?' . $p['query']) : '';
+            $fragment = isset($p['fragment']) ? ('#' . $p['fragment']) : '';
+            return $scheme . '://' . $host . $path . $query . $fragment;
+        };
+
+        // GitHub canonical URLs → raw.githubusercontent.com
+        if ($host === 'github.com' || $host === 'www.github.com') {
+            $segments = array_values(array_filter(explode('/', trim($path, '/'))));
+            if (count($segments) >= 2) {
+                $owner = $segments[0];
+                $repo = $segments[1];
+
+                // Default branch from config (fallback to main)
+                $defaultRef = 'main';
+                try {
+                    $cfg = MediaWikiServices::getInstance()->getMainConfig();
+                    $val = (string)$cfg->get('LabkiDefaultBranch');
+                    if ($val !== '') {
+                        $defaultRef = $val;
+                    }
+                } catch (\Throwable $e) {}
+                /*** 
+                * github.com/<owner>/<repo>/tree/<ref>/<subpath?>
+                * github.com/<owner>/<repo>/blob/<ref>/<path>
+                */
+                $ref = $defaultRef;
+                $subPath = '';
+                if (isset($segments[2]) && ($segments[2] === 'tree' || $segments[2] === 'blob')) {
+                    $ref = $segments[3] ?? $defaultRef;
+                    $subPath = implode('/', array_slice($segments, 4));
+                }
+
+                // Build raw URL
+                $raw = [
+                    'scheme' => 'https',
+                    'host' => 'raw.githubusercontent.com',
+                    'path' => '/' . $owner . '/' . $repo . '/' . $ref
+                        . ($subPath !== '' ? '/' . $subPath : '')
+                        . (str_ends_with($subPath, '/manifest.yml') || str_ends_with($subPath, '/manifest.yaml') ? '' : '/manifest.yml'),
+                ];
+                return $rebuild($raw);
+            }
+            // If not enough segments, fall through to generic behavior
+        }
+
+        // If already points to a manifest file, return as-is
+        if ($path !== '' && (str_ends_with($path, '/manifest.yml') || str_ends_with($path, '/manifest.yaml') || preg_match('~manifest\.(ya?ml)$~i', basename($path)))) {
+            return $trimRepoUrl;
+        }
+
+        // raw.githubusercontent.com base without explicit file → ensure manifest.yml
+        if ($host === 'raw.githubusercontent.com' || $host === 'raw.fastgit.org') {
+            if ($path !== '' && !preg_match('~/manifest\.(ya?ml)$~i', $path)) {
+                $parts['path'] = rtrim($path, '/') . '/manifest.yml';
+                return $rebuild($parts);
+            }
+            return $trimRepoUrl;
+        }
+
+        // Generic: if ends with a slash, assume directory and append manifest.yml
+        if ($path === '' || str_ends_with($path, '/')) {
+            $parts['path'] = rtrim($path, '/') . '/manifest.yml';
+            return $rebuild($parts);
+        }
+
+        return $trimRepoUrl;
     }
 
-    private function newGood( $value ) {
-        $statusClass = class_exists( '\\MediaWiki\\Status\\StatusValue' )
-            ? '\\MediaWiki\\Status\\StatusValue'
-            : '\\StatusValue';
-        return $statusClass::newGood( $value );
+    /**
+     * Retrieve the raw manifest file contents, local or remote.
+     *
+     * @param string $url
+     * @return StatusValue::newGood(string $body) or newFatal(error)
+     */
+    private function getRawManifest(string $manifestUrl): Status {
+        $trimManifestUrl = trim($manifestUrl);
+
+        // --- Remote HTTP(S) ---
+        try {
+            $req = $this->httpRequestFactory->create($trimManifestUrl, [
+                'method' => 'GET',
+                'timeout' => 10,
+            ]);
+            $status = $req->execute();
+            if (!$status->isOK()) {
+                return Status::newFatal('labkipackmanager-error-fetch');
+            }
+
+            $content = $req->getContent();
+            $code = $req->getStatus();
+            if ($code !== 200 || $content === '') {
+                return Status::newFatal('labkipackmanager-error-fetch');
+            }
+
+            return Status::newGood($content);
+        } catch (\Throwable $e) {
+            return Status::newFatal('labkipackmanager-error-fetch');
+        }
     }
 }
-
-

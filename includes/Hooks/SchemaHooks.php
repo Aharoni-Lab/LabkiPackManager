@@ -20,9 +20,9 @@ final class SchemaHooks {
             $tablesFile = $dir . '/sqlite/tables.sql';
         }
         if ( file_exists( $tablesFile ) ) {
-            $updater->addExtensionTable( 'labki_pack_registry', $tablesFile );
-            $updater->addExtensionTable( 'labki_pack_pages', $tablesFile );
-            $updater->addExtensionTable( 'labki_page_mapping', $tablesFile );
+            $updater->addExtensionTable( 'labki_content_repo', $tablesFile );
+            $updater->addExtensionTable( 'labki_pack', $tablesFile );
+            $updater->addExtensionTable( 'labki_page', $tablesFile );
         }
     }
 }

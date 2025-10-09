@@ -108,12 +108,14 @@ JSON
   composer update --no-interaction --no-progress
 '
 
-echo "==> Enabling LabkiPackManager + Mermaid in LocalSettings.php..."
+echo "==> Enabling LabkiPackManager + Mermaid + DBViewer in LocalSettings.php..."
 docker compose exec -T mediawiki bash -lc '
   sed -i -E "/wfLoadExtension\(/d" /var/www/html/w/LocalSettings.php
   echo "wfLoadExtension( \"LabkiPackManager\" );" >> /var/www/html/w/LocalSettings.php
   echo "wfLoadExtension( \"Mermaid\" );" >> /var/www/html/w/LocalSettings.php
+  echo "\$wgLabkiEnableDBViewer = true;" >> /var/www/html/w/LocalSettings.php
 '
+
 
 echo "==> Running updater..."
 docker compose exec -T mediawiki php maintenance/update.php --quick

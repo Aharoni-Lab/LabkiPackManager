@@ -4,28 +4,25 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Domain;
 
+/**
+ * Strongly-typed identifier for a Page.
+ */
 final class PageId {
-	private string $value;
+    private int $id;
 
-	public function __construct( string $value ) {
-		$this->value = $value;
-	}
+    public function __construct(int $id) {
+        $this->id = $id;
+    }
 
-	public static function fromString( string $value ): self {
-		return new self( $value );
-	}
+    public function toInt(): int {
+        return $this->id;
+    }
 
-	public function equals( PageId $other ): bool {
-		return $this->value === $other->value;
-	}
+    public function equals(PageId $other): bool {
+        return $this->id === $other->id;
+    }
 
-	public function getValue(): string {
-		return $this->value;
-	}
-
-	public function __toString(): string {
-		return $this->value;
-	}
+    public function __toString(): string {
+        return (string)$this->id;
+    }
 }
-
-
