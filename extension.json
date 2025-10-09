@@ -51,7 +51,9 @@
       ],
       "dependencies": [
         "mediawiki.util",
-        "ext.LabkiPackManager.styles"
+        "ext.LabkiPackManager.styles",
+        "vue",
+        "@wikimedia/codex"
       ]
     }
   },
