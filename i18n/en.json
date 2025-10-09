@@ -34,6 +34,8 @@
   "labkipackmanager-status-fetched": "Manifest fetched successfully.",
   "labkipackmanager-status-missing": "No cached manifest found. Click 'Grab Manifest' to fetch.",
   "labkipackmanager-status-loaded-from": "Loaded packs from ‘$1’.",
+  "labkipackmanager-load-success": "Manifest loaded.",
+  "labkipackmanager-refresh-success": "Manifest refreshed.",
 
   "labkipackmanager-error-no-sources": "No content sources configured.",
   "labkipackmanager-error-fetch": "Failed to fetch content pack manifest.",

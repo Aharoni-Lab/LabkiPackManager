@@ -30,7 +30,7 @@ final class SpecialLabkiPackManager extends SpecialPage {
         $output = $this->getOutput();
         $output->setPageTitle($this->msg('labkipackmanager-special-title')->text());
 
-        $modules = ['ext.LabkiPackManager.styles', 'ext.LabkiPackManager.app'];
+        $modules = ['ext.LabkiPackManager.styles', 'ext.LabkiPackManager.bundle'];
         if (ExtensionRegistry::getInstance()->isLoaded('Mermaid')) {
             $modules[] = 'ext.mermaid';
         }

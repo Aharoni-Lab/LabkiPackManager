@@ -6,6 +6,18 @@ node_modules/
 *.log
 *.DS_Store
 
+# Frontend build artifacts
+/resources/modules/
+*.map
+
+# Linters/tooling caches
+.eslintcache
+
+# Env files
+.env
+.env.local
+.env.*.local
+
 # PHPUnit cache and artifacts
 .phpunit.result.cache
 .phpunit.cache/

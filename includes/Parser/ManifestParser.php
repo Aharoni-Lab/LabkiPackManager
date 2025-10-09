@@ -130,6 +130,12 @@ final class ManifestParser
     private function parseYaml(string $yaml): array
     {
         $trimmed = trim($yaml);
+
+        // Strip UTF-8 BOM if present – avoids keys being prefixed (e.g., \uFEFFschema_version)
+        // this was needed to fix the schema_version key being prefixed with \uFEFF
+        if (strncmp($trimmed, "\xEF\xBB\xBF", 3) === 0) {
+            $trimmed = substr($trimmed, 3);
+        }
         if ($trimmed === '') {
             throw new InvalidArgumentException('Empty YAML manifest.');
         }
