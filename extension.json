@@ -55,6 +55,19 @@
         "vue",
         "@wikimedia/codex"
       ]
+    },
+    "ext.LabkiPackManager.bundle": {
+      "scripts": [
+        "resources/modules/ext.LabkiPackManager/app.bundle.js"
+      ],
+      "styles": [
+        "resources/css/packs.css"
+      ],
+      "dependencies": [
+        "mediawiki.util",
+        "vue",
+        "@wikimedia/codex"
+      ]
     }
   },
   "APIModules": {

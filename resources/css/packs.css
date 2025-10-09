@@ -5,6 +5,7 @@
 }
 
 .lpm-row { display:flex; align-items:center; gap:6px; padding:2px 0; }
+.lpm-cell-pad-left { padding-left: 2em; }
 .lpm-expander { background:none; border:none; cursor:pointer; width:18px; }
 .lpm-summary { margin-top:8px; color:#555; }
 
