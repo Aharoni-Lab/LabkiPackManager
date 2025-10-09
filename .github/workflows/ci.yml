@@ -18,10 +18,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
       - run: npm ci
       - run: npm test
       - run: npm run lint
       - run: npm run build
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: labkipackmanager-bundle
+          path: |
+            resources/modules/ext.LabkiPackManager/app.bundle.js
+            resources/modules/ext.LabkiPackManager/app.bundle.js.map
 
   phpunit:
     runs-on: ubuntu-latest

@@ -33,9 +33,12 @@
       ],
       "dependencies": []
     },
-    "ext.LabkiPackManager.app": {
+    "ext.LabkiPackManager.bundle": {
       "scripts": [
-        "resources/js/app.js"
+        "resources/modules/ext.LabkiPackManager/app.bundle.js"
+      ],
+      "styles": [
+        "resources/css/packs.css"
       ],
       "messages": [
         "labkipackmanager-ui-content-repo",
@@ -47,21 +50,9 @@
         "labkipackmanager-ui-no-packs",
         "labkipackmanager-ui-selected-packs",
         "labkipackmanager-ui-fetched",
-        "labkipackmanager-ui-cache-suffix"
-      ],
-      "dependencies": [
-        "mediawiki.util",
-        "ext.LabkiPackManager.styles",
-        "vue",
-        "@wikimedia/codex"
-      ]
-    },
-    "ext.LabkiPackManager.bundle": {
-      "scripts": [
-        "resources/modules/ext.LabkiPackManager/app.bundle.js"
-      ],
-      "styles": [
-        "resources/css/packs.css"
+        "labkipackmanager-ui-cache-suffix",
+        "labkipackmanager-load-success",
+        "labkipackmanager-refresh-success"
       ],
       "dependencies": [
         "mediawiki.util",

@@ -2,19 +2,21 @@ import { createInitialState } from './state.js';
 import { fetchRepos, fetchManifestFor, normalizeManifest } from './api.js';
 import { MSG_TYPES } from './constants.js';
 
-const Vue = require('vue');
-const Codex = require('@wikimedia/codex');
+import * as Vue from 'vue';
+import * as Codex from '@wikimedia/codex';
 import LpmToolbar from './ui/toolbar.vue';
 import LpmTree from './ui/tree.vue';
 import LpmMessages from './ui/messages.vue';
 import LpmDialogs from './ui/dialogs.vue';
 
 function pretty(obj) {
-  try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
+  try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
 }
 
 export function mountApp(rootSelector = '#labki-pack-manager-root') {
   const app = Vue.createApp({
+    // Root renders the composed component tree
+    template: '<lpm-root />',
     data() { return createInitialState(); },
     computed: {
       hasActiveRepo() { return !!this.activeRepo; }
@@ -54,7 +56,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
             this.pushMessage(MSG_TYPES.SUCCESS, mw.msg('labkipackmanager-load-success') || 'Manifest loaded.');
           }
         } catch (e) {
-          this.pushMessage(MSG_TYPES.ERROR, `Failed to load ${this.activeRepo}`);
+          this.pushMessage(MSG_TYPES.ERROR, `Failed to load ${this.activeRepo}: ${e?.message || ''}`.trim());
         } finally { this.isLoadingRepo = false; }
       },
       async refresh() {
@@ -77,7 +79,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
             this.pushMessage(MSG_TYPES.SUCCESS, mw.msg('labkipackmanager-refresh-success') || 'Manifest refreshed.');
           }
         } catch (e) {
-          this.pushMessage(MSG_TYPES.ERROR, `Failed to refresh ${this.activeRepo}`);
+          this.pushMessage(MSG_TYPES.ERROR, `Failed to refresh ${this.activeRepo}: ${e?.message || ''}`.trim());
         } finally { this.isRefreshing = false; }
       },
       pageKey(pack, page) { return `${pack.name}::${page.name}`; },
@@ -137,6 +139,10 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           :selected-pages="$root.selectedPages"
           :prefixes="$root.prefixes"
           :renames="$root.renames"
+          @update:selectedPacks="val => $root.selectedPacks = val"
+          @update:selectedPages="val => $root.selectedPages = val"
+          @update:prefixes="val => $root.prefixes = val"
+          @update:renames="val => $root.renames = val"
         />
 
         <div class="lpm-row lpm-row-actionbar">

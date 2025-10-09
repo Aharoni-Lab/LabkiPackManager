@@ -10,18 +10,18 @@
             <th>Final Name</th>
           </tr>
         </thead>
-        <tbody id="lpm-tree-body" v-if="data?.hierarchy?.packs?.length">
+        <tbody v-if="data?.hierarchy?.packs?.length" id="lpm-tree-body">
           <template v-for="pack in data.hierarchy.packs" :key="pack.name">
             <tr class="pack-row">
               <td><strong>{{ pack.name }}</strong></td>
-              <td><cdx-checkbox v-model="selectedPacks[pack.name]" /></td>
-              <td><cdx-text-input v-model="prefixes[pack.name]" placeholder="prefix" /></td>
+              <td><cdx-checkbox :model-value="selectedPacks[pack.name]" placeholder="" @update:model-value="val => updateSelectedPack(pack.name, val)" /></td>
+              <td><cdx-text-input :model-value="prefixes[pack.name]" placeholder="prefix" @update:model-value="val => updatePrefix(pack.name, val)" /></td>
               <td></td>
             </tr>
-            <tr class="page-row" v-for="page in (pack.pages || [])" :key="page.name">
+            <tr v-for="page in (pack.pages || [])" :key="page.name" class="page-row">
               <td class="lpm-cell-pad-left">{{ page.name }}</td>
-              <td><cdx-checkbox v-model="selectedPages[pageKey(pack, page)]" /></td>
-              <td><cdx-text-input v-model="renames[pageKey(pack, page)]" placeholder="rename" /></td>
+              <td><cdx-checkbox :model-value="selectedPages[pageKey(pack, page)]" placeholder="" @update:model-value="val => updateSelectedPage(pack, page, val)" /></td>
+              <td><cdx-text-input :model-value="renames[pageKey(pack, page)]" placeholder="rename" @update:model-value="val => updateRename(pack, page, val)" /></td>
               <td>{{ finalName(pack, page) }}</td>
             </tr>
           </template>
@@ -49,12 +49,27 @@ export default {
     prefixes: { type: Object, required: true },
     renames: { type: Object, required: true }
   },
+  emits: ['update:selectedPacks', 'update:selectedPages', 'update:prefixes', 'update:renames'],
   methods: {
     pageKey(pack, page) { return `${pack.name}::${page.name}`; },
     finalName(pack, page) {
       const key = this.pageKey(pack, page);
       const rename = this.renames[key];
       return rename && rename.trim() ? rename.trim() : page.name;
+    },
+    updateSelectedPack(packName, val) {
+      this.$emit('update:selectedPacks', { ...this.selectedPacks, [packName]: val });
+    },
+    updatePrefix(packName, val) {
+      this.$emit('update:prefixes', { ...this.prefixes, [packName]: val });
+    },
+    updateSelectedPage(pack, page, val) {
+      const key = this.pageKey(pack, page);
+      this.$emit('update:selectedPages', { ...this.selectedPages, [key]: val });
+    },
+    updateRename(pack, page, val) {
+      const key = this.pageKey(pack, page);
+      this.$emit('update:renames', { ...this.renames, [key]: val });
     }
   }
 };

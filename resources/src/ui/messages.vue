@@ -1,5 +1,5 @@
 <template>
-  <div class="lpm-row lpm-row-messages" v-if="messages.length">
+  <div v-if="messages.length" class="lpm-row lpm-row-messages">
     <div class="lpm-messages">
       <cdx-message
         v-for="m in messages"
@@ -17,7 +17,8 @@
 <script>
 export default {
   name: 'LpmMessages',
-  props: { messages: { type: Array, required: true } }
+  props: { messages: { type: Array, required: true } },
+  emits: ['dismiss']
 };
 </script>
 

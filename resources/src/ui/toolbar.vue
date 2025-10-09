@@ -5,8 +5,8 @@
       aria-label="Repository"
       :menu-items="repoMenuItems"
       :selected="activeRepo"
-      @update:selected="$emit('update:activeRepo', $event)"
       placeholder="Select a content repository…"
+      @update:selected="$emit('update:activeRepo', $event)"
     />
     <cdx-button :disabled="isLoadingRepo || !hasActiveRepo" @click="$emit('load')">
       <template v-if="isLoadingRepo">Loading…</template>
@@ -29,7 +29,8 @@ export default {
     isLoadingRepo: { type: Boolean, default: false },
     isRefreshing: { type: Boolean, default: false },
     hasActiveRepo: { type: Boolean, required: true }
-  }
+  },
+  emits: ['update:activeRepo', 'load', 'refresh']
 };
 </script>
 
