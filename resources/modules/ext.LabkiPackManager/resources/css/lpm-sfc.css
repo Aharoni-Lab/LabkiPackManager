@@ -1,0 +1,65 @@
+
+.lpm-row-toolbar[data-v-56b90443] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  flex-wrap: wrap;
+}
+.lpm-toolbar-select[data-v-56b90443] {
+  min-width: 260px;
+}
+.lpm-toolbar-btn[data-v-56b90443] {
+  flex-shrink: 0;
+}
+
+
+.lpm-tree[data-v-4b584986] {
+  overflow-x: auto;
+}
+.lpm-tree-table[data-v-4b584986] {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+.lpm-tree-table th[data-v-4b584986],
+.lpm-tree-table td[data-v-4b584986] {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #ddd);
+}
+.pack-row[data-v-4b584986] {
+  background-color: var(--pack-row-bg, #f9f9f9);
+}
+.page-row[data-v-4b584986]:hover {
+  background-color: var(--page-hover-bg, #fafafa);
+}
+.lpm-cell-pad-left[data-v-4b584986] {
+  padding-left: 2em;
+  font-style: italic;
+}
+
+
+/* Layout container for the message region */
+.lpm-row-messages[data-v-1ba2a834] {
+  margin-top: 1rem;
+}
+
+/* Stack messages vertically with spacing */
+.lpm-messages[data-v-1ba2a834] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Optional: subtle fade-in for new messages */
+.lpm-message-item[data-v-1ba2a834] {
+  transition: opacity 0.3s ease;
+}
+
+
+.lpm-dialogs[data-v-2619661a] {
+  /* Minor layout separation for better readability */
+  display: contents;
+}
+

@@ -7,7 +7,8 @@ node_modules/
 *.DS_Store
 
 # Frontend build artifacts
-/resources/modules/
+# Commit built bundles so extension works without Node.
+# Keep sourcemaps untracked.
 *.map
 
 # Linters/tooling caches
