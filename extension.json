@@ -27,18 +27,12 @@
     "remoteExtPath": "LabkiPackManager"
   },
   "ResourceModules": {
-    "ext.LabkiPackManager.styles": {
-      "styles": [
-        "resources/css/packs.css"
-      ],
-      "dependencies": []
-    },
     "ext.LabkiPackManager.bundle": {
       "scripts": [
         "resources/modules/ext.LabkiPackManager/app.bundle.js"
       ],
       "styles": [
-        "resources/css/packs.css"
+        "resources/css/labkipackmanager.css"
       ],
       "messages": [
         "labkipackmanager-ui-content-repo",

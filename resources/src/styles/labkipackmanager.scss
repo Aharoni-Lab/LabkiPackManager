@@ -1,0 +1,188 @@
+// ------------------------------------------------------------
+// LabkiPackManager – Codex-Themed Styles (SCSS)
+// ------------------------------------------------------------
+//  - Uses Codex / MediaWiki design tokens (Sass variables)
+//  - Scoped under #labki-pack-manager-root
+//  - Compiles to app.bundle.css via rollup-plugin-scss
+// ------------------------------------------------------------
+
+// Codex variables are provided automatically by MediaWiki’s build
+// environment or codex-design-tokens.
+// Example fallback values below are for standalone builds.
+$color-base: var(--color-base, #202122);
+$color-subtle: var(--color-subtle, #54595d);
+$border-color-subtle: var(--border-color-subtle, #eaecf0);
+$background-color-base: var(--background-color-base, #fff);
+$background-color-neutral: var(--background-color-neutral, #f1f2f3);
+$background-color-neutral-subtle: var(--background-color-neutral-subtle, #f8f9fa);
+$color-progressive: var(--color-progressive, #36c);
+$font-family-base: var(--font-family-base, sans-serif);
+$border-radius-base: var(--border-radius-base, 4px);
+
+// ------------------------------------------------------------
+// Root
+// ------------------------------------------------------------
+#labki-pack-manager-root {
+  min-height: 200px;
+  padding: 0.75rem;
+  border: 1px dashed $border-color-subtle;
+  background-color: $background-color-base;
+  font-family: $font-family-base;
+  font-size: 0.875rem;
+  color: $color-base;
+  box-sizing: border-box;
+}
+
+// ------------------------------------------------------------
+// Layout Rows
+// ------------------------------------------------------------
+.lpm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+
+  + .lpm-row {
+    margin-top: 0.5rem;
+  }
+}
+
+.lpm-row-toolbar,
+.lpm-row-actionbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  border-bottom: 1px solid $border-color-subtle;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lpm-cell-pad-left {
+  padding-left: 2em;
+}
+
+// ------------------------------------------------------------
+// Graph
+// ------------------------------------------------------------
+.lpm-row-graph {
+  margin-top: 1rem;
+}
+
+.lpm-graph {
+  min-height: 120px;
+  background: $background-color-neutral-subtle;
+  border: 1px solid $border-color-subtle;
+  border-radius: $border-radius-base;
+  padding: 0.5rem;
+  overflow-x: auto;
+
+  svg .hovered {
+    rect,
+    path,
+    circle {
+      stroke: $color-progressive !important;
+      stroke-width: 2px !important;
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Tree (Pack/Page Table)
+// ------------------------------------------------------------
+.lpm-row-tree {
+  margin-top: 1rem;
+}
+
+.lpm-tree {
+  overflow-x: auto;
+
+  &-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    background-color: $background-color-base;
+
+    th,
+    td {
+      text-align: left;
+      border-bottom: 1px solid $border-color-subtle;
+      padding: 0.4rem 0.5rem;
+      vertical-align: middle;
+    }
+
+    th {
+      color: $color-subtle;
+      background-color: $background-color-neutral-subtle;
+      font-weight: 600;
+    }
+  }
+}
+
+.pack-row {
+  background-color: $background-color-neutral-subtle;
+}
+
+.page-row:hover {
+  background-color: $background-color-neutral;
+}
+
+.lpm-cell-pad-left {
+  padding-left: 2em;
+  font-style: italic;
+}
+
+// ------------------------------------------------------------
+// Messages
+// ------------------------------------------------------------
+.lpm-row-messages {
+  margin-top: 1rem;
+  align-items: stretch;
+
+  .lpm-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .cdx-message {
+    width: 100%;
+  }
+}
+
+// ------------------------------------------------------------
+// Action Bar
+// ------------------------------------------------------------
+.lpm-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  border-top: 1px solid $border-color-subtle;
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+
+  .lpm-action-info {
+    font-size: 0.8125rem;
+    color: $color-subtle;
+    margin-left: 0.75rem;
+  }
+}
+
+// ------------------------------------------------------------
+// Utility
+// ------------------------------------------------------------
+.lpm-meta,
+.lpm-summary {
+  font-size: 0.75rem;
+  color: $color-subtle;
+  margin-left: 0.375rem;
+}
+
+@keyframes lpm-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lpm-fadein {
+  animation: lpm-fadein 0.25s ease-in-out;
+}

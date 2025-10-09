@@ -1,9 +1,36 @@
 /**
+ * LabkiPackManager – API Layer
+ * ------------------------------------------------------------
+ * Provides helper functions for fetching manifests and repo data
+ * through the MediaWiki backend API. All functions are promise-based
+ * and return plain JavaScript objects suitable for Vue state usage.
+ *
+ * Exports:
+ *   - fetchManifestFor(repoUrl, refresh)
+ *   - fetchRepos()
+ *   - migrateV2(manifest)
+ */
+
+/**
+ * Internal helper: safely get Labki content sources from mw.config.
+ * @returns {string[]} List of repository URLs (may be empty).
+ */
+function getConfiguredRepos() {
+  if (typeof mw === 'undefined' || !mw.config) return [];
+  const cfg =
+    mw.config.get('LabkiContentSources') ||
+    mw.config.get('wgLabkiContentSources');
+  return Array.isArray(cfg) ? cfg : [];
+}
+
+/**
  * Fetch a manifest JSON for a given repository URL via MediaWiki API.
- * @param {string} repoUrl Repository URL or key.
- * @param {boolean} [refresh=false] If true, bypass cache on server side.
+ *
+ * @async
+ * @param {string} repoUrl - Repository URL or key.
+ * @param {boolean} [refresh=false] - If true, bypass cache on server side.
  * @returns {Promise<Object>} Parsed manifest payload (labkiManifest or raw JSON).
- * @throws {Error} When the HTTP response is not OK.
+ * @throws {Error} When the HTTP response fails or response body is invalid.
  */
 export async function fetchManifestFor(repoUrl, refresh = false) {
   const base = mw.util.wikiScript('api');
@@ -14,64 +41,71 @@ export async function fetchManifestFor(repoUrl, refresh = false) {
     repo: repoUrl
   });
   if (refresh) params.set('refresh', '1');
+
   const url = `${base}?${params.toString()}`;
-  const res = await fetch(url, { credentials: 'same-origin' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
+
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'same-origin' });
+  } catch (networkError) {
+    throw new Error(`Network error fetching manifest for ${repoUrl}: ${networkError}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} fetching manifest for ${repoUrl}`);
+  }
+
+  let json;
+  try {
+    json = await res.json();
+  } catch (parseError) {
+    throw new Error(`Invalid JSON from ${repoUrl}: ${parseError}`);
+  }
+
+  // Allow either { labkiManifest: { ... } } or raw manifest.
   return json.labkiManifest || json;
 }
 
 /**
- * Fetch all configured repositories and return their basic info and cached data.
- * Uses mw.config LabkiContentSources.
+ * Fetch all configured repositories and return their info and cached data.
+ *
+ * Uses mw.config('LabkiContentSources' | 'wgLabkiContentSources').
+ * Each repo is fetched concurrently via fetchManifestFor().
+ *
+ * @async
  * @returns {Promise<Array<{url:string,name:string,data?:Object}>>}
  */
 export async function fetchRepos() {
-  const cfg = (typeof mw !== 'undefined' && mw.config)
-    ? (mw.config.get('LabkiContentSources') || mw.config.get('wgLabkiContentSources'))
-    : null;
-  const urls = Array.isArray(cfg) ? cfg : [];
-  if (urls.length === 0) return [];
-  const results = await Promise.allSettled(urls.map((u) => fetchManifestFor(u, false)));
-  return urls.map((u, i) => {
-    const r = results[i];
-    if (r.status === 'fulfilled' && r.value) {
-      const data = r.value;
-      let name = data?._meta?.repoName || data?.manifest?.name || u.split('/').slice(-2).join('/');
-      return { url: u, name, data };
+  const urls = getConfiguredRepos();
+  if (urls.length === 0) {
+    console.warn('[LabkiPackManager] No LabkiContentSources defined.');
+    return [];
+  }
+
+  const results = await Promise.allSettled(
+    urls.map((url) => fetchManifestFor(url, false))
+  );
+
+  return urls.map((url, i) => {
+    const result = results[i];
+    if (result.status === 'fulfilled' && result.value) {
+      const data = result.value;
+      const name =
+        data?._meta?.repoName ||
+        data?.manifest?.name ||
+        url.split('/').slice(-2).join('/');
+      return { url, name, data };
     }
-    return { url: u, name: `${u} (unavailable)` };
+    console.warn(`[LabkiPackManager] Repo ${url} failed:`, result.reason);
+    return { url, name: `${url} (unavailable)` };
   });
 }
 
 /**
- * Migrate schema v2 manifest to current app structure.
- * No-op placeholder until schema v2 arrives.
- * @param {Object} manifest
- * @returns {Object}
+ * Placeholder migration: convert schema v2 manifests to the v1 structure.
+ * Extend this function when schema v2 is formalized.
+ *
+ * @param {Object} manifest - Raw v2 manifest.
+ * @returns {Object} - Migrated v1-compatible manifest.
  */
-export function migrateV2(manifest) {
-  // Placeholder migration from hypothetical v2 to v1-compatible structure.
-  // Adjust when schema evolves.
-  return manifest;
-}
-
-/**
- * Normalize a manifest based on its declared schema version.
- * @param {Object} manifest Parsed manifest object
- * @returns {Object} Normalized manifest
- * @throws {Error} If schema version is unknown/missing
- */
-export function normalizeManifest(manifest) {
-  const ver = manifest?._meta?.schemaVersion || manifest?._meta?.schema_version;
-  switch (ver) {
-    case '1.0.0':
-      return manifest;
-    case '2.0.0':
-      return migrateV2(manifest);
-    default:
-      throw new Error(`Unknown schema version ${ver}`);
-  }
-}
-
-
+export function migrateV2(manifest) { return manifest; }
