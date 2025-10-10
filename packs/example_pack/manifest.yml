@@ -1,0 +1,21 @@
+name: Example Pack
+id: example_pack
+version: 0.1.0
+description: Small example pack with a few .wiki pages to demonstrate structure
+contents:
+  - title: Home
+    file: pages/Home.wiki
+  - title: Announcements
+    file: pages/Announcements.wiki
+  - title: Knowledge Base
+    file: pages/Knowledge_Base.wiki
+  - title: Safety & Compliance
+    file: pages/Safety_and_Compliance.wiki
+  - title: Data Management
+    file: pages/Data_Management.wiki
+  - title: Scheduling & Communication
+    file: pages/Scheduling_and_Communication.wiki
+  - title: Professional Development
+    file: pages/Professional_Development.wiki
+  - title: Lab Culture
+    file: pages/Lab_Culture.wiki

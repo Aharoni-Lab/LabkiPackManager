@@ -1,0 +1,12 @@
+= Data Management =
+
+- Data management plan
+  - Naming conventions
+  - Backups
+  - Retention
+- Shared server / cluster access info
+- GitHub / Code repositories
+- Common analysis pipelines (Python, MATLAB)
+- Cloud storage policies (Google Drive, Box)
+
+[[Category:Example]]
