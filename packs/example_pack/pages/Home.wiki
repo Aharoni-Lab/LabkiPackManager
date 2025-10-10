@@ -1,0 +1,18 @@
+= Example Pack Home =
+
+This is an example pack for LabkiPackManager.
+
+== Overview ==
+- Demonstrates pack manifest and .wiki pages
+- Contains a home page and topic pages
+
+== Quick links ==
+* [[Announcements]]
+* [[Knowledge Base]]
+* [[Safety & Compliance]]
+* [[Data Management]]
+* [[Scheduling & Communication]]
+* [[Professional Development]]
+* [[Lab Culture]]
+
+[[Category:Example]]

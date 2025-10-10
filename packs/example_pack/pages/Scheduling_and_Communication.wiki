@@ -1,0 +1,10 @@
+= Scheduling & Communication =
+
+- Lab meeting schedule
+- Journal club / seminar schedule
+- Internal communication guidelines
+  - Slack
+  - Teams
+  - Email norms
+
+[[Category:Example]]

@@ -1,0 +1,23 @@
+= Knowledge Base =
+
+- General protocols
+- Project-specific protocols
+- Safety SOPs
+  - Chemical
+  - Animal
+  - Biosafety
+- "How to" guides
+  - Ordering
+  - Poster printing
+  - IT issues
+  - Troubleshooting
+- Institutional resources
+  - Library
+  - Core facilities
+  - HR
+- FAQs
+  - Travel reimbursements
+  - Account setup
+  - Data access
+
+[[Category:Example]]
