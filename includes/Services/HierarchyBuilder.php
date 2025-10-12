@@ -5,70 +5,13 @@ declare(strict_types=1);
 namespace LabkiPackManager\Services;
 
 /**
- * HierarchyBuilder
+ * HierarchyBuilder (Memory-Optimized)
  *
- * Builds a fully connected hierarchical view model of packs and pages
- * from normalized manifest data. This structure powers both
- * visualization (nested pack tree) and dependency-aware operations
- * in the front-end.
+ * Builds a hierarchical view model of packs and pages from normalized manifest data.
+ * Identical logical structure to the full version but stores only ID references
+ * inside each pack’s `children` list to minimize memory and JSON output size.
  *
- * ## Input
- * The input is an array of normalized packs, e.g.:
- *
- * ```php
- * [
- *   [
- *     'id'          => 'lab-operations',
- *     'description' => 'Basic lab SOPs',
- *     'version'     => '1.0.0',
- *     'pages'       => ['Safety', 'Storage'],
- *     'depends_on'  => ['core'],
- *   ],
- *   [
- *     'id'          => 'core',
- *     'description' => 'Core templates',
- *     'version'     => '1.0.0',
- *     'pages'       => ['Template_Page'],
- *     'depends_on'  => [],
- *   ]
- * ]
- * ```
- *
- * ## Output
- * Returns a structured array containing:
- *
- * ```php
- * [
- *   'tree' => [ ... ],     // Nested hierarchy of packs → dependencies → pages
- *   'nodes' => [           // Flat map of every pack/page for quick lookup
- *     'pack:core' => [
- *       'type'         => 'pack',
- *       'id'           => 'pack:core',
- *       'description'  => 'Core templates',
- *       'version'      => '1.0.0',
- *       'depends_on'   => [],
- *       'depended_by'  => ['lab-operations'],
- *       'pages'        => ['Template_Page'],
- *       'parent'       => null,
- *       'packsBeneath' => 0,
- *       'pagesBeneath' => 1
- *     ],
- *     'page:Template_Page' => [
- *       'type'   => 'page',
- *       'id'     => 'page:Template_Page',
- *       'parent' => 'pack:core'
- *     ],
- *     ...
- *   ],
- *   'roots'      => ['pack:lab-operations', ...],
- *   'packCount'  => 2,
- *   'pageCount'  => 3
- * ]
- * ```
- *
- * Each pack node now includes explicit dependency, reverse-dependency,
- * and parent relationships to allow efficient traversal or visualization
- * on the front-end without additional computation.
+ * Complexity: O(N + E)
  */
 final class HierarchyBuilder {
 
@@ -79,7 +22,9 @@ final class HierarchyBuilder {
      * @return array<string,mixed>
      */
     public function buildViewModel(array $packs): array {
-        // Normalize packs by ID
+        // ----------------------------------------------------------
+        // 1. Normalize packs by ID
+        // ----------------------------------------------------------
         $byId = [];
         foreach ($packs as $p) {
             $id = (string)($p['id'] ?? '');
@@ -94,16 +39,23 @@ final class HierarchyBuilder {
             ];
         }
 
-        // Build reverse dependency map: dep -> [parents...]
+        // ----------------------------------------------------------
+        // 2. Build reverse dependency map
+        // ----------------------------------------------------------
         $dependedBy = [];
         foreach ($packs as $p) {
             $pid = (string)($p['id'] ?? '');
             foreach (($p['depends_on'] ?? []) as $dep) {
+                if ($dep === '' || !isset($byId[$dep])) {
+                    continue;
+                }
                 $dependedBy[$dep][] = $pid;
             }
         }
 
-        // Identify root packs (not depended on by any other pack)
+        // ----------------------------------------------------------
+        // 3. Identify roots
+        // ----------------------------------------------------------
         $roots = [];
         foreach ($byId as $id => $_) {
             if (!isset($dependedBy[$id])) {
@@ -111,23 +63,26 @@ final class HierarchyBuilder {
             }
         }
 
-        // Initialize accumulators
+        // ----------------------------------------------------------
+        // 4. Initialize accumulators
+        // ----------------------------------------------------------
         $nodes = [];
         $seenPages = [];
         $visited = [];
+        $cache = [];
 
         /**
-         * Recursively build a pack node and its dependencies.
+         * Recursively build a pack node and cache it.
          *
          * @param string $packId
          * @param string|null $parentId
          * @return array<string,mixed>
          */
         $buildNode = function (string $packId, ?string $parentId = null)
-            use (&$buildNode, $byId, &$nodes, &$seenPages, &$visited, &$dependedBy): array
+            use (&$buildNode, &$cache, &$byId, &$nodes, &$seenPages, &$visited, &$dependedBy): array
         {
             if (isset($visited[$packId])) {
-                // Prevent cycles
+                // cycle stub
                 return [
                     'type' => 'pack',
                     'id' => $packId,
@@ -137,39 +92,43 @@ final class HierarchyBuilder {
                 ];
             }
 
+            if (isset($cache[$packId])) {
+                // shallow clone with new parent reference
+                $cached = $cache[$packId];
+                $cached['parent'] = $parentId;
+                return $cached;
+            }
+
             $visited[$packId] = true;
             $pack = $byId[$packId] ?? null;
             if (!$pack) {
+                unset($visited[$packId]);
                 return [];
             }
 
-            $packChildren = [];
+            // --- Build dependency references only (no deep copies) ---
             $packsBeneath = 0;
             $pagesBeneath = 0;
+            $childRefs = [];
 
-            // Recursively include dependency packs
-            foreach (($pack['depends_on'] ?? []) as $childId) {
-                if (!isset($byId[$childId])) {
+            foreach (($pack['depends_on'] ?? []) as $depId) {
+                if (!isset($byId[$depId])) {
                     continue;
                 }
-                $childVm = $buildNode($childId, $packId);
-                $packChildren[] = $childVm;
+                $childVm = $buildNode($depId, $packId);
+                $childRefs[] = ['type' => 'pack', 'id' => $depId];
                 $packsBeneath += 1 + ($childVm['packsBeneath'] ?? 0);
                 $pagesBeneath += $childVm['pagesBeneath'] ?? 0;
             }
 
-            // Add own pages
-            $pageChildren = [];
+            // --- Add page refs ---
             foreach (($pack['pages'] ?? []) as $pg) {
-                $pageChildren[] = [
-                    'type' => 'page',
-                    'id'   => (string)$pg
-                ];
+                $childRefs[] = ['type' => 'page', 'id' => (string)$pg];
                 $seenPages[$pg] = true;
                 $pagesBeneath++;
             }
 
-            // Construct full pack node
+            // --- Pack node (hierarchical reference only) ---
             $node = [
                 'type'         => 'pack',
                 'id'           => $packId,
@@ -180,10 +139,10 @@ final class HierarchyBuilder {
                 'parent'       => $parentId,
                 'packsBeneath' => $packsBeneath,
                 'pagesBeneath' => $pagesBeneath,
-                'children'     => array_merge($packChildren, $pageChildren)
+                'children'     => $childRefs     // <-- only {type,id} entries
             ];
 
-            // Flat registry entry for packs
+            // --- Flat registry for pack ---
             $nodes['pack:' . $packId] = [
                 'type'         => 'pack',
                 'id'           => 'pack:' . $packId,
@@ -197,20 +156,23 @@ final class HierarchyBuilder {
                 'pagesBeneath' => $pagesBeneath
             ];
 
-            // Flat registry entries for pages
-            foreach ($pageChildren as $pc) {
-                $nodes['page:' . $pc['id']] = [
+            // --- Flat registry entries for pages ---
+            foreach (($pack['pages'] ?? []) as $pg) {
+                $nodes['page:' . $pg] = [
                     'type'   => 'page',
-                    'id'     => 'page:' . $pc['id'],
+                    'id'     => 'page:' . $pg,
                     'parent' => 'pack:' . $packId
                 ];
             }
 
+            $cache[$packId] = $node;
             unset($visited[$packId]);
             return $node;
         };
 
-        // Build tree starting from root packs
+        // ----------------------------------------------------------
+        // 5. Build hierarchy from roots
+        // ----------------------------------------------------------
         $tree = [];
         foreach ($roots as $rid) {
             $vm = $buildNode($rid, null);
@@ -219,6 +181,9 @@ final class HierarchyBuilder {
             }
         }
 
+        // ----------------------------------------------------------
+        // 6. Return assembled structure
+        // ----------------------------------------------------------
         return [
             'tree'       => $tree,
             'nodes'      => $nodes,

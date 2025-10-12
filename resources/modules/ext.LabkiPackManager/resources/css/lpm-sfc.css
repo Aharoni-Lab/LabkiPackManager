@@ -14,58 +14,33 @@
 }
 
 
-/* ----------------- Layout ----------------- */
 .lpm-tree[data-v-4b584986] { overflow-x: auto;
 }
-.lpm-tree-table[data-v-4b584986] {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 0.5rem;
+.lpm-tree-table[data-v-4b584986] { width: 100%; border-collapse: collapse; margin-top: 0.5rem;
 }
-.lpm-tree-table th[data-v-4b584986],
-.lpm-tree-table td[data-v-4b584986] {
+.lpm-tree-table th[data-v-4b584986], .lpm-tree-table td[data-v-4b584986] {
   padding: 0.4rem 0.6rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color, #ddd);
   vertical-align: middle;
 }
-
-/* ----------------- Row styling ----------------- */
 .pack-row[data-v-4b584986] { background-color: hsl(0 0% 98%);
 }
 .page-row[data-v-4b584986] { background-color: hsl(0 0% 100%);
 }
-.pack-row[data-v-4b584986]:nth-child(even) { background-color: hsl(0 0% 97%);
+.lpm-indent[data-v-4b584986] { transition: padding-left 0.15s ease;
 }
-
-/* Indentation */
-.lpm-indent[data-v-4b584986] {
-  transition: padding-left 0.15s ease;
+.page-row .lpm-indent[data-v-4b584986] { font-style: italic;
 }
-.page-row .lpm-indent[data-v-4b584986] {
-  font-style: italic;
+.lpm-caret[data-v-4b584986] { background: none; border: none; cursor: pointer; margin-right: 0.4rem; display: inline-flex; align-items: center;
 }
-
-/* Caret toggle */
-.lpm-caret[data-v-4b584986] {
-  background: none;
-  border: none;
-  cursor: pointer;
-  margin-right: 0.4rem;
-  display: inline-flex;
-  align-items: center;
-}
-
-/* Status indicators */
 .lpm-status-cell[data-v-4b584986] { white-space: nowrap;
 }
 .lpm-status-included[data-v-4b584986] { color: var(--included-color, #16a34a); margin-right: 6px;
 }
 .lpm-status-warning[data-v-4b584986] { color: var(--warning-color, #d97706);
 }
-
-/* Visual feedback for pack rows */
-.lpm-row-ok[data-v-4b584986]   { background-color: hsla(120, 40%, 90%, 0.4);
+.lpm-row-ok[data-v-4b584986] { background-color: hsla(120, 40%, 90%, 0.4);
 }
 .lpm-row-warn[data-v-4b584986] { background-color: hsla(40, 90%, 90%, 0.5);
 }

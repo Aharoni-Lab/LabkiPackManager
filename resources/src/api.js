@@ -48,7 +48,9 @@ export async function fetchManifestFor(repoUrl, refresh = false) {
   try {
     res = await fetch(url, { credentials: 'same-origin' });
   } catch (networkError) {
-    throw new Error(`Network error fetching manifest for ${repoUrl}: ${networkError}`);
+    throw new Error(
+      `Network error fetching manifest for ${repoUrl}: ${networkError}`
+    );
   }
 
   if (!res.ok) {
@@ -62,7 +64,7 @@ export async function fetchManifestFor(repoUrl, refresh = false) {
     throw new Error(`Invalid JSON from ${repoUrl}: ${parseError}`);
   }
 
-  // Allow either { labkiManifest: { ... } } or raw manifest.
+  // Allow either { labkiManifest: { ... } } or raw manifest
   return json.labkiManifest || json;
 }
 
@@ -86,19 +88,25 @@ export async function fetchRepos() {
     urls.map((url) => fetchManifestFor(url, false))
   );
 
-  return urls.map((url, i) => {
-    const result = results[i];
-    if (result.status === 'fulfilled' && result.value) {
-      const data = result.value;
+  const repos = [];
+  results.forEach((res, i) => {
+    const url = urls[i];
+    if (res.status === 'fulfilled' && res.value) {
+      const data = res.value;
       const name =
         data?._meta?.repoName ||
         data?.manifest?.name ||
         url.split('/').slice(-2).join('/');
-      return { url, name, data };
+      repos.push({ url, name, data });
+    } else {
+      console.warn(
+        `[LabkiPackManager] Repo ${url} failed:`,
+        res.reason instanceof Error ? res.reason.message : res.reason
+      );
     }
-    console.warn(`[LabkiPackManager] Repo ${url} failed:`, result.reason);
-    return { url, name: `${url} (unavailable)` };
   });
+
+  return repos;
 }
 
 /**
@@ -108,4 +116,6 @@ export async function fetchRepos() {
  * @param {Object} manifest - Raw v2 manifest.
  * @returns {Object} - Migrated v1-compatible manifest.
  */
-export function migrateV2(manifest) { return manifest; }
+export function migrateV2(manifest) {
+  return manifest;
+}

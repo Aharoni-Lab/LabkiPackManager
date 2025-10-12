@@ -4,11 +4,11 @@
       <table class="lpm-tree-table" role="treegrid">
         <thead>
           <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Select</th>
-            <th scope="col">Prefix / Rename</th>
-            <th scope="col">Final Name</th>
-            <th scope="col">Status</th>
+            <th>Name</th>
+            <th>Select</th>
+            <th>Prefix / Rename</th>
+            <th>Final Name</th>
+            <th>Status</th>
           </tr>
         </thead>
 
@@ -21,9 +21,7 @@
 
         <!-- Fallback message -->
         <tbody v-else>
-          <tr>
-            <td colspan="5"><em>No data loaded.</em></td>
-          </tr>
+          <tr><td colspan="5"><em>No data loaded.</em></td></tr>
         </tbody>
       </table>
     </div>
@@ -32,28 +30,22 @@
 
 <script>
 /**
- * LpmTree.vue
- * -------------------------
- * Recursive hierarchical pack/page selection UI for Labki Pack Manager.
- * Features:
- *   - Expandable tree of packs (with nested packs + pages)
- *   - Prefix/rename editing with real-time title collision checks
- *   - Dependency propagation across packs
- *   - Visual collision feedback
+ * LpmTree.vue (Optimized)
+ * -----------------------
+ * Recursive hierarchical pack/page selection UI.
+ * Key optimizations:
+ *  - Precomputed index maps for O(1) tree lookups
+ *  - Cached dependency closure (fast BFS)
+ *  - Batched collision reactivity to avoid unnecessary re-renders
  */
 export default {
   name: 'LpmTree',
 
   props: {
-    /** Full manifest hierarchy object from backend (may be null) */
     data: { type: Object, default: null },
-    /** Map: packName → selected (bool) */
     selectedPacks: { type: Object, required: true },
-    /** Map: packName → prefix string */
     prefixes: { type: Object, required: true },
-    /** Map: pack::page → rename string */
     renames: { type: Object, required: true },
-    /** Optional async collision check (title: string) => Promise<boolean> */
     checkTitleExists: { type: Function, default: null }
   },
 
@@ -61,34 +53,75 @@ export default {
 
   data() {
     return {
-      expanded: Object.create(null),      // PackID → expanded state
-      collisions: Object.create(null),    // pageKey → boolean collision
-      _debouncers: Object.create(null),   // key → timeout
-      _collisionVersion: Object.create(null), // version counter to drop stale checks
-      _collisionCache: Object.create(null)    // title → result cache
+      expanded: Object.create(null),
+      collisions: Object.create(null),
+      _debouncers: Object.create(null),
+      _collisionVersion: Object.create(null),
+      _collisionCache: Object.create(null),
+      _pendingCommit: false
     };
   },
 
   computed: {
-    /** Convenience alias for manifest node dictionary */
     nodes() {
       return this.data?.hierarchy?.nodes || {};
     },
-    /** Root-level tree array */
     tree() {
       return this.data?.hierarchy?.tree || [];
+    },
+
+    /**
+     * Precompute structural relationships: packId → child pack IDs
+     * Enables O(1) nested pack lookup in updateSel().
+     */
+    treeIndex() {
+      const map = Object.create(null);
+      const walk = (node) => {
+        if (node.type !== 'pack') return;
+        const pid = node.id.startsWith('pack:') ? node.id : `pack:${node.id}`;
+        map[pid] = [];
+        for (const ch of node.children || []) {
+          if (ch.type === 'pack') {
+            const cid = ch.id.startsWith('pack:') ? ch.id : `pack:${ch.id}`;
+            map[pid].push(cid);
+            // recursive descent
+            const chNode = this.nodes[cid];
+            if (chNode) walk(chNode);
+          }
+        }
+      };
+      for (const root of this.tree) walk(root);
+      return map;
+    },
+    /**
+     * Precompute dependency closure per pack.
+     * Builds a static dependency graph once for fast propagation.
+     */
+    dependencyMap() {
+      const map = Object.create(null);
+      for (const [id, node] of Object.entries(this.nodes)) {
+        if (!id.startsWith('pack:')) continue;
+        const name = id.slice(5);
+        const seen = new Set();
+        const queue = [...(node.depends_on || [])];
+        while (queue.length) {
+          const dep = queue.shift();
+          const depName = dep.startsWith('pack:') ? dep.slice(5) : dep;
+          if (seen.has(depName)) continue;
+          seen.add(depName);
+          const depNode = this.nodes[`pack:${depName}`];
+          if (depNode?.depends_on) queue.push(...depNode.depends_on);
+        }
+        map[name] = [...seen];
+      }
+      return map;
     }
   },
 
-  /**
-   * Provide shared tree context to all recursive LpmPackNode children.
-   * This avoids deeply nested prop chains and ensures consistent reactivity.
-   */
   provide() {
     const self = this;
     return {
       lpmCtx: {
-        // ---- reactive sources ----
         get nodes() { return self.nodes; },
         get tree() { return self.tree; },
         get expanded() { return self.expanded; },
@@ -96,91 +129,53 @@ export default {
         get prefixes() { return self.prefixes; },
         get renames() { return self.renames; },
         get collisions() { return self.collisions; },
+        get treeIndex() { return self.treeIndex; },
+        get dependencyMap() { return self.dependencyMap; },
 
-        // ---- mutation helpers ----
-        updateSelectedPacks: v => self.$emit('update:selectedPacks', v),
-        updatePrefixes: v => self.$emit('update:prefixes', v),
-        updateRenames: v => self.$emit('update:renames', v),
+        updateSelectedPacks: (v) => self.$emit('update:selectedPacks', v),
+        updatePrefixes: (v) => self.$emit('update:prefixes', v),
+        updateRenames: (v) => self.$emit('update:renames', v),
 
-        // ---- utilities ----
-        computeTitle: (pack, page) => self.finalPageTitle(pack, page),
+        computeTitle: (p, pg) => self.finalPageTitle(p, pg),
         debounceCheck: (k, t, d) => self.debounceCheck(k, t, d),
         scheduleRecheck: () => self.scheduleCollisionRecheckForVisible(),
-        sanitizeId: s => String(s).replace(/[^A-Za-z0-9_-]/g, '-')
+        sanitizeId: (s) => String(s).replace(/[^A-Za-z0-9_-]/g, '-')
       }
     };
   },
 
   methods: {
-    /** Generate unique key for a pack/page pair */
-    pageKey(pack, page) {
-      return `${pack}::${page}`;
+    pageKey(p, pg) { return `${p}::${pg}`; },
+    splitNs(t) {
+      const i = t.indexOf(':');
+      return i > 0 ? { ns: t.slice(0, i), base: t.slice(i + 1) } : { ns: '', base: t };
     },
-
-    /** Split "NS:Title" → { ns, base } */
-    splitNs(title) {
-      const i = title.indexOf(':');
-      return i > 0
-        ? { ns: title.slice(0, i), base: title.slice(i + 1) }
-        : { ns: '', base: title };
-    },
-
-    /**
-     * Compute final page title based on prefix + rename + namespace.
-     * @param {string} pack
-     * @param {string} page
-     * @returns {string}
-     */
     finalPageTitle(pack, page) {
       const { ns, base } = this.splitNs(page);
-      const prefix = this.prefixes[pack] || '';
+      const pre = this.prefixes[pack] || '';
       const rename = (this.renames[this.pageKey(pack, page)] || '').trim();
-      const tail = rename || base;
-      return `${ns ? ns + ':' : ''}${prefix}${tail}`;
+      return `${ns ? ns + ':' : ''}${pre}${rename || base}`;
     },
 
-    /**
-     * Trigger collision checks for all visible selected packs' pages.
-     * Uses debounceCheck internally.
-     */
     scheduleCollisionRecheckForVisible() {
       if (!this.checkTitleExists) return;
-      for (const [pack, isSelected] of Object.entries(this.selectedPacks)) {
-        if (!isSelected) continue;
-        const packNode = this.nodes[`pack:${pack}`];
-        const pages = packNode?.pages || [];
-        for (const pageName of pages) {
-          const key = this.pageKey(pack, pageName);
-          this.debounceCheck(key, this.finalPageTitle(pack, pageName));
-        }
+      for (const [pack, sel] of Object.entries(this.selectedPacks)) {
+        if (!sel) continue;
+        const pages = this.nodes[`pack:${pack}`]?.pages || [];
+        for (const p of pages)
+          this.debounceCheck(this.pageKey(pack, p), this.finalPageTitle(pack, p));
       }
     },
 
-    /**
-     * Cached async collision lookup for a title.
-     * @param {string} title
-     * @returns {Promise<boolean>}
-     */
     asyncCheck(title) {
       if (!this.checkTitleExists) return Promise.resolve(false);
-      if (title in this._collisionCache)
-        return Promise.resolve(this._collisionCache[title]);
-      return this.checkTitleExists(title).then(
-        exists => (this._collisionCache[title] = !!exists)
-      );
+      if (title in this._collisionCache) return Promise.resolve(this._collisionCache[title]);
+      return this.checkTitleExists(title).then(r => (this._collisionCache[title] = !!r));
     },
 
-    /**
-     * Debounced collision check per key.
-     * Avoids flooding server while typing prefix/rename.
-     */
     debounceCheck(key, title, delay = 300) {
       if (!this.checkTitleExists) return;
-
-      // clear previous pending run
       if (this._debouncers[key]) clearTimeout(this._debouncers[key]);
-
-      // bump version counter to drop stale async results
       const version = (this._collisionVersion[key] || 0) + 1;
       this._collisionVersion[key] = version;
 
@@ -188,226 +183,142 @@ export default {
         const exists = await this.asyncCheck(title);
         if (this._collisionVersion[key] !== version) return;
         this.collisions[key] = !!exists;
-        // force reactivity
-        this.collisions = { ...this.collisions };
-      };
 
+        // batch collision commits
+        if (!this._pendingCommit) {
+          this._pendingCommit = true;
+          Promise.resolve().then(() => {
+            this.collisions = { ...this.collisions };
+            this._pendingCommit = false;
+          });
+        }
+      };
       delay <= 0 ? run() : (this._debouncers[key] = setTimeout(run, delay));
     }
   },
 
-  /**
-   * Recursive subcomponent representing one pack (and its pages/nested packs).
-   * Defined inline for convenience but could be moved into a separate file.
-   */
   components: {
     LpmPackNode: {
       name: 'lpm-pack-node',
-      props: {
-        node: { type: Object, required: true },
-        depth: { type: Number, default: 0 }
-      },
+      props: { node: { type: Object, required: true }, depth: { type: Number, default: 0 } },
       inject: ['lpmCtx'],
 
       computed: {
-        /** Raw pack name (without "pack:" prefix) */
-        packName() {
-          return this.node.id.startsWith('pack:')
-            ? this.node.id.slice(5)
-            : this.node.id;
-        },
-        packId() {
-          return `pack:${this.packName}`;
-        },
-        isOpen() {
-          return !!this.lpmCtx.expanded[this.packId];
-        },
-        isSelected() {
-          return !!this.lpmCtx.selectedPacks[this.packName];
-        },
-        /** All pages directly under this pack */
-        pages() {
-          return (this.node.children || [])
-            .filter(ch => ch.type === 'page')
-            .map(ch => ch.id);
-        },
-        /** All nested packs directly under this pack */
-        childPacks() {
-          return (this.node.children || []).filter(ch => ch.type === 'pack');
-        }
+        packName() { return this.node.id.startsWith('pack:') ? this.node.id.slice(5) : this.node.id; },
+        packId() { return `pack:${this.packName}`; },
+        isOpen() { return !!this.lpmCtx.expanded[this.packId]; },
+        isSelected() { return !!this.lpmCtx.selectedPacks[this.packName]; },
+        pages() { return (this.node.children || []).filter(c => c.type === 'page').map(c => c.id); },
+        childPacks() { return (this.node.children || []).filter(c => c.type === 'pack'); }
       },
 
       created() {
-        // default to expanded on initial render
-        if (!(this.packId in this.lpmCtx.expanded))
-          this.lpmCtx.expanded[this.packId] = true;
+        if (!(this.packId in this.lpmCtx.expanded)) this.lpmCtx.expanded[this.packId] = true;
       },
 
       methods: {
-        /** Toggle open/closed state for this pack */
-        toggle() {
-          this.lpmCtx.expanded[this.packId] = !this.isOpen;
+        toggle() { this.lpmCtx.expanded[this.packId] = !this.isOpen; },
+
+        computeTitleNow(p, pre, ren) {
+          const i = p.indexOf(':'); const ns = i > 0 ? p.slice(0, i) : ''; const base = i > 0 ? p.slice(i + 1) : p;
+          const tail = (ren || '').trim() || base;
+          return `${ns ? ns + ':' : ''}${pre || ''}${tail}`;
         },
 
-        /** Compute title instantly (used while typing prefix/rename) */
-        computeTitleNow(pageName, prefixOverride, renameOverride) {
-          const { ns, base } = (() => {
-            const i = pageName.indexOf(':');
-            return i > 0
-              ? { ns: pageName.slice(0, i), base: pageName.slice(i + 1) }
-              : { ns: '', base: pageName };
-          })();
-          const rename = (renameOverride || '').trim();
-          const prefix = prefixOverride || '';
-          const tail = rename || base;
-          return `${ns ? ns + ':' : ''}${prefix}${tail}`;
-        },
+        updateSel(v) {
+          const seen = new Set();
+          const queue = [];
 
-        /** Return true if this pack has any descendant page collisions */
-        packHasAnyCollision() {
-          const recurse = node => {
-            if (node.type === 'page') {
-              const key = `${this.packName}::${node.id}`;
-              return this.lpmCtx.collisions[key];
-            }
-            return (node.children || []).some(recurse);
-          };
-          return recurse(this.node);
-        },
+          // add currently selected packs
+          for (const [name, selected] of Object.entries(this.lpmCtx.selectedPacks)) {
+            if (selected) seen.add(name);
+          }
 
-        /** Update pack selection and propagate dependencies */
-        updateSel(selected) {
-          const selectedRoots = Object.entries(this.lpmCtx.selectedPacks)
-            .filter(([, v]) => v)
-            .map(([k]) => k);
+          // normalize this pack name
+          const rootId = this.packName;
+          if (v) seen.add(rootId);
+          else seen.delete(rootId);
 
-          // toggle current pack
-          const idx = selectedRoots.indexOf(this.packName);
-          if (selected && idx === -1) selectedRoots.push(this.packName);
-          if (!selected && idx !== -1) selectedRoots.splice(idx, 1);
-
-          const seen = new Set(selectedRoots);
-          const queue = [...selectedRoots];
-
-          const addNested = pack => {
-            const scan = node => {
-              if (node.type !== 'pack') return false;
-              if (node.id === pack) {
-                for (const ch of node.children || []) {
-                  if (ch.type === 'pack' && !seen.has(ch.id)) {
-                    seen.add(ch.id);
-                    queue.push(ch.id);
-                  }
-                }
-                return true;
-              }
-              return (node.children || []).some(scan);
-            };
-            (this.lpmCtx.tree || []).forEach(scan);
-          };
-
-          // BFS over dependencies + structural nesting
+          // BFS traversal over both dependency and structural edges
+          queue.push(rootId);
           while (queue.length) {
             const cur = queue.shift();
-            addNested(cur);
-            const curNode = this.lpmCtx.nodes[`pack:${cur}`];
-            if (!curNode) continue;
-            for (const dep of curNode.depends_on || []) {
-              const name = dep.startsWith('pack:') ? dep.slice(5) : dep;
-              if (!seen.has(name)) { seen.add(name); queue.push(name); }
+
+            // hierarchical children
+            const childIds = this.lpmCtx.treeIndex[`pack:${cur}`] || [];
+            for (const cid of childIds) {
+              const cname = cid.startsWith('pack:') ? cid.slice(5) : cid;
+              if (!seen.has(cname)) {
+                seen.add(cname);
+                queue.push(cname);
+              }
+            }
+
+            // dependency children
+            const deps = this.lpmCtx.dependencyMap[cur] || [];
+            for (const dep of deps) {
+              if (!seen.has(dep)) {
+                seen.add(dep);
+                queue.push(dep);
+              }
             }
           }
 
-          // emit next selection map
+          // build next selection map
           const next = {};
-          for (const name of seen) next[name] = true;
+          for (const n of seen) next[n] = true;
           this.lpmCtx.updateSelectedPacks(next);
           this.lpmCtx.scheduleRecheck();
         },
 
-        /** Update prefix + trigger live collision checks */
-        updatePrefix(prefix) {
-          const next = { ...this.lpmCtx.prefixes, [this.packName]: prefix };
+        updatePrefix(v) {
+          const next = { ...this.lpmCtx.prefixes, [this.packName]: v };
           this.lpmCtx.updatePrefixes(next);
-
-          // immediate revalidation of visible pages
           for (const p of this.pages) {
-            const key = `${this.packName}::${p}`;
-            const rename = this.lpmCtx.renames[key] || '';
-            const title = this.computeTitleNow(p, prefix, rename);
-            this.lpmCtx.debounceCheck(key, title, 0);
+            const k = `${this.packName}::${p}`;
+            const ren = this.lpmCtx.renames[k] || '';
+            const title = this.computeTitleNow(p, v, ren);
+            this.lpmCtx.debounceCheck(k, title, 0);
           }
         },
 
-        /** Update rename + trigger live collision checks */
-        updateRename(page, rename) {
-          const key = `${this.packName}::${page}`;
-          const next = { ...this.lpmCtx.renames, [key]: rename };
+        updateRename(p, v) {
+          const k = `${this.packName}::${p}`;
+          const next = { ...this.lpmCtx.renames, [k]: v };
           this.lpmCtx.updateRenames(next);
-
-          const prefix = this.lpmCtx.prefixes[this.packName] || '';
-          const title = this.computeTitleNow(page, prefix, rename);
-          this.lpmCtx.debounceCheck(key, title, 0);
+          const pre = this.lpmCtx.prefixes[this.packName] || '';
+          const t = this.computeTitleNow(p, pre, v);
+          this.lpmCtx.debounceCheck(k, t, 0);
         },
 
-        /** Final computed title for rendering */
-        final(page) {
-          return this.lpmCtx.computeTitle(this.packName, page);
-        },
-
-        /** True if a given page collides */
-        collide(page) {
-          return !!this.lpmCtx.collisions[`${this.packName}::${page}`];
-        }
+        final(p) { return this.lpmCtx.computeTitle(this.packName, p); },
+        collide(p) { return !!this.lpmCtx.collisions[`${this.packName}::${p}`]; }
       },
 
-      /** Recursive template for packs + pages */
       template: `
-        <!-- pack row -->
         <tr class="pack-row">
           <td class="lpm-indent" :style="{ paddingLeft: (depth * 1.75) + 'em' }">
-            <button class="lpm-caret" @click="toggle" :aria-expanded="isOpen.toString()">
-              {{ isOpen ? '▼' : '▶' }}
-            </button>
+            <button class="lpm-caret" @click="toggle">{{ isOpen ? '▼' : '▶' }}</button>
             <strong>{{ packName }}</strong>
           </td>
           <td>
-            <cdx-checkbox
-              :model-value="isSelected"
-              :aria-label="'Select pack ' + packName"
-              @update:model-value="updateSel"
-            />
+            <cdx-checkbox :model-value="isSelected" @update:model-value="updateSel" />
           </td>
           <td>
-            <cdx-text-input
-              :model-value="lpmCtx.prefixes[packName]"
-              placeholder="prefix"
-              aria-label="Prefix"
-              @update:model-value="updatePrefix"
-            />
+            <cdx-text-input :model-value="lpmCtx.prefixes[packName]" placeholder="prefix"
+              @update:model-value="updatePrefix" />
           </td>
           <td></td><td></td>
         </tr>
 
-        <!-- children -->
         <template v-if="isOpen">
-          <!-- pages -->
-          <tr
-            v-for="p in pages"
-            :key="packName + '::' + p"
-            :class="['page-row', { 'lpm-row-ok': isSelected && !collide(p), 'lpm-row-warn': isSelected && collide(p) }]"
-          >
-            <td class="lpm-indent lpm-cell-pad-left" :style="{ paddingLeft: ((depth + 1) * 1.75) + 'em' }">
-              {{ p }}
-            </td>
+          <tr v-for="p in pages" :key="packName + '::' + p"
+              :class="['page-row', { 'lpm-row-ok': isSelected && !collide(p), 'lpm-row-warn': isSelected && collide(p) }]">
+            <td class="lpm-indent lpm-cell-pad-left" :style="{ paddingLeft: ((depth + 1) * 1.75) + 'em' }">{{ p }}</td>
             <td></td>
             <td>
-              <cdx-text-input
-                :model-value="lpmCtx.renames[packName + '::' + p]"
-                placeholder="rename"
-                aria-label="Rename page"
-                @update:model-value="v => updateRename(p, v)"
-              />
+              <cdx-text-input :model-value="lpmCtx.renames[packName + '::' + p]" placeholder="rename"
+                @update:model-value="v => updateRename(p, v)" />
             </td>
             <td>{{ final(p) }}</td>
             <td class="lpm-status-cell">
@@ -416,13 +327,7 @@ export default {
             </td>
           </tr>
 
-          <!-- nested packs -->
-          <lpm-pack-node
-            v-for="child in childPacks"
-            :key="child.id"
-            :node="child"
-            :depth="depth + 1"
-          />
+          <lpm-pack-node v-for="child in childPacks" :key="child.id" :node="child" :depth="depth + 1" />
         </template>
       `
     }
@@ -431,51 +336,22 @@ export default {
 </script>
 
 <style scoped>
-/* ----------------- Layout ----------------- */
 .lpm-tree { overflow-x: auto; }
-.lpm-tree-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 0.5rem;
-}
-
-.lpm-tree-table th,
-.lpm-tree-table td {
+.lpm-tree-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+.lpm-tree-table th, .lpm-tree-table td {
   padding: 0.4rem 0.6rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color, #ddd);
   vertical-align: middle;
 }
-
-/* ----------------- Row styling ----------------- */
 .pack-row { background-color: hsl(0 0% 98%); }
 .page-row { background-color: hsl(0 0% 100%); }
-.pack-row:nth-child(even) { background-color: hsl(0 0% 97%); }
-
-/* Indentation */
-.lpm-indent {
-  transition: padding-left 0.15s ease;
-}
-.page-row .lpm-indent {
-  font-style: italic;
-}
-
-/* Caret toggle */
-.lpm-caret {
-  background: none;
-  border: none;
-  cursor: pointer;
-  margin-right: 0.4rem;
-  display: inline-flex;
-  align-items: center;
-}
-
-/* Status indicators */
+.lpm-indent { transition: padding-left 0.15s ease; }
+.page-row .lpm-indent { font-style: italic; }
+.lpm-caret { background: none; border: none; cursor: pointer; margin-right: 0.4rem; display: inline-flex; align-items: center; }
 .lpm-status-cell { white-space: nowrap; }
 .lpm-status-included { color: var(--included-color, #16a34a); margin-right: 6px; }
 .lpm-status-warning { color: var(--warning-color, #d97706); }
-
-/* Visual feedback for pack rows */
-.lpm-row-ok   { background-color: hsla(120, 40%, 90%, 0.4); }
+.lpm-row-ok { background-color: hsla(120, 40%, 90%, 0.4); }
 .lpm-row-warn { background-color: hsla(40, 90%, 90%, 0.5); }
 </style>
