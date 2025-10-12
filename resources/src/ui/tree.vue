@@ -187,13 +187,6 @@ export default {
     };
   },
 
-  created() {
-    for (const [name, val] of Object.entries(this.selectedPacks || {})) {
-      if (val) this.explicitSelectedPacks[name] = true;
-    }
-    this.recomputeSelectedFromExplicit();
-  },
-
   computed: {
     nodes() {
       return this.data?.hierarchy?.nodes || {};
@@ -245,6 +238,13 @@ export default {
       }
       return map;
     }
+  },
+
+  created() {
+    for (const [name, val] of Object.entries(this.selectedPacks || {})) {
+      if (val) this.explicitSelectedPacks[name] = true;
+    }
+    this.recomputeSelectedFromExplicit();
   },
 
   methods: {

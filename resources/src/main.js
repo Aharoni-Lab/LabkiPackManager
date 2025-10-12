@@ -34,7 +34,7 @@ function ensureMermaidConfigured() {
       mermaidConfigured = true;
       return true;
     }
-  } catch (e) {
+  } catch {
     // swallow; we'll skip rendering if not ready
   }
   return false;
