@@ -65,6 +65,7 @@ $border-radius-base: var(--border-radius-base, 4px);
 // ------------------------------------------------------------
 .lpm-row-graph {
   margin-top: 1rem;
+  width: 100%;
 }
 
 .lpm-graph {
@@ -74,6 +75,19 @@ $border-radius-base: var(--border-radius-base, 4px);
   border-radius: $border-radius-base;
   padding: 0.5rem;
   overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
+
+  // Make Mermaid content span available width
+  .mermaid {
+    display: block;
+    width: 100%;
+  }
+
+  svg {
+    width: 100% !important; // let it scale to container
+    height: auto !important;
+  }
 
   svg .hovered {
     rect,
@@ -90,10 +104,14 @@ $border-radius-base: var(--border-radius-base, 4px);
 // ------------------------------------------------------------
 .lpm-row-tree {
   margin-top: 1rem;
+  width: 100%;
+  align-items: stretch;
 }
 
 .lpm-tree {
   overflow-x: auto;
+  flex: 1 1 100%;
+  width: 100%;
 
   &-table {
     width: 100%;
@@ -122,7 +140,26 @@ $border-radius-base: var(--border-radius-base, 4px);
 }
 
 .page-row:hover {
-  background-color: $background-color-neutral;
+  background-color: inherit; // preserve status color
+}
+.pack-row:hover {
+  background-color: inherit; // preserve status color
+}
+
+// Row-level highlighting for page status
+.lpm-row-ok {
+  background-color: rgba(22, 163, 74, 0.12);
+  transition: background-color 120ms ease-in-out;
+}
+.lpm-row-ok:hover {
+  background-color: rgba(22, 163, 74, 0.18);
+}
+.lpm-row-warn {
+  background-color: rgba(217, 119, 6, 0.14);
+  transition: background-color 120ms ease-in-out;
+}
+.lpm-row-warn:hover {
+  background-color: rgba(217, 119, 6, 0.20);
 }
 
 .lpm-cell-pad-left {

@@ -13,7 +13,32 @@ import { MSG_TYPES } from './constants.js';
 // External libs
 import * as Vue from 'vue';
 import * as Codex from '@wikimedia/codex';
+import mermaid from 'mermaid';
+import { buildMermaidFromGraph } from './mermaidBuilder.js';
 import './styles/labkipackmanager.scss';
+// ------------------------------------------------------------
+// Mermaid configuration (guarded, on-demand)
+// ------------------------------------------------------------
+let mermaidConfigured = false;
+function ensureMermaidConfigured() {
+  if (mermaidConfigured) return true;
+  try {
+    const api = mermaid && (mermaid.default?.initialize ? mermaid.default : mermaid);
+    if (api && typeof api.initialize === 'function') {
+      api.initialize({
+        startOnLoad: false,
+        theme: 'neutral',
+        securityLevel: 'loose',
+        fontFamily: 'Inter, system-ui, sans-serif'
+      });
+      mermaidConfigured = true;
+      return true;
+    }
+  } catch {
+    // swallow; we'll skip rendering if not ready
+  }
+  return false;
+}
 
 // Root UI components
 import LpmToolbar from './ui/toolbar.vue';
@@ -41,14 +66,8 @@ function pretty(obj) {
  */
 export function mountApp(rootSelector = '#labki-pack-manager-root') {
   const app = Vue.createApp({
-    /**
-     * Root application template – renders composed components.
-     */
     template: '<lpm-root />',
 
-    /**
-     * Application state (see state.js for structure)
-     */
     data() {
       return createInitialState();
     },
@@ -91,15 +110,24 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         try {
           let manifest = repo?.data;
 
-          // If not cached, fetch from API
           if (!manifest) {
             this.pushMessage(MSG_TYPES.INFO, `Loading manifest for ${this.activeRepo}...`);
             manifest = await fetchManifestFor(this.activeRepo, false);
           }
 
-          // Backend returns wrapper { manifest, hierarchy, graph } → unwrap here
-          this.data = manifest && manifest.manifest ? manifest.manifest : manifest;
+          // Backend returns wrapper { manifest, hierarchy, graph }
+          this.data =
+            manifest && (manifest.hierarchy || manifest.manifest)
+              ? manifest
+              : { hierarchy: null };
+
           if (repo) repo.data = manifest;
+
+          // Render Mermaid graph if available (after DOM updates settle)
+          if (this.data?.graph) {
+            await this.$nextTick();
+            await this.renderMermaidGraph(this.data.graph);
+          }
 
           this.pushMessage(
             MSG_TYPES.SUCCESS,
@@ -127,9 +155,15 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
         try {
           const data = await fetchManifestFor(this.activeRepo, true);
-          this.data = data && data.manifest ? data.manifest : data;
+          this.data = data && (data.hierarchy || data.manifest) ? data : { hierarchy: null };
           const repo = this.repos.find(r => r.url === this.activeRepo);
           if (repo) repo.data = data;
+
+          // Render Mermaid graph if available (after DOM updates settle)
+          if (this.data?.graph) {
+            await this.$nextTick();
+            await this.renderMermaidGraph(this.data.graph);
+          }
 
           this.pushMessage(
             MSG_TYPES.SUCCESS,
@@ -143,23 +177,55 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /** Generate a unique key for pack+page combos. */
-      pageKey(pack, page) {
-        return `${pack.name}::${page.name}`;
+      /**
+       * Lightweight API helper that checks if a page exists in the wiki.
+       * Returns true if the page exists, false otherwise.
+       * (Used by LpmTree for live collision detection.)
+       */
+      async checkTitleExists(title) {
+        try {
+          const api = new mw.Api();
+          const res = await api.get({
+            action: 'labkiPageExists', // planned API module
+            format: 'json',
+            formatversion: '2',
+            title
+          });
+          // Response: { labkiPageExists: { exists: boolean } }
+          return Boolean(res && res.labkiPageExists && res.labkiPageExists.exists);
+        } catch (err) {
+          console.warn('[LabkiPackManager] checkTitleExists failed:', err);
+          return false;
+        }
       },
 
-      /** Compute the final display name for a page after rename override. */
-      finalName(pack, page) {
-        const key = this.pageKey(pack, page);
-        const rename = this.renames[key];
-        return rename?.trim() || page.name;
+      /**
+       * Render a Mermaid graph into the #lpm-graph container.
+       */
+      async renderMermaidGraph(graph) {
+        try {
+          const code = buildMermaidFromGraph(graph);
+          const container = document.getElementById('lpm-graph');
+          if (!container) return;
+          // Defer to ensure Vue finished patching
+          await new Promise(r => requestAnimationFrame(() => r()));
+          container.innerHTML = '';
+          const el = document.createElement('div');
+          el.className = 'mermaid';
+          el.textContent = code; // Important: plain text, not innerHTML
+          container.appendChild(el);
+          if (!ensureMermaidConfigured()) return;
+          const api = mermaid && (mermaid.default?.run ? mermaid.default : mermaid);
+          if (api && typeof api.run === 'function') {
+            await api.run({ nodes: [el] });
+          }
+        } catch (err) {
+          console.error('[LabkiPackManager] Mermaid render failed:', err);
+        }
       },
 
       /**
        * Push a message to the UI message stack.
-       * @param {string} type - One of MSG_TYPES
-       * @param {string} text - Display text
-       * @param {number} [timeout=5000] - Auto-dismiss timeout (ms)
        */
       pushMessage(type, text, timeout = 5000) {
         const id = this.nextMsgId++;
@@ -169,37 +235,29 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /** Remove a message by ID. */
       dismissMessage(id) {
         this.messages = this.messages.filter(m => m.id !== id);
       },
 
-      /** Show import confirmation dialog. */
       confirmImport() {
         this.showImportConfirm = true;
       },
 
-      /** Show update confirmation dialog. */
       confirmUpdate() {
         this.showUpdateConfirm = true;
       },
 
-      /** Execute import operation (placeholder). */
       doImport() {
         this.showImportConfirm = false;
         this.pushMessage(MSG_TYPES.SUCCESS, 'Import triggered.');
       },
 
-      /** Execute update operation (placeholder). */
       doUpdate() {
         this.showUpdateConfirm = false;
         this.pushMessage(MSG_TYPES.SUCCESS, 'Update triggered.');
       }
     },
 
-    /**
-     * On mount: initialize available repositories.
-     */
     async mounted() {
       await this.initRepos();
     }
@@ -209,7 +267,6 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
   // Register Codex Components
   // ------------------------------------------------------------
   function toKebabFromCdx(name) {
-    // CdxTextInput -> cdx-text-input, CdxButton -> cdx-button
     return name
       .replace(/^Cdx/, 'Cdx-')
       .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -240,10 +297,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         />
 
         <div class="lpm-row lpm-row-graph">
-          <div id="lpm-graph" class="lpm-graph">
-            <pre v-if="$root.data?.graph">{{ $root.pretty($root.data.graph) }}</pre>
-            <p v-else>Graph visualization will appear here.</p>
-          </div>
+          <div id="lpm-graph" class="lpm-graph"></div>
         </div>
 
         <lpm-tree
@@ -252,6 +306,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           :selected-pages="$root.selectedPages"
           :prefixes="$root.prefixes"
           :renames="$root.renames"
+          :check-title-exists="$root.checkTitleExists"
           @update:selectedPacks="val => $root.selectedPacks = val"
           @update:selectedPages="val => $root.selectedPages = val"
           @update:prefixes="val => $root.prefixes = val"

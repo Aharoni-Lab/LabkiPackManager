@@ -4,20 +4,20 @@
     <cdx-select
       id="lpm-repo-select"
       aria-label="Repository selector"
+      class="lpm-toolbar-select"
       :menu-items="repoMenuItems"
       :selected="activeRepo"
       :disabled="isLoadingRepo"
       placeholder="Select a content repository…"
       @update:selected="$emit('update:activeRepo', $event)"
-      class="lpm-toolbar-select"
     />
 
     <!-- Load button -->
     <cdx-button
       appearance="primary"
       :disabled="isLoadingRepo || !hasActiveRepo"
-      @click="$emit('load')"
       class="lpm-toolbar-btn"
+      @click="$emit('load')"
     >
       <template v-if="isLoadingRepo">
         <span aria-busy="true" aria-live="polite">Loading…</span>
@@ -29,8 +29,8 @@
     <cdx-button
       appearance="quiet"
       :disabled="isRefreshing || !hasActiveRepo"
-      @click="$emit('refresh')"
       class="lpm-toolbar-btn"
+      @click="$emit('refresh')"
     >
       <template v-if="isRefreshing">
         <span aria-busy="true" aria-live="polite">Refreshing…</span>

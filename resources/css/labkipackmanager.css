@@ -34,6 +34,7 @@
 
 .lpm-row-graph {
   margin-top: 1rem;
+  width: 100%;
 }
 
 .lpm-graph {
@@ -43,6 +44,16 @@
   border-radius: var(--border-radius-base, 4px);
   padding: 0.5rem;
   overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lpm-graph .mermaid {
+  display: block;
+  width: 100%;
+}
+.lpm-graph svg {
+  width: 100% !important;
+  height: auto !important;
 }
 .lpm-graph svg .hovered rect,
 .lpm-graph svg .hovered path,
@@ -53,10 +64,14 @@
 
 .lpm-row-tree {
   margin-top: 1rem;
+  width: 100%;
+  align-items: stretch;
 }
 
 .lpm-tree {
   overflow-x: auto;
+  flex: 1 1 100%;
+  width: 100%;
 }
 .lpm-tree-table {
   width: 100%;
@@ -82,7 +97,29 @@
 }
 
 .page-row:hover {
-  background-color: var(--background-color-neutral, #f1f2f3);
+  background-color: inherit;
+}
+
+.pack-row:hover {
+  background-color: inherit;
+}
+
+.lpm-row-ok {
+  background-color: rgba(22, 163, 74, 0.12);
+  transition: background-color 120ms ease-in-out;
+}
+
+.lpm-row-ok:hover {
+  background-color: rgba(22, 163, 74, 0.18);
+}
+
+.lpm-row-warn {
+  background-color: rgba(217, 119, 6, 0.14);
+  transition: background-color 120ms ease-in-out;
+}
+
+.lpm-row-warn:hover {
+  background-color: rgba(217, 119, 6, 0.2);
 }
 
 .lpm-cell-pad-left {
