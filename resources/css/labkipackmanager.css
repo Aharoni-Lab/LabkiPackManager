@@ -34,6 +34,7 @@
 
 .lpm-row-graph {
   margin-top: 1rem;
+  width: 100%;
 }
 
 .lpm-graph {
@@ -43,6 +44,16 @@
   border-radius: var(--border-radius-base, 4px);
   padding: 0.5rem;
   overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lpm-graph .mermaid {
+  display: block;
+  width: 100%;
+}
+.lpm-graph svg {
+  width: 100% !important;
+  height: auto !important;
 }
 .lpm-graph svg .hovered rect,
 .lpm-graph svg .hovered path,

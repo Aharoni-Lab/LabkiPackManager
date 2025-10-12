@@ -9,13 +9,20 @@
 import { createInitialState } from './state.js';
 import { fetchRepos, fetchManifestFor } from './api.js';
 import { MSG_TYPES } from './constants.js';
+import { buildMermaidFromGraph } from './mermaidBuilder.js';
 
 // External libs
 import * as Vue from 'vue';
 import * as Codex from '@wikimedia/codex';
 import mermaid from 'mermaid';
-import { buildMermaidFromGraph } from './mermaidBuilder.js';
 import './styles/labkipackmanager.scss';
+
+// Root UI components
+import LpmToolbar from './ui/toolbar.vue';
+import LpmTree from './ui/tree.vue';
+import LpmMessages from './ui/messages.vue';
+import LpmDialogs from './ui/dialogs.vue';
+
 // ------------------------------------------------------------
 // Mermaid configuration (guarded, on-demand)
 // ------------------------------------------------------------
@@ -39,12 +46,6 @@ function ensureMermaidConfigured() {
   }
   return false;
 }
-
-// Root UI components
-import LpmToolbar from './ui/toolbar.vue';
-import LpmTree from './ui/tree.vue';
-import LpmMessages from './ui/messages.vue';
-import LpmDialogs from './ui/dialogs.vue';
 
 /**
  * Pretty-print a JSON object for debug or preformatted display.
@@ -99,6 +100,29 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
       },
 
       /**
+       * Render a Mermaid graph into the #lpm-graph container.
+       */
+      async renderMermaidGraph(graph) {
+        try {
+          const code = buildMermaidFromGraph(graph);
+          const container = document.getElementById('lpm-graph');
+          if (!container) return;
+          container.innerHTML = '';
+          const el = document.createElement('div');
+          el.className = 'mermaid';
+          el.textContent = code; // Important: plain text, not innerHTML
+          container.appendChild(el);
+          if (!ensureMermaidConfigured()) return;
+          const api = mermaid && (mermaid.default?.run ? mermaid.default : mermaid);
+          if (api && typeof api.run === 'function') {
+            await api.run({ nodes: [el] });
+          }
+        } catch (err) {
+          console.error('[LabkiPackManager] Mermaid render failed:', err);
+        }
+      },
+
+      /**
        * Load manifest for the selected repository, using cache if available.
        */
       async loadRepo() {
@@ -123,9 +147,8 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
           if (repo) repo.data = manifest;
 
-          // Render Mermaid graph if available (after DOM updates settle)
+          // Render Mermaid graph if available
           if (this.data?.graph) {
-            await this.$nextTick();
             await this.renderMermaidGraph(this.data.graph);
           }
 
@@ -159,9 +182,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           const repo = this.repos.find(r => r.url === this.activeRepo);
           if (repo) repo.data = data;
 
-          // Render Mermaid graph if available (after DOM updates settle)
           if (this.data?.graph) {
-            await this.$nextTick();
             await this.renderMermaidGraph(this.data.graph);
           }
 
@@ -179,48 +200,20 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
       /**
        * Lightweight API helper that checks if a page exists in the wiki.
-       * Returns true if the page exists, false otherwise.
-       * (Used by LpmTree for live collision detection.)
        */
       async checkTitleExists(title) {
         try {
           const api = new mw.Api();
           const res = await api.get({
-            action: 'labkiPageExists', // planned API module
+            action: 'labkiPageExists',
             format: 'json',
             formatversion: '2',
             title
           });
-          // Response: { labkiPageExists: { exists: boolean } }
-          return Boolean(res && res.labkiPageExists && res.labkiPageExists.exists);
+          return Boolean(res?.labkiPageExists?.exists);
         } catch (err) {
           console.warn('[LabkiPackManager] checkTitleExists failed:', err);
           return false;
-        }
-      },
-
-      /**
-       * Render a Mermaid graph into the #lpm-graph container.
-       */
-      async renderMermaidGraph(graph) {
-        try {
-          const code = buildMermaidFromGraph(graph);
-          const container = document.getElementById('lpm-graph');
-          if (!container) return;
-          // Defer to ensure Vue finished patching
-          await new Promise(r => requestAnimationFrame(() => r()));
-          container.innerHTML = '';
-          const el = document.createElement('div');
-          el.className = 'mermaid';
-          el.textContent = code; // Important: plain text, not innerHTML
-          container.appendChild(el);
-          if (!ensureMermaidConfigured()) return;
-          const api = mermaid && (mermaid.default?.run ? mermaid.default : mermaid);
-          if (api && typeof api.run === 'function') {
-            await api.run({ nodes: [el] });
-          }
-        } catch (err) {
-          console.error('[LabkiPackManager] Mermaid render failed:', err);
         }
       },
 
