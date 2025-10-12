@@ -297,9 +297,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         />
 
         <div class="lpm-row lpm-row-graph">
-          <div id="lpm-graph" class="lpm-graph">
-            <p v-if="!$root.data?.graph">Graph visualization will appear here.</p>
-          </div>
+          <div id="lpm-graph" class="lpm-graph"></div>
         </div>
 
         <lpm-tree
