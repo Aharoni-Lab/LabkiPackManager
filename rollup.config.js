@@ -15,11 +15,12 @@ export default {
     sourcemap: true,
     globals: {
       'vue': 'Vue',
-      '@wikimedia/codex': 'Codex'
+      '@wikimedia/codex': 'Codex',
+      'mermaid': 'mermaid'
     },
-    banner: 'var Vue = (typeof mw!=="undefined"&&mw.loader&&mw.loader.require)?mw.loader.require("vue"):window.Vue;\nvar Codex = (typeof mw!=="undefined"&&mw.loader&&mw.loader.require)?mw.loader.require("@wikimedia/codex"):window.Codex;'
+    banner: 'var Vue = (typeof mw!=="undefined"&&mw.loader&&mw.loader.require)?mw.loader.require("vue"):window.Vue;\nvar Codex = (typeof mw!=="undefined"&&mw.loader&&mw.loader.require)?mw.loader.require("@wikimedia/codex"):window.Codex;\nvar mermaid = (function(){ try { if (typeof window!=="undefined" && window.mermaid) return window.mermaid; if (typeof mw!=="undefined"&&mw.loader&&mw.loader.require){ var mod = mw.loader.require("ext.mermaid"); if (mod && typeof mod.initialize === "function") return mod; if (mod && mod.mermaid && typeof mod.mermaid.initialize === "function") return mod.mermaid; if (mod && mod.default && typeof mod.default.initialize === "function") return mod.default; } } catch(e) {} return window.mermaid; })();'
   },
-  external: ['vue', '@wikimedia/codex'],
+  external: ['vue', '@wikimedia/codex', 'mermaid'],
   plugins: [
     // Compile Vue SFCs; extract CSS to a file handled below
     vue({ css: false }),
