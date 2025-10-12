@@ -7,7 +7,8 @@
  */
 
 import { createInitialState } from './state.js';
-import { fetchRepos, fetchManifestFor } from './api.js';
+import { fetchRepos, fetchManifestFor, fetchInstalledFor } from './api.js';
+import { major, compareVersions } from './utils/version.js';
 import { MSG_TYPES } from './constants.js';
 
 // External libs
@@ -122,6 +123,54 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
               : { hierarchy: null };
 
           if (repo) repo.data = manifest;
+
+          // --- Merge installed info for update detection ---
+          try {
+            const installed = await fetchInstalledFor(this.activeRepo);
+            const installedByName = Object.create(null);
+            for (const p of installed) {
+              if (!p || !p.name) continue;
+              installedByName[p.name] = p;
+            }
+
+            const nodes = this.data?.hierarchy?.nodes || {};
+            const selectedPacks = { ...this.selectedPacks };
+            for (const [id, node] of Object.entries(nodes)) {
+              if (!id.startsWith('pack:')) continue;
+              const name = id.slice(5);
+              const installedInfo = installedByName[name];
+              if (!installedInfo) {
+                node.installedVersion = null;
+                node.installStatus = 'new';
+                node.isLocked = false;
+                continue;
+              }
+
+              const curV = String(installedInfo.version || '0.0.0');
+              const nextV = String(node.version || '0.0.0');
+              const cmp = compareVersions(curV, nextV);
+              const sameMajor = major(curV) === major(nextV);
+
+              let status = 'already-installed';
+              if (cmp === 0) status = 'already-installed';
+              else if (sameMajor && cmp < 0) status = 'safe-update';
+              else if (sameMajor && cmp > 0) status = 'downgrade';
+              else status = 'incompatible-update';
+
+              node.installedVersion = curV;
+              node.installStatus = status;
+              node.isLocked = true; // imported packs are locked per requirements
+
+              // Ensure these are selected and not deselectable
+              selectedPacks[name] = true;
+            }
+
+            // Commit selected packs update (tree.vue will mark dependent packs disabled as needed)
+            this.selectedPacks = selectedPacks;
+          } catch (e) {
+            // Non-fatal; continue without installed status
+            console.warn('[LabkiPackManager] Failed to fetch installed packs:', e);
+          }
 
           // Render Mermaid graph if available (after DOM updates settle)
           if (this.data?.graph) {

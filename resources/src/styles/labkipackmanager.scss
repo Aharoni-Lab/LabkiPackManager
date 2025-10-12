@@ -135,6 +135,21 @@ $border-radius-base: var(--border-radius-base, 4px);
   }
 }
 
+// Status cell styling for pack rows
+.status-cell {
+  white-space: nowrap;
+  font-weight: 500;
+}
+.safe-update {
+  color: #059669; // green-600
+}
+.already-installed {
+  color: #6b7280; // gray-500
+}
+.incompatible-update {
+  color: #b91c1c; // red-700
+}
+
 .pack-row {
   background-color: $background-color-neutral-subtle;
 }

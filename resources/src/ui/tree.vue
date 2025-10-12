@@ -42,6 +42,7 @@ export default {
         packLabelId() { return `pack-label-${this.lpmCtx.sanitizeId(this.packName)}`; },
         isOpen() { return !!this.lpmCtx.expanded[this.packId]; },
         isSelected() { return !!this.lpmCtx.selectedPacks[this.packName]; },
+        flatPack() { return this.lpmCtx.nodes[this.packId] || this.node; },
         pages() { return (this.node.children || []).filter(c => c.type === 'page').map(c => c.id); },
         childPacks() { return (this.node.children || []).filter(c => c.type === 'pack'); }
       },
@@ -96,16 +97,32 @@ export default {
             </td>
             <td>
               <cdx-checkbox :model-value="isSelected"
-                            :disabled="lpmCtx.isPackDisabled(packName)"
+                            :disabled="lpmCtx.isPackDisabled(packName) || !!(flatPack && flatPack.isLocked)"
                             :aria-labelledby="packLabelId"
                             @update:model-value="updateSel" />
             </td>
             <td>
               <cdx-text-input :model-value="lpmCtx.prefixes[packName]"
                               placeholder="prefix"
+                              :disabled="!!(flatPack && flatPack.isLocked)"
                               @update:model-value="updatePrefix" />
             </td>
-            <td></td><td></td>
+            <td></td>
+            <td class="status-cell">
+              <span v-if="flatPack && flatPack.installStatus === 'already-installed'" class="already-installed">
+                Installed (v{{ (flatPack && flatPack.installedVersion) || '—' }})
+              </span>
+              <span v-else-if="flatPack && flatPack.installStatus === 'safe-update'" class="safe-update">
+                Updatable: {{ (flatPack && flatPack.installedVersion) || '—' }} → {{ (flatPack && flatPack.version) || '—' }}
+              </span>
+              <span v-else-if="flatPack && flatPack.installStatus === 'incompatible-update'" class="incompatible-update">
+                ⚠ Incompatible: {{ (flatPack && flatPack.installedVersion) || '—' }} → {{ (flatPack && flatPack.version) || '—' }}
+              </span>
+              <span v-else-if="flatPack && flatPack.installStatus === 'downgrade'" class="incompatible-update">
+                ⚠ Downgrade: {{ (flatPack && flatPack.installedVersion) || '—' }} → {{ (flatPack && flatPack.version) || '—' }}
+              </span>
+              <span v-else>New</span>
+            </td>
           </tr>
 
           <tr v-for="p in pages" :key="packName + '::' + p" v-show="isOpen"
@@ -117,6 +134,7 @@ export default {
             <td>
               <cdx-text-input :model-value="lpmCtx.renames[packName + '::' + p]"
                               placeholder="rename"
+                              :disabled="!!(flatPack && flatPack.isLocked)"
                               @update:model-value="v => updateRename(p, v)" />
             </td>
             <td>{{ final(p) }}</td>
@@ -298,6 +316,14 @@ export default {
       for (const name of closure) {
         nextSelected[name] = true;
         if (!this.explicitSelectedPacks[name]) nextDisabled[name] = true;
+      }
+      // Always force-select locked (already imported) packs
+      for (const [id, node] of Object.entries(this.nodes)) {
+        if (!id.startsWith('pack:')) continue;
+        const name = id.slice(5);
+        if (node && node.isLocked) {
+          nextSelected[name] = true;
+        }
       }
       this.disabledPacks = nextDisabled;
       this.$emit('update:selectedPacks', nextSelected);
