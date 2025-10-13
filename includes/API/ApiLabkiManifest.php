@@ -56,6 +56,11 @@ final class ApiLabkiManifest extends ApiBase {
         $result['_meta']['repo'] = $repoUrl;
         $result['_meta']['refreshed'] = $refresh;
 
+        // Ensure content_repo_url is present at the root for the frontend
+        if (!isset($result['content_repo_url'])) {
+            $result['content_repo_url'] = $repoUrl;
+        }
+
         $this->getResult()->addValue(null, $this->getModuleName(), $result);
     }
 
