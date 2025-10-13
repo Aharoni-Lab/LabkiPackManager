@@ -138,7 +138,7 @@ final class ApiLabkiQuery extends ApiBase {
         // API responses	labki-pack-manager/schema/api/	During API test runs (PHPUnit or CI)
         $result['_meta'] = [
             'schemaVersion' => 1,
-            'timestamp' => wfTimestampNow()
+            'timestamp' => \wfTimestampNow()
         ];
 
         $this->getResult()->addValue( null, $this->getModuleName(), $result );

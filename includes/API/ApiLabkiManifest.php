@@ -52,7 +52,7 @@ final class ApiLabkiManifest extends ApiBase {
         }
 
         // Append runtime metadata
-        $result['_meta']['timestamp'] = wfTimestampNow();
+        $result['_meta']['timestamp'] = \wfTimestampNow();
         $result['_meta']['repo'] = $repoUrl;
         $result['_meta']['refreshed'] = $refresh;
 
