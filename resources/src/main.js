@@ -15,7 +15,7 @@ import { MSG_TYPES } from './constants.js';
 import * as Vue from 'vue';
 import * as Codex from '@wikimedia/codex';
 import mermaid from 'mermaid';
-import { buildMermaidFromGraph } from './mermaidBuilder.js';
+import { buildMermaidFromGraph } from './utils/mermaidBuilder.js';
 import './styles/labkipackmanager.scss';
 // ------------------------------------------------------------
 // Mermaid configuration (guarded, on-demand)
@@ -67,7 +67,7 @@ function pretty(obj) {
  */
 export function mountApp(rootSelector = '#labki-pack-manager-root') {
   const app = Vue.createApp({
-    template: '<lpm-root />',
+    template: '<lpm-root ref="root" />',
 
     data() {
       return createInitialState();
@@ -298,11 +298,37 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
       doImport() {
         this.showImportConfirm = false;
+        const root = this.$refs.root;
+        const tree = root && root.$refs && root.$refs.tree;
+        if (!tree || typeof tree.exportSelectionSummary !== 'function') {
+          this.pushMessage(MSG_TYPES.ERROR, 'Tree component not ready. Try again.');
+          return;
+        }
+        const payload = tree.exportSelectionSummary(this.activeRepo);
+        console.log('[Import payload]', payload);
+
+        // Example: send to backend
+        // const api = new mw.Api();
+        // await api.post({ action: 'labkiPackImport', format: 'json', payload: JSON.stringify(payload) });
+
         this.pushMessage(MSG_TYPES.SUCCESS, 'Import triggered.');
       },
 
       doUpdate() {
         this.showUpdateConfirm = false;
+        const root = this.$refs.root;
+        const tree = root && root.$refs && root.$refs.tree;
+        if (!tree || typeof tree.exportSelectionSummary !== 'function') {
+          this.pushMessage(MSG_TYPES.ERROR, 'Tree component not ready. Try again.');
+          return;
+        }
+        const payload = tree.exportSelectionSummary(this.activeRepo);
+        console.log('[Update payload]', payload);
+        
+        // Example: send to backend
+        // const api = new mw.Api();
+        // await api.post({ action: 'labkiPackUpgrade', format: 'json', payload: JSON.stringify(payload) });
+
         this.pushMessage(MSG_TYPES.SUCCESS, 'Update triggered.');
       }
     },
@@ -350,6 +376,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         </div>
 
         <lpm-tree
+          ref="tree"
           :data="$root.data"
           :selected-packs="$root.selectedPacks"
           :selected-pages="$root.selectedPages"

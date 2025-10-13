@@ -454,6 +454,47 @@ export default {
         }
       };
       this.debouncers[key] = setTimeout(run, delay);
+    },
+
+    /**
+    * Return a flattened summary of all packs, pages, and user selections
+    * suitable for sending to the backend.
+    */
+    exportSelectionSummary(repoUrl) {
+      const packs = [];
+
+      for (const [id, node] of Object.entries(this.nodes)) {
+        if (!this.isPackNode(id, node)) continue;
+        const name = this.idToName(id, node);
+        const selected = !!this.selectedPacks[name];
+
+        const packData = {
+          name,
+          id,
+          selected,
+          version: node.version || null,
+          installedVersion: node.installedVersion || null,
+          installStatus: node.installStatus || 'new',
+          isLocked: !!node.isLocked,
+          pages: []
+        };
+
+        const pages = node.pages || [];
+        for (const p of pages) {
+          const finalTitle = this.finalPageTitle(name, p);
+          packData.pages.push({
+            original: p,
+            finalTitle,
+            prefix: this.prefixes[name] || '',
+            rename: this.renames[this.pageKey(name, p)] || '',
+            collide: !!this.collisions[this.pageKey(name, p)]
+          });
+        }
+
+        packs.push(packData);
+      }
+
+      return { repoUrl, packs };
     }
   }
 };
