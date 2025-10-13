@@ -186,7 +186,7 @@ final class LabkiPageRegistry {
 
     /** Remove a single page by its recorded final title */
     public function removePageByFinalTitle( string $finalTitle ): bool {
-        $dbw = \wfGetDB( DB_PRIMARY );
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'final_title' => $finalTitle ] )
