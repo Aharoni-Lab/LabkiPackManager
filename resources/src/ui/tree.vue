@@ -44,10 +44,12 @@ export default {
 
       computed: {
         packName() {
-          return this.node.id.startsWith('pack:') ? this.node.id.slice(5) : this.node.id;
+          if (typeof this.node.name === 'string' && this.node.name) return this.node.name;
+          const i = this.node.id.indexOf(':');
+          return i > 0 ? this.node.id.slice(i + 1) : this.node.id;
         },
         packId() {
-          return `pack:${this.packName}`;
+          return this.node.id.startsWith('pack:') ? this.node.id : `pack:${this.packName}`;
         },
         packLabelId() {
           return `pack-label-${this.lpmCtx.sanitizeId(this.packName)}`;
@@ -317,12 +319,12 @@ export default {
       const map = Object.create(null);
       for (const [id, node] of Object.entries(this.nodes)) {
         if (!id.startsWith('pack:')) continue;
-        const name = id.slice(5);
+        const name = this.idToName(id, node);
         const seen = new Set();
         const queue = [...(node.depends_on || [])];
         while (queue.length) {
           const dep = queue.shift();
-          const depName = dep.startsWith('pack:') ? dep.slice(5) : dep;
+          const depName = this.idToName(dep);
           if (seen.has(depName)) continue;
           seen.add(depName);
           const depNode = this.nodes[`pack:${depName}`];
@@ -375,7 +377,7 @@ export default {
         const cur = queue.shift();
         const childIds = this.treeIndex[`pack:${cur}`] || [];
         for (const cid of childIds) {
-          const cname = cid.slice(5);
+          const cname = this.idToName(cid, this.nodes[cid]);
           if (!seen.has(cname)) { seen.add(cname); queue.push(cname); }
         }
         const deps = this.dependencyMap[cur] || [];
@@ -396,8 +398,8 @@ export default {
       }
 
       for (const [id, node] of Object.entries(this.nodes)) {
-        if (id.startsWith('pack:') && node?.isLocked) {
-          nextSelected[id.slice(5)] = true;
+        if (this.isPackNode(id, node) && node?.isLocked) {
+          nextSelected[this.idToName(id, node)] = true;
         }
       }
       this.disabledPacks = nextDisabled;
@@ -413,6 +415,17 @@ export default {
       if (selected) this.explicitSelectedPacks[name] = true;
       else delete this.explicitSelectedPacks[name];
       this.recomputeSelectedFromExplicit();
+    },
+
+    // --- ID/Node helpers (avoid hardcoded prefix slicing) ---
+    idToName(id, node) {
+      if (node && typeof node.name === 'string' && node.name) return node.name;
+      const i = id.indexOf(':');
+      return i > 0 ? id.slice(i + 1) : id;
+    },
+    isPackNode(id, node) {
+      if (node && typeof node.type === 'string') return node.type === 'pack';
+      return id.startsWith('pack:');
     },
 
     asyncCheck(title) {
