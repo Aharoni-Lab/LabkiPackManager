@@ -14,11 +14,20 @@ use MediaWiki\MediaWikiServices;
 final class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
+    /** Normalize repo URLs for consistent storage and lookup */
+    private function normalizeUrl( string $url ): string {
+        $u = trim( $url );
+        // Trim trailing slashes; leave case as-is to avoid altering path semantics
+        $u = rtrim( $u, "/" );
+        return $u;
+    }
+
     /**
      * Insert a repository if not present and return repo_id.
      */
     public function addRepo( string $url, ?string $defaultRef = null ): ContentRepoId {
-        $existingId = $this->getRepoIdByUrl( $url );
+        $normUrl = $this->normalizeUrl( $url );
+        $existingId = $this->getRepoIdByUrl( $normUrl );
         if ( $existingId !== null ) {
             return $existingId;
         }
@@ -29,7 +38,7 @@ final class LabkiRepoRegistry {
         $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
             ->row( [
-                'content_repo_url' => $url,
+                'content_repo_url' => $normUrl,
                 'default_ref' => $defaultRef,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -38,7 +47,7 @@ final class LabkiRepoRegistry {
             ->execute();
 
         $id = (int)$dbw->insertId();
-        wfDebugLog( 'Labki', 'Added repo ' . $url . ' (repo_id=' . $id . ')' );
+        wfDebugLog( 'Labki', 'Added repo ' . $normUrl . ' (repo_id=' . $id . ')' );
         return new ContentRepoId( $id );
     }
 
@@ -47,10 +56,11 @@ final class LabkiRepoRegistry {
      */
     public function getRepoIdByUrl( string $url ): ?ContentRepoId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $normUrl = $this->normalizeUrl( $url );
         $row = $dbr->newSelectQueryBuilder()
             ->select( 'content_repo_id' )
             ->from( self::TABLE )
-            ->where( [ 'content_repo_url' => $url ] )
+            ->where( [ 'content_repo_url' => $normUrl ] )
             ->caller( __METHOD__ )
             ->fetchRow();
         if ( !$row ) {
@@ -74,13 +84,7 @@ final class LabkiRepoRegistry {
         if ( !$row ) {
             return null;
         }
-        return new ContentRepo(
-            new ContentRepoId( (int)$row->content_repo_id ),
-            (string)$row->content_repo_url,
-            $row->default_ref !== null ? (string)$row->default_ref : null,
-            $row->created_at !== null ? (int)$row->created_at : null,
-            $row->updated_at !== null ? (int)$row->updated_at : null,
-        );
+        return ContentRepo::fromRow( $row );
     }
 
     /** Small helper used by API: return same as getRepoById but named getRepoInfo */
@@ -91,11 +95,12 @@ final class LabkiRepoRegistry {
 
     /** Ensure repo exists by URL and return its ID. */
     public function ensureRepo( string $url ): ContentRepoId {
-        $id = $this->getRepoIdByUrl( $url );
+        $normUrl = $this->normalizeUrl( $url );
+        $id = $this->getRepoIdByUrl( $normUrl );
         if ( $id !== null ) {
             return $id;
         }
-        return $this->addRepo( $url, null );
+        return $this->addRepo( $normUrl, null );
     }
 
     /**

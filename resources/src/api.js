@@ -121,7 +121,7 @@ export async function fetchRepos() {
 export async function fetchInstalledFor(repoUrl) {
   const base = mw.util.wikiScript('api');
   const params = new URLSearchParams({
-    action: 'labkiquery',
+    action: 'labkiQuery',
     format: 'json',
     formatversion: '2',
     repo: repoUrl
@@ -147,7 +147,7 @@ export async function fetchInstalledFor(repoUrl) {
     throw new Error(`Invalid JSON from installed packs for ${repoUrl}: ${parseError}`);
   }
 
-  const payload = json && (json.labkiquery || json);
+  const payload = json && (json.labkiQuery || json);
   const packs = Array.isArray(payload?.packs) ? payload.packs : [];
   return packs;
 }

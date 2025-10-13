@@ -179,19 +179,16 @@ export default {
             <td></td>
 
             <td class="status-cell">
-              <span v-if="flatPack?.installStatus === 'already-installed'" class="already-installed">
-                Installed (v{{ flatPack?.installedVersion || '—' }})
+              <span v-if="flatPack?.installStatus === 'already-installed'" class="status-imported">
+                Already imported (v{{ flatPack?.installedVersion || '—' }})
               </span>
-              <span v-else-if="flatPack?.installStatus === 'safe-update'" class="safe-update">
-                Updatable: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
+              <span v-else-if="flatPack?.installStatus === 'safe-update'" class="status-update">
+                Update: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
               </span>
-              <span v-else-if="flatPack?.installStatus === 'incompatible-update'" class="incompatible-update">
-                ⚠ Incompatible: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
+              <span v-else-if="flatPack?.installStatus === 'incompatible-update' || flatPack?.installStatus === 'downgrade'" class="status-major">
+                Major version change: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
               </span>
-              <span v-else-if="flatPack?.installStatus === 'downgrade'" class="incompatible-update">
-                ⚠ Downgrade: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
-              </span>
-              <span v-else>New</span>
+              <span v-else class="status-new">New</span>
             </td>
           </tr>
 
