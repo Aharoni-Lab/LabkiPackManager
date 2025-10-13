@@ -124,7 +124,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
           if (repo) repo.data = manifest;
 
-          // --- Merge installed info for update detection ---
+          // --- Merge installed info for upgrade detection ---
           try {
             const installed = await fetchInstalledFor(this.activeRepo);
             const installedByName = Object.create(null);
@@ -323,13 +323,13 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           return;
         }
         const payload = tree.exportSelectionSummary(this.activeRepo);
-        console.log('[Update payload]', payload);
+        console.log('[Upgrade payload]', payload);
         
         // Example: send to backend
         // const api = new mw.Api();
         // await api.post({ action: 'labkiPackUpgrade', format: 'json', payload: JSON.stringify(payload) });
 
-        this.pushMessage(MSG_TYPES.SUCCESS, 'Update triggered.');
+        this.pushMessage(MSG_TYPES.SUCCESS, 'Upgrade triggered.');
       }
     },
 
@@ -392,7 +392,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         <div class="lpm-row lpm-row-actionbar">
           <div class="lpm-actionbar">
             <cdx-button @click="$root.confirmImport">Import Selected</cdx-button>
-            <cdx-button @click="$root.confirmUpdate">Update Existing</cdx-button>
+            <cdx-button @click="$root.confirmUpdate">Upgrade Existing</cdx-button>
             <span class="lpm-action-info" style="margin-left: 1em;">
               {{ $root.activeRepo
                 ? ('Active repo: ' + $root.activeRepo)

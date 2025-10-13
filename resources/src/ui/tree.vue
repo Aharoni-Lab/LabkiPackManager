@@ -185,7 +185,7 @@ export default {
                 Already imported (v{{ flatPack?.installedVersion || '—' }})
               </span>
               <span v-else-if="flatPack?.installStatus === 'safe-update'" class="status-update">
-                Update: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
+                Upgrade: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
               </span>
               <span v-else-if="flatPack?.installStatus === 'incompatible-update' || flatPack?.installStatus === 'downgrade'" class="status-major">
                 Major version change: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
