@@ -20,6 +20,8 @@ final class LabkiPageRegistry {
      * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int} $pageData
      */
     public function addPage( int|PackId $packId, array $pageData ): PageId {
+        // Note: This persists registry state for an installed page. Caller must ensure
+        // the corresponding MW page exists/was modified successfully before calling this.
         $now = \wfTimestampNow();
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $row = [
@@ -145,6 +147,7 @@ final class LabkiPageRegistry {
      * Remove all pages for a pack.
      */
     public function removePagesByPack( int|PackId $packId ): void {
+        // Note: Caller should first remove MW pages. This only clears registry records.
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )

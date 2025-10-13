@@ -20,6 +20,8 @@ final class LabkiPackRegistry {
      * @param array{version?:?string,source_ref?:?string,source_commit?:?string,installed_at?:?int,installed_by?:?int,status?:?string} $meta
      */
     public function addPack( int|ContentRepoId $repoId, string $name, array $meta ): PackId {
+        // Note: This class only persists registry state. Actual MW page/content operations
+        // must be performed by higher layers (API/service) before calling into the registry.
         $existing = $this->getPackIdByName( $repoId, $name, $meta['version'] ?? null );
         if ( $existing !== null ) {
             return $existing;
@@ -143,6 +145,7 @@ final class LabkiPackRegistry {
      * @param array<string,mixed> $fields
      */
     public function updatePack( int|PackId $packId, array $fields ): void {
+        // Note: Only persists metadata changes. Caller ensures MW changes are applied first.
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
             $fields['updated_at'] = \wfTimestampNow();
@@ -160,6 +163,7 @@ final class LabkiPackRegistry {
      * Remove a pack (cascade pages).
      */
     public function removePack( int|PackId $packId ): void {
+        // Note: Caller must have removed MW pages first; this only deletes registry row (pages cascade).
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )

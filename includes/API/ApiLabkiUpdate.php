@@ -34,6 +34,9 @@ final class ApiLabkiUpdate extends ApiBase {
 
         switch ( $action ) {
             case 'installPack':
+                // Integration point: BEFORE persisting state, ensure MW pages are created/updated
+                // 1) For each page in $pages, create/update the wiki page (Title/WikiPage/EditPage logic)
+                // 2) Only when those actions succeed, persist rows below
                 $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
                 $packName = (string)( $params['packName'] ?? '' );
                 $version = isset( $params['version'] ) ? (string)$params['version'] : null;
@@ -48,7 +51,7 @@ final class ApiLabkiUpdate extends ApiBase {
                 $packIdObj = $packReg->registerPack( $repoId, $packName, $version, $this->getUser()->getId() );
                 $packId = $packIdObj instanceof PackId ? $packIdObj->toInt() : (int)$packIdObj;
 
-                // Replace pages with provided list (idempotent install state)
+                // Persist state: Replace pages with provided list (idempotent install state)
                 $pageReg->removePagesByPack( $packId );
                 $added = 0;
                 foreach ( $pages as $p ) {
@@ -68,6 +71,9 @@ final class ApiLabkiUpdate extends ApiBase {
                 break;
 
             case 'removePack':
+                // Integration point: BEFORE removing from registry, delete wiki pages for this pack
+                // 1) Iterate existing pages for $packId and delete from core (WikiPage::doDeleteArticle)
+                // 2) Only when deletions succeed, remove registry rows below
                 // Remove pack by repo+pack(+version) or by packId; optionally verify page list
                 $packId = (int)( $params['packId'] ?? 0 );
                 $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
@@ -88,7 +94,7 @@ final class ApiLabkiUpdate extends ApiBase {
                     $packId = $packIdObj->toInt();
                 }
 
-                // Remove all pages first
+                // Persist state: Remove all pages first
                 $existingPages = $pageReg->listPagesByPack( $packId );
                 $pageReg->removePagesByPack( $packId );
 
@@ -111,6 +117,9 @@ final class ApiLabkiUpdate extends ApiBase {
                 break;
 
             case 'updatePack':
+                // Integration point: BEFORE updating registry, update MW pages (rename/move/edit)
+                // 1) Diff old vs new pages; create/rename/delete as needed in core
+                // 2) Only when those actions succeed, update registry below
                 // Update pack metadata (e.g., version) and replace its pages with provided list
                 $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
                 $packName = (string)( $params['packName'] ?? '' );
