@@ -46,7 +46,9 @@ final class SpecialLabkiDBViewer extends SpecialPage {
             return;
         }
 
+        $titleAttr = htmlspecialchars($this->getPageTitle()->getPrefixedText());
         $output->addHTML('<form method="get">' .
+            '<input type="hidden" name="title" value="' . $titleAttr . '" />' .
             'Table: <select name="table">' .
             implode('', array_map(
                 fn($t) => "<option value=\"$t\"" . ($t === $table ? ' selected' : '') . ">$t</option>",

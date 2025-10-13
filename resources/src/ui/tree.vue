@@ -12,12 +12,12 @@
           </tr>
         </thead>
 
-        <!-- Render hierarchy roots as individual TBODY sections to keep valid table structure -->
+        <!-- Render hierarchy roots -->
         <template v-if="tree.length">
           <lpm-pack-node v-for="root in tree" :key="root.id" :node="root" :depth="0" />
         </template>
 
-        <!-- Fallback message -->
+        <!-- Empty state -->
         <tbody v-else>
           <tr><td colspan="5"><em>No data loaded.</em></td></tr>
         </tbody>
@@ -30,113 +30,186 @@
 export default {
   name: 'LpmTree',
 
+  /* ------------------------------------------------------------------------
+   *  COMPONENTS
+   * ---------------------------------------------------------------------- */
   components: {
     LpmPackNode: {
       name: 'lpm-pack-node',
-      props: { node: { type: Object, required: true }, depth: { type: Number, default: 0 } },
       inject: ['lpmCtx'],
+      props: {
+        node: { type: Object, required: true },
+        depth: { type: Number, default: 0 }
+      },
 
       computed: {
-        packName() { return this.node.id.startsWith('pack:') ? this.node.id.slice(5) : this.node.id; },
-        packId() { return `pack:${this.packName}`; },
-        packLabelId() { return `pack-label-${this.lpmCtx.sanitizeId(this.packName)}`; },
-        isOpen() { return !!this.lpmCtx.expanded[this.packId]; },
-        isSelected() { return !!this.lpmCtx.selectedPacks[this.packName]; },
+        packName() {
+          if (typeof this.node.name === 'string' && this.node.name) return this.node.name;
+          const i = this.node.id.indexOf(':');
+          return i > 0 ? this.node.id.slice(i + 1) : this.node.id;
+        },
+        packId() {
+          return this.node.id.startsWith('pack:') ? this.node.id : `pack:${this.packName}`;
+        },
+        packLabelId() {
+          return `pack-label-${this.lpmCtx.sanitizeId(this.packName)}`;
+        },
+        isOpen() {
+          return !!this.lpmCtx.expanded[this.packId];
+        },
+        isSelected() {
+          return !!this.lpmCtx.selectedPacks[this.packName];
+        },
+
+        // --- Derived node data helpers ---
         pages() {
-          const n = this.lpmCtx.nodes[`pack:${this.packName}`];
-          return Array.isArray(n?.pages)
-            ? n.pages
-            : (this.node.children || []).filter(c => c.type === 'page').map(c => c.id);
+          return this.resolvePages();
         },
         childPacks() {
-          const n = this.lpmCtx.nodes[`pack:${this.packName}`];
-          const deps = Array.isArray(n?.depends_on) ? n.depends_on : [];
-          const result = [];
-          for (const d of deps) {
-            const depId = d.startsWith('pack:') ? d : `pack:${d}`;
-            const depNode = this.lpmCtx.nodes[depId];
-            if (depNode) result.push(depNode);
-          }
-          if (result.length) return result;
-          return (this.node.children || []).filter(c => c.type === 'pack').map(c => {
-            const cid = c.id.startsWith('pack:') ? c.id : `pack:${c.id}`;
-            return this.lpmCtx.nodes[cid] || c;
-          });
+          return this.resolveChildPacks();
+        },
+        flatPack() {
+          return this.lpmCtx.nodes[this.packId] || this.node;
         }
       },
 
       created() {
+        // Default to expanded
         if (!(this.packId in this.lpmCtx.expanded)) this.lpmCtx.expanded[this.packId] = true;
       },
 
+      /* --------------------------------------------------------------------
+       *  METHODS
+       * ------------------------------------------------------------------ */
       methods: {
-        toggle() { this.lpmCtx.expanded[this.packId] = !this.isOpen; },
-
-        computeTitleNow(p, pre, ren) {
-          const i = p.indexOf(':');
-          const ns = i > 0 ? p.slice(0, i) : '';
-          const base = i > 0 ? p.slice(i + 1) : p;
-          const tail = (ren || '').trim() || base;
-          return `${ns ? ns + ':' : ''}${pre || ''}${tail}`;
+        // ---- Small utility helpers ----
+        getNode(id) {
+          const normalized = id.startsWith('pack:') ? id : `pack:${id}`;
+          return this.lpmCtx.nodes[normalized];
         },
 
-        updateSel(v) { this.lpmCtx.togglePackExplicit(this.packName, v); },
+        resolvePages() {
+          const node = this.getNode(this.packName);
+          if (Array.isArray(node?.pages)) return node.pages;
+          return (this.node.children || [])
+            .filter(c => c.type === 'page')
+            .map(c => c.id);
+        },
 
-        updatePrefix(v) {
-          const next = { ...this.lpmCtx.prefixes, [this.packName]: v };
+        resolveChildPacks() {
+          const node = this.getNode(this.packName);
+          const deps = Array.isArray(node?.depends_on) ? node.depends_on : [];
+          const packs = deps.map(d => this.getNode(d)).filter(Boolean);
+          if (packs.length) return packs;
+
+          // fallback to children if no depends_on
+          return (this.node.children || [])
+            .filter(c => c.type === 'pack')
+            .map(c => this.getNode(c.id) || c);
+        },
+
+        toggle() {
+          this.lpmCtx.expanded[this.packId] = !this.isOpen;
+        },
+
+        computeTitleNow(page, prefix, rename) {
+          const i = page.indexOf(':');
+          const ns = i > 0 ? page.slice(0, i) : '';
+          const base = i > 0 ? page.slice(i + 1) : page;
+          const tail = (rename || '').trim() || base;
+          return `${ns ? ns + ':' : ''}${prefix || ''}${tail}`;
+        },
+
+        updateSel(value) {
+          this.lpmCtx.togglePackExplicit(this.packName, value);
+        },
+
+        updatePrefix(value) {
+          const next = { ...this.lpmCtx.prefixes, [this.packName]: value };
           this.lpmCtx.updatePrefixes(next);
           for (const p of this.pages) {
-            const k = `${this.packName}::${p}`;
-            const ren = this.lpmCtx.renames[k] || '';
-            const title = this.computeTitleNow(p, v, ren);
-            this.lpmCtx.debounceCheck(k, title, 0);
+            const key = `${this.packName}::${p}`;
+            const rename = this.lpmCtx.renames[key] || '';
+            const title = this.computeTitleNow(p, value, rename);
+            this.lpmCtx.debounceCheck(key, title, 0);
           }
         },
 
-        updateRename(p, v) {
-          const k = `${this.packName}::${p}`;
-          const next = { ...this.lpmCtx.renames, [k]: v };
+        updateRename(page, value) {
+          const key = `${this.packName}::${page}`;
+          const next = { ...this.lpmCtx.renames, [key]: value };
           this.lpmCtx.updateRenames(next);
-          const pre = this.lpmCtx.prefixes[this.packName] || '';
-          const t = this.computeTitleNow(p, pre, v);
-          this.lpmCtx.debounceCheck(k, t, 0);
+
+          const prefix = this.lpmCtx.prefixes[this.packName] || '';
+          const title = this.computeTitleNow(page, prefix, value);
+          this.lpmCtx.debounceCheck(key, title, 0);
         },
 
-        final(p) { return this.lpmCtx.computeTitle(this.packName, p); },
-        collide(p) { return !!this.lpmCtx.collisions[`${this.packName}::${p}`]; }
+        final(page) {
+          return this.lpmCtx.computeTitle(this.packName, page);
+        },
+        collide(page) {
+          return !!this.lpmCtx.collisions[`${this.packName}::${page}`];
+        }
       },
 
+      /* --------------------------------------------------------------------
+       *  TEMPLATE
+       * ------------------------------------------------------------------ */
       template: `
         <tbody>
+          <!-- PACK ROW -->
           <tr class="pack-row">
             <td class="lpm-indent" :style="{ paddingLeft: (depth * 1.75) + 'em' }">
               <button class="lpm-caret" @click="toggle">{{ isOpen ? '▼' : '▶' }}</button>
               <strong :id="packLabelId">{{ packName }}</strong>
             </td>
             <td>
-              <cdx-checkbox :model-value="isSelected"
-                            :disabled="lpmCtx.isPackDisabled(packName)"
-                            :aria-labelledby="packLabelId"
-                            @update:model-value="updateSel" />
+              <cdx-checkbox
+                :model-value="isSelected"
+                :disabled="lpmCtx.isPackDisabled(packName) || !!(flatPack && flatPack.isLocked)"
+                :aria-labelledby="packLabelId"
+                @update:model-value="updateSel" />
             </td>
             <td>
-              <cdx-text-input :model-value="lpmCtx.prefixes[packName]"
-                              placeholder="prefix"
-                              @update:model-value="updatePrefix" />
+              <cdx-text-input
+                :model-value="lpmCtx.prefixes[packName]"
+                placeholder="prefix"
+                :disabled="!isSelected || !!(flatPack && flatPack.isLocked)"
+                @update:model-value="updatePrefix" />
             </td>
-            <td></td><td></td>
+            <td></td>
+
+            <td class="status-cell">
+              <span v-if="flatPack?.installStatus === 'already-installed'" class="status-imported">
+                Already imported (v{{ flatPack?.installedVersion || '—' }})
+              </span>
+              <span v-else-if="flatPack?.installStatus === 'safe-update'" class="status-update">
+                Update: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
+              </span>
+              <span v-else-if="flatPack?.installStatus === 'incompatible-update' || flatPack?.installStatus === 'downgrade'" class="status-major">
+                Major version change: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
+              </span>
+              <span v-else class="status-new">New</span>
+            </td>
           </tr>
 
-          <tr v-for="p in pages" :key="packName + '::' + p" v-show="isOpen"
-              :class="['page-row', { 'lpm-row-ok': isSelected && !collide(p),
-                                     'lpm-row-warn': isSelected && collide(p) }]">
+          <!-- PAGE ROWS -->
+          <tr
+            v-for="p in pages"
+            :key="packName + '::' + p"
+            v-show="isOpen"
+            :class="['page-row', { 'lpm-row-ok': isSelected && !collide(p),
+                                   'lpm-row-warn': isSelected && collide(p) }]">
             <td class="lpm-indent lpm-cell-pad-left"
                 :style="{ paddingLeft: ((depth + 1) * 1.75) + 'em' }">{{ p }}</td>
             <td></td>
             <td>
-              <cdx-text-input :model-value="lpmCtx.renames[packName + '::' + p]"
-                              placeholder="rename"
-                              @update:model-value="v => updateRename(p, v)" />
+              <cdx-text-input
+                :model-value="lpmCtx.renames[packName + '::' + p]"
+                placeholder="rename"
+                :disabled="!isSelected || !!(flatPack && flatPack.isLocked)"
+                @update:model-value="v => updateRename(p, v)" />
             </td>
             <td>{{ final(p) }}</td>
             <td class="lpm-status-cell">
@@ -146,14 +219,20 @@ export default {
           </tr>
         </tbody>
 
-        <lpm-pack-node v-for="child in childPacks" v-if="isOpen"
-                       :key="child.id"
-                       :node="child"
-                       :depth="depth + 1" />
+        <!-- RECURSION -->
+        <lpm-pack-node
+          v-for="child in childPacks"
+          v-if="isOpen"
+          :key="child.id"
+          :node="child"
+          :depth="depth + 1" />
       `
     }
   },
 
+  /* ------------------------------------------------------------------------
+   *  INJECTION CONTEXT
+   * ---------------------------------------------------------------------- */
   provide() {
     const self = this;
     return {
@@ -183,6 +262,9 @@ export default {
     };
   },
 
+  /* ------------------------------------------------------------------------
+   *  PROPS / DATA / COMPUTED / METHODS
+   * ---------------------------------------------------------------------- */
   props: {
     data: { type: Object, default: null },
     selectedPacks: { type: Object, required: true },
@@ -211,28 +293,23 @@ export default {
       return this.data?.hierarchy?.nodes || {};
     },
 
-    // ✅ FIX: ensure `tree` always contains full node objects
     tree() {
       const roots = this.data?.hierarchy?.tree || [];
-      return roots
-        .map(r => (typeof r === 'string' ? this.nodes[r] : r))
-        .filter(Boolean);
+      return roots.map(r => (typeof r === 'string' ? this.nodes[r] : r)).filter(Boolean);
     },
 
     treeIndex() {
       const map = Object.create(null);
-      // Ensure every pack node has a key
       for (const id of Object.keys(this.nodes)) {
         if (!id.startsWith('pack:')) continue;
-        if (!map[id]) map[id] = [];
+        map[id] ||= [];
       }
-      // Build parent -> children mapping using nodes' parent field
       for (const [id, node] of Object.entries(this.nodes)) {
         if (!id.startsWith('pack:')) continue;
         const parent = node.parent;
         if (!parent) continue;
         const pid = parent.startsWith('pack:') ? parent : `pack:${parent}`;
-        if (!map[pid]) map[pid] = [];
+        map[pid] ||= [];
         map[pid].push(id);
       }
       return map;
@@ -242,12 +319,12 @@ export default {
       const map = Object.create(null);
       for (const [id, node] of Object.entries(this.nodes)) {
         if (!id.startsWith('pack:')) continue;
-        const name = id.slice(5);
+        const name = this.idToName(id, node);
         const seen = new Set();
         const queue = [...(node.depends_on || [])];
         while (queue.length) {
           const dep = queue.shift();
-          const depName = dep.startsWith('pack:') ? dep.slice(5) : dep;
+          const depName = this.idToName(dep);
           if (seen.has(depName)) continue;
           seen.add(depName);
           const depNode = this.nodes[`pack:${depName}`];
@@ -267,7 +344,9 @@ export default {
   },
 
   methods: {
-    pageKey(p, pg) { return `${p}::${pg}`; },
+    pageKey(p, pg) {
+      return `${p}::${pg}`;
+    },
     splitNs(t) {
       const i = t.indexOf(':');
       return i > 0 ? { ns: t.slice(0, i), base: t.slice(i + 1) } : { ns: '', base: t };
@@ -291,15 +370,14 @@ export default {
 
     computeClosureFrom(explicitSet) {
       const seen = new Set();
-      const queue = [];
-      for (const name of Object.keys(explicitSet)) {
-        if (explicitSet[name]) { seen.add(name); queue.push(name); }
-      }
+      const queue = Object.keys(explicitSet).filter(k => explicitSet[k]);
+      for (const name of queue) seen.add(name);
+
       while (queue.length) {
         const cur = queue.shift();
         const childIds = this.treeIndex[`pack:${cur}`] || [];
         for (const cid of childIds) {
-          const cname = cid.startsWith('pack:') ? cid.slice(5) : cid;
+          const cname = this.idToName(cid, this.nodes[cid]);
           if (!seen.has(cname)) { seen.add(cname); queue.push(cname); }
         }
         const deps = this.dependencyMap[cur] || [];
@@ -318,16 +396,36 @@ export default {
         nextSelected[name] = true;
         if (!this.explicitSelectedPacks[name]) nextDisabled[name] = true;
       }
+
+      for (const [id, node] of Object.entries(this.nodes)) {
+        if (this.isPackNode(id, node) && node?.isLocked) {
+          nextSelected[this.idToName(id, node)] = true;
+        }
+      }
       this.disabledPacks = nextDisabled;
       this.$emit('update:selectedPacks', nextSelected);
       this.scheduleCollisionRecheckForVisible();
     },
 
-    isPackDisabled(name) { return !!this.disabledPacks[name]; },
+    isPackDisabled(name) {
+      return !!this.disabledPacks[name];
+    },
+
     togglePackExplicit(name, selected) {
       if (selected) this.explicitSelectedPacks[name] = true;
       else delete this.explicitSelectedPacks[name];
       this.recomputeSelectedFromExplicit();
+    },
+
+    // --- ID/Node helpers (avoid hardcoded prefix slicing) ---
+    idToName(id, node) {
+      if (node && typeof node.name === 'string' && node.name) return node.name;
+      const i = id.indexOf(':');
+      return i > 0 ? id.slice(i + 1) : id;
+    },
+    isPackNode(id, node) {
+      if (node && typeof node.type === 'string') return node.type === 'pack';
+      return id.startsWith('pack:');
     },
 
     asyncCheck(title) {
@@ -338,7 +436,7 @@ export default {
 
     debounceCheck(key, title, delay = 300) {
       if (!this.checkTitleExists) return;
-      if (this.debouncers[key]) clearTimeout(this.debouncers[key]);
+      clearTimeout(this.debouncers[key]);
       const version = (this.collisionVersion[key] || 0) + 1;
       this.collisionVersion[key] = version;
 
@@ -355,7 +453,7 @@ export default {
           });
         }
       };
-      delay <= 0 ? run() : (this.debouncers[key] = setTimeout(run, delay));
+      this.debouncers[key] = setTimeout(run, delay);
     }
   }
 };

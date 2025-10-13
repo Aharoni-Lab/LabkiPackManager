@@ -7,6 +7,7 @@ namespace LabkiPackManager\Services;
 use LabkiPackManager\Domain\Pack;
 use LabkiPackManager\Domain\PackId;
 use LabkiPackManager\Domain\ContentRepoId;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Pack-level registry service for labki_pack table.
@@ -16,18 +17,21 @@ final class LabkiPackRegistry {
 
     /**
      * Insert a pack if not present and return pack_id.
+     * Uniqueness is by (content_repo_id, name), regardless of version.
      * @param array{version?:?string,source_ref?:?string,source_commit?:?string,installed_at?:?int,installed_by?:?int,status?:?string} $meta
      */
     public function addPack( int|ContentRepoId $repoId, string $name, array $meta ): PackId {
-        $existing = $this->getPackIdByName( $repoId, $name, $meta['version'] ?? null );
+        // Note: This class only persists registry state. Actual MW page/content operations
+        // must be performed by higher layers (API/service) before calling into the registry.
+        $existing = $this->getPackIdByName( $repoId, $name );
         if ( $existing !== null ) {
             return $existing;
         }
 
-        $now = time();
-        $dbw = wfGetDB( DB_PRIMARY );
+        $now = \wfTimestampNow();
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $row = [
-            'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId,
+            'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId,
             'name' => $name,
             'version' => $meta['version'] ?? null,
             'source_ref' => $meta['source_ref'] ?? null,
@@ -50,16 +54,11 @@ final class LabkiPackRegistry {
     }
 
     /**
-     * Fetch pack_id by repo/name/version (version nullable).
+     * Fetch pack_id by repo/name (version is ignored for uniqueness).
      */
     public function getPackIdByName( int|ContentRepoId $repoId, string $name, ?string $version = null ): ?PackId {
-        $dbr = wfGetDB( DB_REPLICA );
-        $conds = [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId, 'name' => $name ];
-        if ( $version !== null ) {
-            $conds['version'] = $version;
-        } else {
-            $conds['version'] = null;
-        }
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $conds = [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId, 'name' => $name ];
         $row = $dbr->newSelectQueryBuilder()
             ->select( 'pack_id' )
             ->from( self::TABLE )
@@ -77,7 +76,7 @@ final class LabkiPackRegistry {
      * @return Pack|null
      */
     public function getPack( int|PackId $packId ): ?Pack {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
             ->select( Pack::FIELDS )
             ->from( self::TABLE )
@@ -95,11 +94,11 @@ final class LabkiPackRegistry {
      * @return array<int,Pack>
      */
     public function listPacksByRepo( int|ContentRepoId $repoId ): array {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
             ->select( Pack::FIELDS )
             ->from( self::TABLE )
-            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
+            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->orderBy( 'pack_id' )
             ->caller( __METHOD__ )
             ->fetchResultSet();
@@ -117,12 +116,23 @@ final class LabkiPackRegistry {
 
     /** Register or update a pack for install; returns pack_id */
     public function registerPack( int|ContentRepoId $repoId, string $name, ?string $version, int $installedBy ): ?PackId {
-        $existing = $this->getPackIdByName( $repoId, $name, $version );
+        $existing = $this->getPackIdByName( $repoId, $name );
         if ( $existing !== null ) {
-            $this->updatePack( $existing, [ 'installed_at' => time(), 'installed_by' => $installedBy, 'status' => 'installed' ] );
+            $this->updatePack( $existing, [
+                'installed_at' => \wfTimestampNow(),
+                'installed_by' => $installedBy,
+                'status' => 'installed',
+                'version' => $version,
+            ] );
             return $existing;
         }
         return $this->addPack( $repoId, $name, [ 'version' => $version, 'installed_by' => $installedBy, 'status' => 'installed' ] );
+    }
+
+    /** Remove a pack and its pages. Prefer using from API where pages are removed explicitly. */
+    public function removePackAndPages( int|PackId $packId ): void {
+        // For safety: API currently removes pages via PageRegistry first; this method ensures cascade
+        $this->removePack( $packId );
     }
 
     /** Delete a pack; return success */
@@ -136,9 +146,10 @@ final class LabkiPackRegistry {
      * @param array<string,mixed> $fields
      */
     public function updatePack( int|PackId $packId, array $fields ): void {
-        $dbw = wfGetDB( DB_PRIMARY );
+        // Note: Only persists metadata changes. Caller ensures MW changes are applied first.
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = time();
+            $fields['updated_at'] = \wfTimestampNow();
         }
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
@@ -153,7 +164,8 @@ final class LabkiPackRegistry {
      * Remove a pack (cascade pages).
      */
     public function removePack( int|PackId $packId ): void {
-        $dbw = wfGetDB( DB_PRIMARY );
+        // Note: Caller must have removed MW pages first; this only deletes registry row (pages cascade).
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )

@@ -92,6 +92,23 @@
   font-weight: 600;
 }
 
+.status-cell {
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.safe-update {
+  color: #059669;
+}
+
+.already-installed {
+  color: #6b7280;
+}
+
+.incompatible-update {
+  color: #b91c1c;
+}
+
 .pack-row {
   background-color: var(--background-color-neutral-subtle, #f8f9fa);
 }

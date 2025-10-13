@@ -93,6 +93,7 @@ final class ManifestStore {
 
         $data = [
             'hash' => $manifestHash,
+            'content_repo_url' => $this->repoUrl,
             'manifest' => $manifestData,
             'hierarchy' => $hierarchy,
             'graph' => $graph,

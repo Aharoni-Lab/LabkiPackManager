@@ -6,6 +6,7 @@ namespace LabkiPackManager\Services;
 
 use LabkiPackManager\Domain\ContentRepo;
 use LabkiPackManager\Domain\ContentRepoId;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Repository-level registry service for labki_content_repo table.
@@ -13,22 +14,31 @@ use LabkiPackManager\Domain\ContentRepoId;
 final class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
+    /** Normalize repo URLs for consistent storage and lookup */
+    private function normalizeUrl( string $url ): string {
+        $u = trim( $url );
+        // Trim trailing slashes; leave case as-is to avoid altering path semantics
+        $u = rtrim( $u, "/" );
+        return $u;
+    }
+
     /**
      * Insert a repository if not present and return repo_id.
      */
     public function addRepo( string $url, ?string $defaultRef = null ): ContentRepoId {
-        $existingId = $this->getRepoIdByUrl( $url );
+        $normUrl = $this->normalizeUrl( $url );
+        $existingId = $this->getRepoIdByUrl( $normUrl );
         if ( $existingId !== null ) {
             return $existingId;
         }
 
-        $now = time();
-        $dbw = wfGetDB( DB_PRIMARY );
+        $now = \wfTimestampNow();
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
 
         $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
             ->row( [
-                'repo_url' => $url,
+                'content_repo_url' => $normUrl,
                 'default_ref' => $defaultRef,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -37,7 +47,7 @@ final class LabkiRepoRegistry {
             ->execute();
 
         $id = (int)$dbw->insertId();
-        wfDebugLog( 'Labki', 'Added repo ' . $url . ' (repo_id=' . $id . ')' );
+        wfDebugLog( 'Labki', 'Added repo ' . $normUrl . ' (repo_id=' . $id . ')' );
         return new ContentRepoId( $id );
     }
 
@@ -45,17 +55,18 @@ final class LabkiRepoRegistry {
      * Get a repository ID by its URL.
      */
     public function getRepoIdByUrl( string $url ): ?ContentRepoId {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $normUrl = $this->normalizeUrl( $url );
         $row = $dbr->newSelectQueryBuilder()
-            ->select( 'repo_id' )
+            ->select( 'content_repo_id' )
             ->from( self::TABLE )
-            ->where( [ 'repo_url' => $url ] )
+            ->where( [ 'content_repo_url' => $normUrl ] )
             ->caller( __METHOD__ )
             ->fetchRow();
         if ( !$row ) {
             return null;
         }
-        return new ContentRepoId( (int)$row->repo_id );
+        return new ContentRepoId( (int)$row->content_repo_id );
     }
 
     /**
@@ -63,23 +74,17 @@ final class LabkiRepoRegistry {
      * @return ContentRepo|null
      */
     public function getRepoById( int|ContentRepoId $repoId ): ?ContentRepo {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
             ->select( ContentRepo::FIELDS )
             ->from( self::TABLE )
-            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
+            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->caller( __METHOD__ )
             ->fetchRow();
         if ( !$row ) {
             return null;
         }
-        return new ContentRepo(
-            new ContentRepoId( (int)$row->repo_id ),
-            (string)$row->repo_url,
-            $row->default_ref !== null ? (string)$row->default_ref : null,
-            $row->created_at !== null ? (int)$row->created_at : null,
-            $row->updated_at !== null ? (int)$row->updated_at : null,
-        );
+        return ContentRepo::fromRow( $row );
     }
 
     /** Small helper used by API: return same as getRepoById but named getRepoInfo */
@@ -90,11 +95,12 @@ final class LabkiRepoRegistry {
 
     /** Ensure repo exists by URL and return its ID. */
     public function ensureRepo( string $url ): ContentRepoId {
-        $id = $this->getRepoIdByUrl( $url );
+        $normUrl = $this->normalizeUrl( $url );
+        $id = $this->getRepoIdByUrl( $normUrl );
         if ( $id !== null ) {
             return $id;
         }
-        return $this->addRepo( $url, null );
+        return $this->addRepo( $normUrl, null );
     }
 
     /**
@@ -102,11 +108,11 @@ final class LabkiRepoRegistry {
      * @return array<int,ContentRepo>
      */
     public function listRepos(): array {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
             ->select( ContentRepo::FIELDS )
             ->from( self::TABLE )
-            ->orderBy( 'repo_id', SelectQueryBuilder::SORT_ASC )
+            ->orderBy( 'content_repo_id' )
             ->caller( __METHOD__ )
             ->fetchResultSet();
         $out = [];
@@ -121,14 +127,14 @@ final class LabkiRepoRegistry {
      * @param array<string,mixed> $fields
      */
     public function updateRepo( int|ContentRepoId $repoId, array $fields ): void {
-        $dbw = wfGetDB( DB_PRIMARY );
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = time();
+            $fields['updated_at'] = \wfTimestampNow();
         }
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
-            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
+            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->caller( __METHOD__ )
             ->execute();
     }
@@ -137,10 +143,10 @@ final class LabkiRepoRegistry {
      * Delete repository (cascade removes packs/pages).
      */
     public function deleteRepo( int|ContentRepoId $repoId ): void {
-        $dbw = wfGetDB( DB_PRIMARY );
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
-            ->where( [ 'repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
+            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
             ->caller( __METHOD__ )
             ->execute();
     }

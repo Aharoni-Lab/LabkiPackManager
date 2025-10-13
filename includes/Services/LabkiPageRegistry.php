@@ -7,6 +7,7 @@ namespace LabkiPackManager\Services;
 use LabkiPackManager\Domain\Page as DomainPage;
 use LabkiPackManager\Domain\PageId;
 use LabkiPackManager\Domain\PackId;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Page-level registry service for labki_page table.
@@ -19,8 +20,10 @@ final class LabkiPageRegistry {
      * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int} $pageData
      */
     public function addPage( int|PackId $packId, array $pageData ): PageId {
-        $now = time();
-        $dbw = wfGetDB( DB_PRIMARY );
+        // Note: This persists registry state for an installed page. Caller must ensure
+        // the corresponding MW page exists/was modified successfully before calling this.
+        $now = \wfTimestampNow();
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $row = [
             'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
             'name' => $pageData['name'],
@@ -47,9 +50,9 @@ final class LabkiPageRegistry {
      * @return DomainPage|null
      */
     public function getPageByTitle( string $finalTitle ): ?DomainPage {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
-            ->select( Page::FIELDS )
+            ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'final_title' => $finalTitle ] )
             ->caller( __METHOD__ )
@@ -62,9 +65,9 @@ final class LabkiPageRegistry {
 
     /** Convenience for API: get page by pack and name */
     public function getPageByName( int|PackId $packId, string $name ): ?DomainPage {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
-            ->select( Page::FIELDS )
+            ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId, 'name' => $name ] )
             ->caller( __METHOD__ )
@@ -80,9 +83,9 @@ final class LabkiPageRegistry {
      * @return array<int,DomainPage>
      */
     public function listPagesByPack( int|PackId $packId ): array {
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
-            ->select( Page::FIELDS )
+            ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->orderBy( 'page_id' )
@@ -95,14 +98,41 @@ final class LabkiPageRegistry {
         return $out;
     }
 
+    /** Fetch a page by its internal page_id */
+    public function getPageById( int|PageId $pageId ): ?DomainPage {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
+            ->select( DomainPage::FIELDS )
+            ->from( self::TABLE )
+            ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
+            ->caller( __METHOD__ )
+            ->fetchRow();
+        if ( !$row ) {
+            return null;
+        }
+        return DomainPage::fromRow( $row );
+    }
+
+    /** Count pages for a given pack_id */
+    public function countPagesByPack( int|PackId $packId ): int {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
+            ->select( 'COUNT(*) AS cnt' )
+            ->from( self::TABLE )
+            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
+            ->caller( __METHOD__ )
+            ->fetchRow();
+        return $row ? (int)$row->cnt : 0;
+    }
+
     /**
      * Update a page record; updates updated_at unless provided.
      * @param array<string,mixed> $fields
      */
     public function updatePage( int|PageId $pageId, array $fields ): void {
-        $dbw = wfGetDB( DB_PRIMARY );
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = time();
+            $fields['updated_at'] = \wfTimestampNow();
         }
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
@@ -117,13 +147,53 @@ final class LabkiPageRegistry {
      * Remove all pages for a pack.
      */
     public function removePagesByPack( int|PackId $packId ): void {
-        $dbw = wfGetDB( DB_PRIMARY );
+        // Note: Caller should first remove MW pages. This only clears registry records.
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )
             ->execute();
         wfDebugLog( 'Labki', 'Removed pages for pack ' . $packId );
+    }
+
+    /** Remove a single page by its internal page_id */
+    public function removePageById( int|PageId $pageId ): bool {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
+            ->deleteFrom( self::TABLE )
+            ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
+            ->caller( __METHOD__ )
+            ->execute();
+        wfDebugLog( 'Labki', 'Removed page ' . ( $pageId instanceof PageId ? $pageId->toInt() : $pageId ) );
+        return true;
+    }
+
+    /** Remove a single page by (pack_id, name) */
+    public function removePageByName( int|PackId $packId, string $name ): bool {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
+            ->deleteFrom( self::TABLE )
+            ->where( [
+                'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
+                'name' => $name,
+            ] )
+            ->caller( __METHOD__ )
+            ->execute();
+        wfDebugLog( 'Labki', 'Removed page by name ' . $name . ' for pack ' . ( $packId instanceof PackId ? $packId->toInt() : $packId ) );
+        return true;
+    }
+
+    /** Remove a single page by its recorded final title */
+    public function removePageByFinalTitle( string $finalTitle ): bool {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
+            ->deleteFrom( self::TABLE )
+            ->where( [ 'final_title' => $finalTitle ] )
+            ->caller( __METHOD__ )
+            ->execute();
+        wfDebugLog( 'Labki', 'Removed page by final title ' . $finalTitle );
+        return true;
     }
 
     /** Record a page installation event with required fields */
@@ -145,7 +215,7 @@ final class LabkiPageRegistry {
         if ( $titles === [] ) {
             return [];
         }
-        $dbr = wfGetDB( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         // Query core page table; title is stored as page_namespace + page_title
         // We'll check for any final_title collisions ignoring namespace differences only when titles include namespace.
         $res = $dbr->newSelectQueryBuilder()

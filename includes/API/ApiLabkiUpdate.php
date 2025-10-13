@@ -34,33 +34,129 @@ final class ApiLabkiUpdate extends ApiBase {
 
         switch ( $action ) {
             case 'installPack':
+                // Integration point: BEFORE persisting state, ensure MW pages are created/updated
+                // 1) For each page in $pages, create/update the wiki page (Title/WikiPage/EditPage logic)
+                // 2) Only when those actions succeed, persist rows below
                 $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
                 $packName = (string)( $params['packName'] ?? '' );
-                $version = (string)( $params['version'] ?? '' );
-                $repoId = $repoReg->ensureRepo( $contentRepoUrl );
-                $packId = $packReg->registerPack( $repoId, $packName, $version, $this->getUser()->getId() );
-                $result['success'] = $packId !== null;
-                $result['packId'] = $packId instanceof PackId ? $packId->toInt() : (int)$packId;
-                $packInfo = $packReg->getPackInfo( $packId );
-                if ( $packInfo && method_exists( $packInfo, 'toArray' ) ) {
-                    $result['pack'] = $packInfo->toArray();
+                $version = isset( $params['version'] ) ? (string)$params['version'] : null;
+                $pagesParam = $params['pages'] ?? null; // JSON string or array
+                $pages = is_string( $pagesParam ) ? json_decode( $pagesParam, true ) : ( ( is_array( $pagesParam ) ) ? $pagesParam : [] );
+
+                if ( $contentRepoUrl === '' || $packName === '' ) {
+                    $this->dieWithError( 'apierror-missing-param' );
                 }
+
+                $repoId = $repoReg->ensureRepo( $contentRepoUrl );
+                $packIdObj = $packReg->registerPack( $repoId, $packName, $version, $this->getUser()->getId() );
+                $packId = $packIdObj instanceof PackId ? $packIdObj->toInt() : (int)$packIdObj;
+
+                // Persist state: Replace pages with provided list (idempotent install state)
+                $pageReg->removePagesByPack( $packId );
+                $added = 0;
+                foreach ( $pages as $p ) {
+                    if ( !is_array( $p ) ) { continue; }
+                    $name = (string)($p['name'] ?? '');
+                    $finalTitle = (string)($p['finalTitle'] ?? '');
+                    $ns = (int)($p['pageNamespace'] ?? 0);
+                    $wikiPageId = (int)($p['wikiPageId'] ?? 0);
+                    if ( $name === '' || $finalTitle === '' ) { continue; }
+                    $pageReg->recordInstalledPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
+                    $added++;
+                }
+
+                $result['success'] = true;
+                $result['packId'] = $packId;
+                $result['pagesAdded'] = $added;
                 break;
 
             case 'removePack':
+                // Integration point: BEFORE removing from registry, delete wiki pages for this pack
+                // 1) Iterate existing pages for $packId and delete from core (WikiPage::doDeleteArticle)
+                // 2) Only when deletions succeed, remove registry rows below
+                // Remove pack by repo+pack(+version) or by packId; optionally verify page list
                 $packId = (int)( $params['packId'] ?? 0 );
-                $result['success'] = $packReg->deletePack( $packId );
+                $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
+                $packName = (string)( $params['packName'] ?? '' );
+                $version = isset( $params['version'] ) ? (string)$params['version'] : null;
+                $pagesParam = $params['pages'] ?? null; // optional, for verification
+                $pages = is_string( $pagesParam ) ? json_decode( $pagesParam, true ) : ( ( is_array( $pagesParam ) ) ? $pagesParam : [] );
+
+                if ( $packId <= 0 ) {
+                    if ( $contentRepoUrl === '' || $packName === '' ) {
+                        $this->dieWithError( 'apierror-missing-param' );
+                    }
+                    $repoId = $repoReg->ensureRepo( $contentRepoUrl );
+                    $packIdObj = $packReg->getPackIdByName( $repoId, $packName, null );
+                    if ( $packIdObj === null ) {
+                        $this->dieWithError( [ 'apierror-pack-not-found', $packName ], 'pack_not_found' );
+                    }
+                    $packId = $packIdObj->toInt();
+                }
+
+                // Persist state: Remove all pages first
+                $existingPages = $pageReg->listPagesByPack( $packId );
+                $pageReg->removePagesByPack( $packId );
+
+                // Verification: compare provided pages (if any)
+                $result['verify'] = [ 'providedCount' => is_array( $pages ) ? count( $pages ) : 0, 'removedCount' => is_array( $existingPages ) ? count( $existingPages ) : 0 ];
+
+                // Remove pack
+                $packReg->removePack( $packId );
+                $result['success'] = true;
                 break;
 
             case 'recordPageInstall':
-                $packId = (int)( $params['packId'] ?? 0 );
-                $name = (string)( $params['name'] ?? '' );
-                $finalTitle = (string)( $params['finalTitle'] ?? '' );
-                $ns = (int)( $params['pageNamespace'] ?? 0 );
-                $wikiPageId = (int)( $params['wikiPageId'] ?? 0 );
-                $pageId = $pageReg->recordInstalledPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
-                $result['success'] = $pageId !== null;
-                $result['pageId'] = $pageId instanceof PageId ? $pageId->toInt() : (int)$pageId;
+                // Deprecated: single page install not supported; use installPack
+                $this->dieWithError( 'apierror-unsupported', 'unsupported' );
+                break;
+
+            case 'removePage':
+                // Deprecated: single page removal not supported; use removePack
+                $this->dieWithError( 'apierror-unsupported', 'unsupported' );
+                break;
+
+            case 'updatePack':
+                // Integration point: BEFORE updating registry, update MW pages (rename/move/edit)
+                // 1) Diff old vs new pages; create/rename/delete as needed in core
+                // 2) Only when those actions succeed, update registry below
+                // Update pack metadata (e.g., version) and replace its pages with provided list
+                $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
+                $packName = (string)( $params['packName'] ?? '' );
+                $currentVersion = isset( $params['version'] ) ? (string)$params['version'] : null;
+                $newVersion = isset( $params['newVersion'] ) ? (string)$params['newVersion'] : null;
+                $pagesParam = $params['pages'] ?? null; // JSON or array
+                $pages = is_string( $pagesParam ) ? json_decode( $pagesParam, true ) : ( ( is_array( $pagesParam ) ) ? $pagesParam : [] );
+                if ( $contentRepoUrl === '' || $packName === '' ) {
+                    $this->dieWithError( 'apierror-missing-param' );
+                }
+                $repoId = $repoReg->ensureRepo( $contentRepoUrl );
+                $packIdObj = $packReg->getPackIdByName( $repoId, $packName, null );
+                if ( $packIdObj === null ) {
+                    $this->dieWithError( [ 'apierror-pack-not-found', $packName ], 'pack_not_found' );
+                }
+                $packId = $packIdObj instanceof PackId ? $packIdObj->toInt() : (int)$packIdObj;
+                if ( $newVersion !== null && $newVersion !== '' ) {
+                    $packReg->updatePack( $packId, [ 'version' => $newVersion ] );
+                } else {
+                    $packReg->updatePack( $packId, [] ); // touch updated_at
+                }
+                // Replace pages
+                $pageReg->removePagesByPack( $packId );
+                $added = 0;
+                foreach ( $pages as $p ) {
+                    if ( !is_array( $p ) ) { continue; }
+                    $name = (string)($p['name'] ?? '');
+                    $finalTitle = (string)($p['finalTitle'] ?? '');
+                    $ns = (int)($p['pageNamespace'] ?? 0);
+                    $wikiPageId = (int)($p['wikiPageId'] ?? 0);
+                    if ( $name === '' || $finalTitle === '' ) { continue; }
+                    $pageReg->recordInstalledPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
+                    $added++;
+                }
+                $result['success'] = true;
+                $result['packId'] = $packId;
+                $result['pagesAdded'] = $added;
                 break;
 
             default:
@@ -76,11 +172,16 @@ final class ApiLabkiUpdate extends ApiBase {
             'contentRepoUrl'       => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'packName'      => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'version'       => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
+            'newVersion'    => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'packId'        => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => null ],
             'name'          => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'finalTitle'    => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
             'pageNamespace' => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => 0 ],
             'wikiPageId'    => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => 0 ],
+            // removePage convenience
+            'pageId'        => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => null ],
+            // Bulk pages for install/update/remove verification
+            'pages'         => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
         ];
     }
 }

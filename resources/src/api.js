@@ -8,6 +8,7 @@
  * Exports:
  *   - fetchManifestFor(repoUrl, refresh)
  *   - fetchRepos()
+ *   - fetchInstalledFor(repoUrl)
  *   - migrateV2(manifest)
  */
 
@@ -107,6 +108,48 @@ export async function fetchRepos() {
   });
 
   return repos;
+}
+
+/**
+ * Fetch installed packs for a given repository from the local DB via ApiLabkiQuery.
+ * Returns an array of { name, version, ... } entries.
+ *
+ * @async
+ * @param {string} repoUrl
+ * @returns {Promise<Array<{name:string,version:string}>>}
+ */
+export async function fetchInstalledFor(repoUrl) {
+  const base = mw.util.wikiScript('api');
+  const params = new URLSearchParams({
+    action: 'labkiQuery',
+    format: 'json',
+    formatversion: '2',
+    repo: repoUrl
+  });
+
+  const url = `${base}?${params.toString()}`;
+
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'same-origin' });
+  } catch (networkError) {
+    throw new Error(`Network error fetching installed packs for ${repoUrl}: ${networkError}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} fetching installed packs for ${repoUrl}`);
+  }
+
+  let json;
+  try {
+    json = await res.json();
+  } catch (parseError) {
+    throw new Error(`Invalid JSON from installed packs for ${repoUrl}: ${parseError}`);
+  }
+
+  const payload = json && (json.labkiQuery || json);
+  const packs = Array.isArray(payload?.packs) ? payload.packs : [];
+  return packs;
 }
 
 /**
