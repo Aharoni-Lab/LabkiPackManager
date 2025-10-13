@@ -42,9 +42,27 @@ export default {
         packLabelId() { return `pack-label-${this.lpmCtx.sanitizeId(this.packName)}`; },
         isOpen() { return !!this.lpmCtx.expanded[this.packId]; },
         isSelected() { return !!this.lpmCtx.selectedPacks[this.packName]; },
-        flatPack() { return this.lpmCtx.nodes[this.packId] || this.node; },
-        pages() { return (this.node.children || []).filter(c => c.type === 'page').map(c => c.id); },
-        childPacks() { return (this.node.children || []).filter(c => c.type === 'pack'); }
+        pages() {
+          const n = this.lpmCtx.nodes[`pack:${this.packName}`];
+          return Array.isArray(n?.pages)
+            ? n.pages
+            : (this.node.children || []).filter(c => c.type === 'page').map(c => c.id);
+        },
+        childPacks() {
+          const n = this.lpmCtx.nodes[`pack:${this.packName}`];
+          const deps = Array.isArray(n?.depends_on) ? n.depends_on : [];
+          const result = [];
+          for (const d of deps) {
+            const depId = d.startsWith('pack:') ? d : `pack:${d}`;
+            const depNode = this.lpmCtx.nodes[depId];
+            if (depNode) result.push(depNode);
+          }
+          if (result.length) return result;
+          return (this.node.children || []).filter(c => c.type === 'pack').map(c => {
+            const cid = c.id.startsWith('pack:') ? c.id : `pack:${c.id}`;
+            return this.lpmCtx.nodes[cid] || c;
+          });
+        }
       },
 
       created() {
@@ -220,20 +238,20 @@ export default {
 
     treeIndex() {
       const map = Object.create(null);
-      const walk = (node) => {
-        if (node.type !== 'pack') return;
-        const pid = node.id.startsWith('pack:') ? node.id : `pack:${node.id}`;
-        map[pid] = [];
-        for (const ch of node.children || []) {
-          if (ch.type === 'pack') {
-            const cid = ch.id.startsWith('pack:') ? ch.id : `pack:${ch.id}`;
-            map[pid].push(cid);
-            const chNode = this.nodes[cid];
-            if (chNode) walk(chNode);
-          }
-        }
-      };
-      for (const root of this.tree) walk(root);
+      // Ensure every pack node has a key
+      for (const id of Object.keys(this.nodes)) {
+        if (!id.startsWith('pack:')) continue;
+        if (!map[id]) map[id] = [];
+      }
+      // Build parent -> children mapping using nodes' parent field
+      for (const [id, node] of Object.entries(this.nodes)) {
+        if (!id.startsWith('pack:')) continue;
+        const parent = node.parent;
+        if (!parent) continue;
+        const pid = parent.startsWith('pack:') ? parent : `pack:${parent}`;
+        if (!map[pid]) map[pid] = [];
+        map[pid].push(id);
+      }
       return map;
     },
 
