@@ -45,15 +45,17 @@ namespace LabkiPackManager\Tests\Services {
         /**
          * @covers ::getPackIdByName
          */
-        public function testGetPackIdByName_NullVersionBranches(): void {
+        public function testGetPackIdByName_IgnoresVersion(): void {
             $repoId = $this->newRepo();
             $reg = $this->newReg();
             $a = $reg->addPack($repoId, 'NoVer', [ 'version' => null ]);
             $b = $reg->addPack($repoId, 'HasVer', [ 'version' => '2.0' ]);
 
+            // Should return same pack id regardless of version argument
             $this->assertSame($a->toInt(), $reg->getPackIdByName($repoId, 'NoVer', null)?->toInt());
+            $this->assertSame($a->toInt(), $reg->getPackIdByName($repoId, 'NoVer', 'x')?->toInt());
             $this->assertSame($b->toInt(), $reg->getPackIdByName($repoId, 'HasVer', '2.0')?->toInt());
-            $this->assertNull($reg->getPackIdByName($repoId, 'HasVer', null));
+            $this->assertSame($b->toInt(), $reg->getPackIdByName($repoId, 'HasVer', null)?->toInt());
         }
 
         /**
@@ -80,8 +82,8 @@ namespace LabkiPackManager\Tests\Services {
             $reg = $this->newReg();
             $pid = $reg->addPack($repoId, 'R', [ 'version' => 'v' ]);
 
-            // Register same pack/version; should update installed fields
-            $got = $reg->registerPack($repoId, 'R', 'v', 123);
+            // Register same pack (version ignored for uniqueness); should update installed fields and version
+            $got = $reg->registerPack($repoId, 'R', 'v2', 123);
             $this->assertNotNull($got);
             $this->assertSame($pid->toInt(), $got->toInt());
 
@@ -89,6 +91,7 @@ namespace LabkiPackManager\Tests\Services {
             $this->assertNotNull($p);
             $this->assertSame(123, $p->installedBy());
             $this->assertSame('installed', $p->status());
+            $this->assertSame('v2', $p->version());
         }
 
         /**

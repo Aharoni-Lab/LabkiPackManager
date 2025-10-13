@@ -17,12 +17,13 @@ final class LabkiPackRegistry {
 
     /**
      * Insert a pack if not present and return pack_id.
+     * Uniqueness is by (content_repo_id, name), regardless of version.
      * @param array{version?:?string,source_ref?:?string,source_commit?:?string,installed_at?:?int,installed_by?:?int,status?:?string} $meta
      */
     public function addPack( int|ContentRepoId $repoId, string $name, array $meta ): PackId {
         // Note: This class only persists registry state. Actual MW page/content operations
         // must be performed by higher layers (API/service) before calling into the registry.
-        $existing = $this->getPackIdByName( $repoId, $name, $meta['version'] ?? null );
+        $existing = $this->getPackIdByName( $repoId, $name );
         if ( $existing !== null ) {
             return $existing;
         }
@@ -53,16 +54,11 @@ final class LabkiPackRegistry {
     }
 
     /**
-     * Fetch pack_id by repo/name/version (version nullable).
+     * Fetch pack_id by repo/name (version is ignored for uniqueness).
      */
     public function getPackIdByName( int|ContentRepoId $repoId, string $name, ?string $version = null ): ?PackId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $conds = [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId, 'name' => $name ];
-        if ( $version !== null ) {
-            $conds['version'] = $version;
-        } else {
-            $conds['version'] = null;
-        }
         $row = $dbr->newSelectQueryBuilder()
             ->select( 'pack_id' )
             ->from( self::TABLE )
@@ -120,9 +116,14 @@ final class LabkiPackRegistry {
 
     /** Register or update a pack for install; returns pack_id */
     public function registerPack( int|ContentRepoId $repoId, string $name, ?string $version, int $installedBy ): ?PackId {
-        $existing = $this->getPackIdByName( $repoId, $name, $version );
+        $existing = $this->getPackIdByName( $repoId, $name );
         if ( $existing !== null ) {
-            $this->updatePack( $existing, [ 'installed_at' => \wfTimestampNow(), 'installed_by' => $installedBy, 'status' => 'installed' ] );
+            $this->updatePack( $existing, [
+                'installed_at' => \wfTimestampNow(),
+                'installed_by' => $installedBy,
+                'status' => 'installed',
+                'version' => $version,
+            ] );
             return $existing;
         }
         return $this->addPack( $repoId, $name, [ 'version' => $version, 'installed_by' => $installedBy, 'status' => 'installed' ] );

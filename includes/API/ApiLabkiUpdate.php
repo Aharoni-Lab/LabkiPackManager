@@ -87,7 +87,7 @@ final class ApiLabkiUpdate extends ApiBase {
                         $this->dieWithError( 'apierror-missing-param' );
                     }
                     $repoId = $repoReg->ensureRepo( $contentRepoUrl );
-                    $packIdObj = $packReg->getPackIdByName( $repoId, $packName, $version );
+                    $packIdObj = $packReg->getPackIdByName( $repoId, $packName, null );
                     if ( $packIdObj === null ) {
                         $this->dieWithError( [ 'apierror-pack-not-found', $packName ], 'pack_not_found' );
                     }
@@ -131,7 +131,7 @@ final class ApiLabkiUpdate extends ApiBase {
                     $this->dieWithError( 'apierror-missing-param' );
                 }
                 $repoId = $repoReg->ensureRepo( $contentRepoUrl );
-                $packIdObj = $packReg->getPackIdByName( $repoId, $packName, $currentVersion );
+                $packIdObj = $packReg->getPackIdByName( $repoId, $packName, null );
                 if ( $packIdObj === null ) {
                     $this->dieWithError( [ 'apierror-pack-not-found', $packName ], 'pack_not_found' );
                 }

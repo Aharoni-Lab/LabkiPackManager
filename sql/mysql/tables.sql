@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS /*_*/labki_pack (
   updated_at BINARY(14) DEFAULT NULL,
   status VARBINARY(16) DEFAULT 'installed',
   PRIMARY KEY (pack_id),
-  UNIQUE KEY uq_content_repo_name_version (content_repo_id, name, version),
+  UNIQUE KEY uq_content_repo_name (content_repo_id, name),
   CONSTRAINT fk_pack_content_repo_id FOREIGN KEY (content_repo_id) REFERENCES /*_*/labki_content_repo (content_repo_id) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_pack_installed_by FOREIGN KEY (installed_by) REFERENCES /*_*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE
 ) /*$wgDBTableOptions*/;

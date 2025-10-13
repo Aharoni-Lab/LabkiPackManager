@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS labki_pack (
   installed_by INTEGER,
   updated_at INTEGER,
   status TEXT CHECK(status IN ('installed','pending','removed','error')) DEFAULT 'installed',
-  UNIQUE (content_repo_id, name, version),
+  UNIQUE (content_repo_id, name),
   FOREIGN KEY (content_repo_id) REFERENCES labki_content_repo (content_repo_id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
