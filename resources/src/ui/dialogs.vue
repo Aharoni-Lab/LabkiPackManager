@@ -6,6 +6,21 @@
       :title="importTitle"
     >
       <p>{{ importMessage }}</p>
+      <!-- Summary of selected packs -->
+      <div v-if="importSummary.length" class="lpm-import-summary">
+        <ul>
+          <li v-for="pack in importSummary" :key="pack.name">
+            <strong>{{ pack.name }}</strong>
+            <span v-if="pack.pages?.length">
+              — {{ pack.pages.length }} page<span v-if="pack.pages.length > 1">s</span>
+            </span>
+            <span v-if="pack.version">
+              (v{{ pack.version }})
+            </span>
+          </li>
+        </ul>
+      </div>
+      <p v-else><em>No packs selected.</em></p>
 
       <template #footer>
         <cdx-button appearance="primary" @click="confirmImport">
@@ -17,12 +32,27 @@
       </template>
     </cdx-dialog>
 
-    <!-- Update confirmation dialog -->
+    <!-- Upgrade confirmation dialog -->
     <cdx-dialog
       v-model:open="localUpdateOpen"
       :title="updateTitle"
     >
       <p>{{ updateMessage }}</p>
+
+      <!-- Summary of selected packs to be upgraded -->
+      <div v-if="updateSummary.length" class="lpm-import-summary">
+        <ul>
+          <li v-for="pack in updateSummary" :key="pack.name">
+            <strong>{{ pack.name }}</strong>
+            <span v-if="pack.pages?.length">
+              — {{ pack.pages.length }} page<span v-if="pack.pages.length > 1">s</span>
+            </span>
+            <span v-if="pack.version">
+              (v{{ pack.installedVersion || '—' }} → v{{ pack.version }})
+            </span>
+          </li>
+        </ul>
+      </div>
 
       <template #footer>
         <cdx-button appearance="primary" @click="confirmUpdate">
@@ -49,6 +79,12 @@ export default {
   name: 'LpmDialogs',
 
   props: {
+    /** Summary of what will be imported. */
+    importSummary: { type: Array, required: true, default: () => [] },
+
+    /** Summary of what will be upgraded. */
+    updateSummary: { type: Array, required: true, default: () => [] },
+
     /** Whether the import dialog is open. */
     showImportConfirm: { type: Boolean, required: true },
 
@@ -145,3 +181,18 @@ export default {
   display: contents;
 }
 </style>
+
+<style>
+.lpm-import-summary {
+  margin-top: 0.75em;
+  padding-left: 1em;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9em;
+}
+.lpm-import-summary ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+</style>
+

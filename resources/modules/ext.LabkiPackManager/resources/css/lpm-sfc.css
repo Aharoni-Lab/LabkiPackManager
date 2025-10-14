@@ -69,3 +69,16 @@
   display: contents;
 }
 
+
+.lpm-import-summary {
+  margin-top: 0.75em;
+  padding-left: 1em;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9em;
+}
+.lpm-import-summary ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+

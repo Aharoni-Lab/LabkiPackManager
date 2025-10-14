@@ -70,7 +70,11 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
     template: '<lpm-root ref="root" />',
 
     data() {
-      return createInitialState();
+      return {
+        ...createInitialState(),
+        importSummary: [],
+        updateSummary: []
+      };
     },
 
     computed: {
@@ -289,10 +293,34 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
       },
 
       confirmImport() {
+        // Generate summary of what will be imported
+        const root = this.$refs.root;
+        const tree = root && root.$refs && root.$refs.tree;
+        if (tree && this.activeRepo) {
+          const summary = tree.exportSelectionSummary(this.activeRepo);
+          // Keep only selected packs for readability
+          const selected = (summary?.packs || []).filter(p => p.selected);
+          this.importSummary = selected;
+        } else {
+          this.importSummary = [];
+        }
+
         this.showImportConfirm = true;
       },
 
       confirmUpdate() {
+        // Generate summary of what will be upgraded
+        const root = this.$refs.root;
+        const tree = root && root.$refs && root.$refs.tree;
+        if (tree && this.activeRepo) {
+          const summary = tree.exportSelectionSummary(this.activeRepo);
+          // Keep only selected packs for readability
+          const selected = (summary?.packs || []).filter(p => p.selected);
+          this.updateSummary = selected;
+        } else {
+          this.updateSummary = [];
+        }
+
         this.showUpdateConfirm = true;
       },
 
@@ -407,6 +435,8 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         />
 
         <lpm-dialogs
+          :import-summary="$root.importSummary"
+          :update-summary="$root.updateSummary"
           :show-import-confirm="$root.showImportConfirm"
           :show-update-confirm="$root.showUpdateConfirm"
           @confirm-import="$root.doImport"
