@@ -27,6 +27,7 @@
 </template>
 
 <script>
+import { idToName, isPackNode } from '../utils/nodeUtils.js';
 export default {
   name: 'LpmTree',
 
@@ -184,7 +185,7 @@ export default {
               <span v-if="flatPack?.installStatus === 'already-installed'" class="status-imported">
                 Already imported (v{{ flatPack?.installedVersion || '—' }})
               </span>
-              <span v-else-if="flatPack?.installStatus === 'safe-update'" class="status-update">
+              <span v-else-if="flatPack?.installStatus === 'safe-upgrade'" class="status-update">
                 Upgrade: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
               </span>
               <span v-else-if="flatPack?.installStatus === 'incompatible-update' || flatPack?.installStatus === 'downgrade'" class="status-major">
@@ -319,12 +320,12 @@ export default {
       const map = Object.create(null);
       for (const [id, node] of Object.entries(this.nodes)) {
         if (!id.startsWith('pack:')) continue;
-        const name = this.idToName(id, node);
+        const name = idToName(id, node);
         const seen = new Set();
         const queue = [...(node.depends_on || [])];
         while (queue.length) {
           const dep = queue.shift();
-          const depName = this.idToName(dep);
+          const depName = idToName(dep);
           if (seen.has(depName)) continue;
           seen.add(depName);
           const depNode = this.nodes[`pack:${depName}`];
@@ -377,7 +378,7 @@ export default {
         const cur = queue.shift();
         const childIds = this.treeIndex[`pack:${cur}`] || [];
         for (const cid of childIds) {
-          const cname = this.idToName(cid, this.nodes[cid]);
+          const cname = idToName(cid, this.nodes[cid]);
           if (!seen.has(cname)) { seen.add(cname); queue.push(cname); }
         }
         const deps = this.dependencyMap[cur] || [];
@@ -398,8 +399,8 @@ export default {
       }
 
       for (const [id, node] of Object.entries(this.nodes)) {
-        if (this.isPackNode(id, node) && node?.isLocked) {
-          nextSelected[this.idToName(id, node)] = true;
+        if (isPackNode(id, node) && node?.isLocked) {
+          nextSelected[idToName(id, node)] = true;
         }
       }
       this.disabledPacks = nextDisabled;
@@ -417,16 +418,7 @@ export default {
       this.recomputeSelectedFromExplicit();
     },
 
-    // --- ID/Node helpers (avoid hardcoded prefix slicing) ---
-    idToName(id, node) {
-      if (node && typeof node.name === 'string' && node.name) return node.name;
-      const i = id.indexOf(':');
-      return i > 0 ? id.slice(i + 1) : id;
-    },
-    isPackNode(id, node) {
-      if (node && typeof node.type === 'string') return node.type === 'pack';
-      return id.startsWith('pack:');
-    },
+    // ID/Node helpers are provided by ../utils/nodeUtils.js
 
     asyncCheck(title) {
       if (!this.checkTitleExists) return Promise.resolve(false);
@@ -464,8 +456,8 @@ export default {
       const packs = [];
 
       for (const [id, node] of Object.entries(this.nodes)) {
-        if (!this.isPackNode(id, node)) continue;
-        const name = this.idToName(id, node);
+        if (!isPackNode(id, node)) continue;
+        const name = idToName(id, node);
         const selected = !!this.selectedPacks[name];
 
         const packData = {

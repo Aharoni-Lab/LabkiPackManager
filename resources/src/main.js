@@ -16,6 +16,7 @@ import * as Vue from 'vue';
 import * as Codex from '@wikimedia/codex';
 import mermaid from 'mermaid';
 import { buildMermaidFromGraph } from './utils/mermaidBuilder.js';
+import { idToName, isPackNode } from './utils/nodeUtils.js';
 import './styles/labkipackmanager.scss';
 // ------------------------------------------------------------
 // Mermaid configuration (guarded, on-demand)
@@ -80,6 +81,28 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
     computed: {
       hasActiveRepo() {
         return !!this.activeRepo;
+      },
+
+      /** At least one selected pack is new (eligible for import). */
+      hasImportableSelection() {
+        const nodes = this.data?.hierarchy?.nodes || {};
+        for (const [id, node] of Object.entries(nodes)) {
+          if (!isPackNode(id, node)) continue;
+          const name = idToName(id, node);
+          if (this.selectedPacks[name] && node?.installStatus === 'new') return true;
+        }
+        return false;
+      },
+
+      /** At least one selected pack has a safe upgrade available. */
+      hasUpgradeableSelection() {
+        const nodes = this.data?.hierarchy?.nodes || {};
+        for (const [id, node] of Object.entries(nodes)) {
+          if (!isPackNode(id, node)) continue;
+          const name = idToName(id, node);
+          if (this.selectedPacks[name] && node?.installStatus === 'safe-upgrade') return true;
+        }
+        return false;
       }
     },
 
@@ -140,8 +163,8 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
             const nodes = this.data?.hierarchy?.nodes || {};
             const selectedPacks = { ...this.selectedPacks };
             for (const [id, node] of Object.entries(nodes)) {
-              if (!id.startsWith('pack:')) continue;
-              const name = id.slice(5);
+              if (!isPackNode(id, node)) continue;
+              const name = idToName(id, node);
               const installedInfo = installedByName[name];
               if (!installedInfo) {
                 node.installedVersion = null;
@@ -157,7 +180,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
               let status = 'already-installed';
               if (cmp === 0) status = 'already-installed';
-              else if (sameMajor && cmp < 0) status = 'safe-update';
+              else if (sameMajor && cmp < 0) status = 'safe-upgrade';
               else if (sameMajor && cmp > 0) status = 'downgrade';
               else status = 'incompatible-update';
 
@@ -298,9 +321,10 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         const tree = root && root.$refs && root.$refs.tree;
         if (tree && this.activeRepo) {
           const summary = tree.exportSelectionSummary(this.activeRepo);
-          // Keep only selected packs for readability
-          const selected = (summary?.packs || []).filter(p => p.selected);
-          this.importSummary = selected;
+          // Only new packs (installStatus === 'new') will be imported
+          const selectedNew = (summary?.packs || [])
+            .filter(p => p.selected && (p.installStatus === 'new'));
+          this.importSummary = selectedNew;
         } else {
           this.importSummary = [];
         }
@@ -314,9 +338,10 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         const tree = root && root.$refs && root.$refs.tree;
         if (tree && this.activeRepo) {
           const summary = tree.exportSelectionSummary(this.activeRepo);
-          // Keep only selected packs for readability
-          const selected = (summary?.packs || []).filter(p => p.selected);
-          this.updateSummary = selected;
+          // Only packs with safe-upgrade will be upgraded
+          const selectedUpgrades = (summary?.packs || [])
+            .filter(p => p.selected && (p.installStatus === 'safe-upgrade'));
+          this.updateSummary = selectedUpgrades;
         } else {
           this.updateSummary = [];
         }
@@ -419,8 +444,8 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
         <div class="lpm-row lpm-row-actionbar">
           <div class="lpm-actionbar">
-            <cdx-button @click="$root.confirmImport">Import Selected</cdx-button>
-            <cdx-button @click="$root.confirmUpdate">Upgrade Existing</cdx-button>
+            <cdx-button :disabled="!$root.hasImportableSelection" @click="$root.confirmImport">Import Selected</cdx-button>
+            <cdx-button :disabled="!$root.hasUpgradeableSelection" @click="$root.confirmUpdate">Upgrade Existing</cdx-button>
             <span class="lpm-action-info" style="margin-left: 1em;">
               {{ $root.activeRepo
                 ? ('Active repo: ' + $root.activeRepo)
