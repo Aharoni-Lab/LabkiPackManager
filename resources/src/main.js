@@ -74,7 +74,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
       return {
         ...createInitialState(),
         importSummary: [],
-        updateSummary: []
+        upgradeSummary: []
       };
     },
 
@@ -341,9 +341,9 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           // Only packs with safe-upgrade will be upgraded
           const selectedUpgrades = (summary?.packs || [])
             .filter(p => p.selected && (p.installStatus === 'safe-upgrade'));
-          this.updateSummary = selectedUpgrades;
+          this.upgradeSummary = selectedUpgrades;
         } else {
-          this.updateSummary = [];
+          this.upgradeSummary = [];
         }
 
         this.showUpdateConfirm = true;
@@ -461,7 +461,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
         <lpm-dialogs
           :import-summary="$root.importSummary"
-          :update-summary="$root.updateSummary"
+          :upgrade-summary="$root.upgradeSummary"
           :show-import-confirm="$root.showImportConfirm"
           :show-update-confirm="$root.showUpdateConfirm"
           @confirm-import="$root.doImport"

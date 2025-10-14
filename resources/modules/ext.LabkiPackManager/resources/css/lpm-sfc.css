@@ -68,16 +68,14 @@
   /* Minor layout separation for better readability */
   display: contents;
 }
-
-
-.lpm-import-summary {
+.lpm-import-summary[data-v-2619661a] {
   margin-top: 0.75em;
   padding-left: 1em;
   max-height: 200px;
   overflow-y: auto;
   font-size: 0.9em;
 }
-.lpm-import-summary ul {
+.lpm-import-summary ul[data-v-2619661a] {
   list-style: disc;
   padding-left: 1.5em;
 }

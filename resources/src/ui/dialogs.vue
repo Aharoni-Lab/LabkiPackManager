@@ -40,9 +40,9 @@
       <p>{{ updateMessage }}</p>
 
       <!-- Summary of selected packs to be upgraded -->
-      <div v-if="updateSummary.length" class="lpm-import-summary">
+      <div v-if="upgradeSummary.length" class="lpm-import-summary">
         <ul>
-          <li v-for="pack in updateSummary" :key="pack.name">
+          <li v-for="pack in upgradeSummary" :key="pack.name">
             <strong>{{ pack.name }}</strong>
             <span v-if="pack.pages?.length">
               — {{ pack.pages.length }} page<span v-if="pack.pages.length > 1">s</span>
@@ -83,7 +83,7 @@ export default {
     importSummary: { type: Array, required: true, default: () => [] },
 
     /** Summary of what will be upgraded. */
-    updateSummary: { type: Array, required: true, default: () => [] },
+    upgradeSummary: { type: Array, required: true, default: () => [] },
 
     /** Whether the import dialog is open. */
     showImportConfirm: { type: Boolean, required: true },
@@ -180,9 +180,6 @@ export default {
   /* Minor layout separation for better readability */
   display: contents;
 }
-</style>
-
-<style>
 .lpm-import-summary {
   margin-top: 0.75em;
   padding-left: 1em;
