@@ -349,10 +349,18 @@ export default {
       return `${p}::${pg}`;
     },
     splitNs(t) {
+      if (!t || typeof t !== 'string') {
+        console.warn('[LabkiPackManager] Invalid title parameter in splitNs:', t);
+        return { ns: '', base: '' };
+      }
       const i = t.indexOf(':');
       return i > 0 ? { ns: t.slice(0, i), base: t.slice(i + 1) } : { ns: '', base: t };
     },
     finalPageTitle(pack, page) {
+      if (!page || typeof page !== 'string') {
+        console.warn('[LabkiPackManager] Invalid page parameter in finalPageTitle:', page);
+        return '';
+      }
       const { ns, base } = this.splitNs(page);
       const pre = this.prefixes[pack] || '';
       const rename = (this.renames[this.pageKey(pack, page)] || '').trim();
@@ -473,6 +481,12 @@ export default {
 
         const pages = node.pages || [];
         for (const p of pages) {
+          // Skip if page data is invalid or undefined
+          if (!p || typeof p !== 'string') {
+            console.warn('[LabkiPackManager] Skipping invalid page data:', p);
+            continue;
+          }
+          
           const finalTitle = this.finalPageTitle(name, p);
           packData.pages.push({
             original: p,

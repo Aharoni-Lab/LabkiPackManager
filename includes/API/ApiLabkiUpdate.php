@@ -40,8 +40,8 @@ final class ApiLabkiUpdate extends ApiBase {
         ];
 
         switch ( $action ) {
-            case 'installPack':
-                $result = $this->handleInstallPack();
+            case 'importPack':
+                $result = $this->handleImportPack();
                 break;
             case 'updatePack':
                 $result = $this->handleUpdatePack();
@@ -59,21 +59,34 @@ final class ApiLabkiUpdate extends ApiBase {
     /* -------------------------------------------------------------------------
      * INSTALL PACK
      * ------------------------------------------------------------------------- */
-    public function handleInstallPack(): array {
+    public function handleImportPack(): array {
         $params = $this->extractRequestParams();
         $repoUrl = (string)( $params['contentRepoUrl'] ?? '' );
         $packsJson = $params['packs'] ?? '[]';
         $packs = json_decode( $packsJson, true ) ?: [];
-
+    
+        if ( $repoUrl === '' ) {
+            $this->dieWithError( 'apierror-missing-param' );
+        }
+    
         $repoReg = new LabkiRepoRegistry();
         $packReg = new LabkiPackRegistry();
         $pageReg = new LabkiPageRegistry();
-
+    
         $repoId = $repoReg->ensureRepo( $repoUrl );
-
+    
         // Build global rewrite mapping across both existing and new pages
         $rewriteMap = $this->buildRewriteMap( $repoUrl, $packs );
-
+        
+        // Get all manifest pages once for all pack imports - with error handling
+        $manifestPages = [];
+        try {
+            $manifestPages = $this->getManifestPages( $repoUrl );
+        } catch ( Exception $e ) {
+            wfDebugLog( 'labkipack', 'Failed to get manifest pages: ' . $e->getMessage() );
+            // Continue without manifest pages - the import will still work
+        }
+    
         $imported = [];
         foreach ( $packs as $pack ) {
             $packName = $pack['name'] ?? '';
@@ -81,14 +94,15 @@ final class ApiLabkiUpdate extends ApiBase {
             if ( $packName === '' ) {
                 continue;
             }
-
+    
             // --- Create or update MediaWiki pages ---
-            $createdPages = $this->importPackPages( $repoUrl, $pack, $rewriteMap );
-
+            $createdPages = $this->importPackPages( $repoUrl, $pack, $rewriteMap, $manifestPages );
+    
             // --- Register pack + pages in DB ---
             $packIdObj = $packReg->registerPack( $repoId, $packName, $version, $this->getUser()->getId() );
             $packId = $packIdObj->toInt();
-
+    
+            // Replace previous pages for this pack
             $pageReg->removePagesByPack( $packId );
             foreach ( $createdPages as $p ) {
                 $pageReg->recordInstalledPage(
@@ -99,13 +113,13 @@ final class ApiLabkiUpdate extends ApiBase {
                     $p['wikiPageId']
                 );
             }
-
+    
             $imported[] = [
                 'pack' => $packName,
                 'pages' => count( $createdPages )
             ];
         }
-
+    
         return [
             'success' => true,
             'action' => 'installPack',
@@ -113,7 +127,7 @@ final class ApiLabkiUpdate extends ApiBase {
             'rewriteEntries' => count( $rewriteMap ),
             '_meta' => [ 'schemaVersion' => 1 ]
         ];
-    }
+    }    
 
     /* -------------------------------------------------------------------------
      * UPDATE PACK
@@ -236,42 +250,48 @@ final class ApiLabkiUpdate extends ApiBase {
     /* -------------------------------------------------------------------------
      * PAGE IMPORT HELPERS
      * ------------------------------------------------------------------------- */
-    private function importPackPages( string $repoUrl, array $pack, array $rewriteMap ): array {
+    private function importPackPages( string $repoUrl, array $pack, array $rewriteMap, array $manifestPages ): array {
         $pagesOut = [];
         $pages = $pack['pages'] ?? [];
-
+    
         foreach ( $pages as $p ) {
-            $relPath = $p['path'] ?? null;
             $finalTitle = $p['finalTitle'] ?? '';
             $sourceName = $p['original'] ?? $p['name'] ?? '';
-            if ( $relPath === null || $finalTitle === '' ) {
+            if ( $finalTitle === '' || $sourceName === '' ) {
                 continue;
             }
-
+    
+            $lookupKey = str_replace( ' ', '_', mb_strtolower( $sourceName ) );
+            $relPath = $manifestPages[$lookupKey] ?? null;
+            if ( !$relPath ) {
+                wfDebugLog( 'labkipack', "No file path found for page: $sourceName" );
+                continue;
+            }
+    
             $fileUrl = rtrim( $repoUrl, '/' ) . '/' . ltrim( $relPath, '/' );
             $wikitext = $this->fetchWikiFile( $fileUrl );
             if ( $wikitext === null ) {
-                wfDebugLog( 'Labki', "Failed to fetch wiki file: $fileUrl" );
+                wfDebugLog( 'labkipack', "Failed to fetch wiki file: $fileUrl" );
                 continue;
             }
-
+    
             // Rewrite internal links
             $updatedText = $this->rewriteLinks( $wikitext, $rewriteMap );
-
-            $title = Title::newFromText( $finalTitle );
+    
+            $title = \Title::newFromText( $finalTitle );
             if ( !$title ) {
                 continue;
             }
-
-            $content = new WikitextContent( $updatedText );
-            $page = WikiPage::factory( $title );
+    
+            $content = new \WikitextContent( $updatedText );
+            $page = \WikiPage::factory( $title );
             $editResult = $page->doEditContent( $content, 'Imported via LabkiPackManager' );
-
+    
             if ( !$editResult->isOK() ) {
-                wfDebugLog( 'Labki', "Edit failed for $finalTitle" );
+                wfDebugLog( 'labkipack', "Edit failed for $finalTitle" );
                 continue;
             }
-
+    
             $pagesOut[] = [
                 'name' => $sourceName,
                 'finalTitle' => $finalTitle,
@@ -279,9 +299,10 @@ final class ApiLabkiUpdate extends ApiBase {
                 'wikiPageId' => $page->getId()
             ];
         }
-
+    
         return $pagesOut;
     }
+    
 
     private function fetchWikiFile( string $url ): ?string {
         $ctx = stream_context_create( [ 'http' => [ 'timeout' => 10 ] ] );
@@ -330,9 +351,54 @@ final class ApiLabkiUpdate extends ApiBase {
             }
         }
 
-        wfDebugLog( 'Labki', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
+        wfDebugLog( 'labkipack', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
         return $map;
     }
+
+    /**
+     * Retrieve the "pages" section from the cached manifest for a given repo,
+     * returning a simple map of pageName => relative file path.
+     */
+    private function getManifestPages( string $repoUrl ): array {
+        $store = new \LabkiPackManager\Services\ManifestStore( $repoUrl );
+        $status = $store->get( false ); // prefer cache
+
+        if ( !$status->isOK() ) {
+            wfDebugLog( 'labkipack', "Failed to load manifest for repo: $repoUrl" );
+            return [];
+        }
+
+        $data = $status->getValue();
+        $manifestPages = $data['manifest']['pages'] ?? [];
+
+        if ( !is_array( $manifestPages ) ) {
+            wfDebugLog( 'labkipack', "Manifest missing or invalid pages section for repo: $repoUrl" );
+            return [];
+        }
+
+        $map = [];
+        foreach ( $manifestPages as $name => $info ) {
+            if ( !is_array( $info ) ) {
+                continue;
+            }
+
+            $path = $info['file'] ?? null;
+            if ( !$path ) {
+                wfDebugLog( 'labkipack', "No file path found for page '$name' in manifest" );
+                continue;
+            }
+
+            // Normalize for consistency (case/spacing)
+            //$normalized = str_replace( ' ', '_', mb_strtolower( $name ) );
+            $normalized = $name;
+            $map[$normalized] = $path;
+        }
+
+        wfDebugLog( 'labkipack', 'getManifestPages() loaded ' . count( $map ) . " entries for repo $repoUrl" );
+        return $map;
+    }
+
+    
 
     /* -------------------------------------------------------------------------
      * PARAMS
@@ -351,7 +417,7 @@ final class ApiLabkiUpdate extends ApiBase {
             'wikiPageId'    => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => 0 ],
             'pageId'        => [ self::PARAM_TYPE => 'integer', self::PARAM_DFLT => null ],
             'pages'         => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
-            'packs'         => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => null ],
+            'packs'         => [ self::PARAM_TYPE => 'string', self::PARAM_DFLT => '[]', self::PARAM_REQUIRED => false ],
         ];
     }
 }

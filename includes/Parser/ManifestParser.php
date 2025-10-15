@@ -18,6 +18,13 @@ use InvalidArgumentException;
  *  name: "Test Manifest"
  *  description: "A demonstration manifest for Labki content packs."
  *  author: "Aharoni Lab"
+ *  pages:
+ *    MainPage:
+ *      file: "pages/MainPage.wiki"
+ *      last_updated: "2025-09-22T00:00:00Z"
+ *    SubPage:
+ *      file: "pages/SubPage.wiki"
+ *      last_updated: "2025-09-22T00:00:00Z"
  *  packs:
  *    onboarding:
  *      version: "0.3.1"
@@ -33,6 +40,18 @@ use InvalidArgumentException;
  *   'name'           => 'Test Manifest',
  *   'description'    => 'A demonstration manifest...',
  *   'author'         => 'Aharoni Lab',
+ *   'pages' => [
+ *     'MainPage' => [
+ *       'name' => 'MainPage',
+ *       'file' => 'pages/MainPage.wiki',
+ *       'last_updated' => '2025-09-22T00:00:00Z'
+ *     ],
+ *     'SubPage' => [
+ *       'name' => 'SubPage',
+ *       'file' => 'pages/SubPage.wiki',
+ *       'last_updated' => '2025-09-22T00:00:00Z'
+ *     ]
+ *   ],
  *   'packs' => [
  *     [
  *       'id'          => 'onboarding',
@@ -66,6 +85,9 @@ final class ManifestParser
         $description   = (string)($data['description'] ?? '');
         $author        = (string)($data['author'] ?? '');
 
+        // --- Parse pages section (optional) ---
+        $pages = $this->parsePages($data['pages'] ?? []);
+
         // --- Validate packs section ---
         if (!isset($data['packs']) || !is_array($data['packs']) || empty($data['packs'])) {
             throw new InvalidArgumentException('Invalid schema: missing or empty "packs" section.');
@@ -79,8 +101,39 @@ final class ManifestParser
             'name'           => $name,
             'description'    => $description,
             'author'         => $author,
+            'pages'          => $pages,
             'packs'          => $packs,
         ];
+    }
+
+    /**
+     * Parse the pages section into normalized array of page definitions.
+     *
+     * @param array $pagesRaw
+     * @return array
+     */
+    private function parsePages(array $pagesRaw): array
+    {
+        $pages = [];
+
+        foreach ($pagesRaw as $name => $meta) {
+            if (!is_string($name) || !is_array($meta)) {
+                continue; // skip invalid entries
+            }
+
+            $file = (string)($meta['file'] ?? '');
+            $lastUpdated = (string)($meta['last_updated'] ?? '');
+
+            if ($file !== '') {
+                $pages[$name] = [
+                    'name' => $name,
+                    'file' => $file,
+                    'last_updated' => $lastUpdated,
+                ];
+            }
+        }
+
+        return $pages;
     }
 
     /**

@@ -1,9 +1,8 @@
 <template>
-  <!-- Render message stack only if there are messages -->
-  <div v-if="messages?.length" class="lpm-row lpm-row-messages">
+  <div v-if="normalizedMessages.length" class="lpm-row lpm-row-messages">
     <div class="lpm-messages" role="region" aria-label="System messages">
       <cdx-message
-        v-for="m in messages"
+        v-for="m in normalizedMessages"
         :key="m.id"
         :type="m.type"
         dismissible
@@ -21,55 +20,60 @@
  * LpmMessages – Transient Notification Stack
  * ------------------------------------------------------------
  * Displays user-facing messages (success, error, info, warning)
- * using Codex <cdx-message> components.
- *
- * Props:
- *   - messages: Array of { id, type, text }
- *
- * Emits:
- *   - 'dismiss' (id: number): Fired when a message is closed.
+ * using Codex <cdx-message> components, with compatibility for
+ * older Codex builds that lack an "info" icon.
  */
 
 export default {
   name: 'LpmMessages',
 
   props: {
-    /**
-     * Array of message objects to display.
-     * Each message: { id: number, type: string, text: string }
-     */
     messages: {
       type: Array,
       required: true,
-      validator(val) {
-        return val.every(
-          m =>
-            typeof m.id === 'number' &&
-            typeof m.type === 'string' &&
-            typeof m.text === 'string'
-        );
-      }
+      default: () => [],
     }
   },
 
-  emits: ['dismiss']
+  emits: ['dismiss'],
+
+  computed: {
+    normalizedMessages() {
+      // Detect whether Codex supports the "info" variant (MW 1.45+)
+      const hasInfoIcon =
+        typeof window !== 'undefined' &&
+        window.Codex &&
+        window.Codex.icons &&
+        'cdx-icon-info' in window.Codex.icons;
+
+      const validTypes = ['success', 'warning', 'error', 'notice', 'info'];
+
+      return this.messages.map(m => {
+        const baseType = validTypes.includes(m.type) ? m.type : 'notice';
+        const safeType = baseType === 'info' && !hasInfoIcon ? 'notice' : baseType;
+
+        return {
+          id: m.id ?? Math.floor(Math.random() * 1e6),
+          text: m.text ?? '',
+          type: safeType
+        };
+      });
+    }
+  }
 };
 </script>
 
 <style scoped>
-/* Layout container for the message region */
 .lpm-row-messages {
   margin-top: 1rem;
 }
 
-/* Stack messages vertically with spacing */
 .lpm-messages {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-/* Optional: subtle fade-in for new messages */
 .lpm-message-item {
   transition: opacity 0.3s ease;
 }

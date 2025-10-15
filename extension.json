@@ -51,7 +51,8 @@
       "dependencies": [
         "mediawiki.util",
         "vue",
-        "@wikimedia/codex"
+        "@wikimedia/codex",
+        "codex-styles"
       ]
     }
   },

@@ -3,26 +3,7 @@ set -euo pipefail
 
 #
 # LabkiPackManager — MediaWiki test environment reset script (SQLite)
-#
-# Run from host (not inside container):
-#   cd ~/dev/LabkiPackManager
-#   chmod +x reset_mw_test.sh
-#   ./reset_mw_test.sh
-#
-# DO NOT run with sudo.
-# If you see permission errors, it means files got created by root (usually from running as sudo).
-# To fix: sudo chown -R $USER:$USER ~/dev/mediawiki
-#
-# This script will:
-#   - Stop/remove containers + volumes
-#   - Ensure ~/dev/mediawiki exists
-#   - Hard reset MediaWiki core to upstream (branch REL1_44)
-#   - Nuke ALL untracked files with git clean -fdx
-#   - Reinstall MediaWiki via /docker/install.sh (with SQLite)
-#   - Mount LabkiPackManager extension (with logs directory)
-#   - Install Mermaid
-#   - Enable both extensions in LocalSettings.php
-#   - Configure debug logs to write to ./extensions/LabkiPackManager/logs/labkipack.log
+# with working log mount and verified debug log output
 #
 
 # --- CONFIG ---
@@ -33,6 +14,9 @@ MW_PORT=8080
 MW_ADMIN_USER=Admin
 MW_ADMIN_PASS=dockerpass
 LOG_DIR="$EXT_DIR/logs"
+CONTAINER_LOG_PATH="/var/log/labkipack"
+CONTAINER_LOG_FILE="$CONTAINER_LOG_PATH/labkipack.log"
+CONTAINER_WIKI_PATH="/var/www/html/w"
 # ---------------
 
 echo "==> Stopping and removing old MediaWiki containers/volumes..."
@@ -85,18 +69,19 @@ docker compose exec -T mediawiki bash -c "
   chmod -R o+rwx /var/www/html/w/cache/sqlite
 "
 
-# --- New: log directory mount ---
-echo "==> Preparing log directory..."
+# --- Log setup ---
+echo "==> Preparing host log directory..."
 mkdir -p "$LOG_DIR"
 chmod 777 "$LOG_DIR"
 
-echo "==> Setting up docker-compose.override.yml for extension and logs..."
+echo "==> Setting up docker-compose.override.yml for extension + logs..."
 cat > "$MW_DIR/docker-compose.override.yml" <<EOF
 services:
   mediawiki:
+    user: "$(id -u):$(id -g)"
     volumes:
       - $EXT_DIR:/var/www/html/w/extensions/LabkiPackManager:cached
-      - $LOG_DIR:/var/log/labkipack
+      - $LOG_DIR:$CONTAINER_LOG_PATH
 EOF
 
 echo "==> Restarting MediaWiki with extension + logs mount..."
@@ -116,33 +101,37 @@ JSON
   composer update --no-interaction --no-progress
 '
 
-echo "==> Creating debug log directory inside container..."
-docker compose exec -T mediawiki bash -lc '
-  mkdir -p /var/log/labkipack
-  chmod 777 /var/log/labkipack
-'
+echo "==> Ensuring debug log directory inside container..."
+docker compose exec -T mediawiki bash -lc "
+  mkdir -p $CONTAINER_LOG_PATH
+  chmod 777 $CONTAINER_LOG_PATH
+"
 
 echo "==> Enabling LabkiPackManager + Mermaid + DBViewer + Debug log..."
-docker compose exec -T mediawiki bash -lc '
-  # Remove only prior LabkiPackManager/Mermaid lines (not all extensions)
-  sed -i -E "/wfLoadExtension\((\"|\\x27)(LabkiPackManager|Mermaid)(\"|\\x27)\)/d" /var/www/html/w/LocalSettings.php
+docker compose exec -T mediawiki bash -lc "
+  sed -i -E \"/wfLoadExtension\\((\\\"|\\\\x27)(LabkiPackManager|Mermaid)(\\\"|\\\\x27)\\)/d\" $CONTAINER_WIKI_PATH/LocalSettings.php
 
   {
-    echo "wfLoadExtension( \"LabkiPackManager\" );"
-    echo "wfLoadExtension( \"Mermaid\" );"
-    echo "\$wgLabkiEnableDBViewer = true;"
-    echo "\$wgDebugLogGroups[\"labkipack\"] = \"/var/log/labkipack/labkipack.log\";"
-  } >> /var/www/html/w/LocalSettings.php
-'
-
+    echo 'wfLoadExtension( \"LabkiPackManager\" );'
+    echo 'wfLoadExtension( \"Mermaid\" );'
+    echo '\$wgLabkiEnableDBViewer = true;'
+    echo '\$wgDebugLogGroups[\"labkipack\"] = \"$CONTAINER_LOG_FILE\";'
+  } >> $CONTAINER_WIKI_PATH/LocalSettings.php
+"
 
 echo "==> Running updater..."
 docker compose exec -T mediawiki php maintenance/update.php --quick
 
 echo "==> Sanity check..."
-docker compose exec -T mediawiki ls -l /var/www/html/w/LocalSettings.php
-docker compose exec -T mediawiki ls -l /var/log/labkipack
+docker compose exec -T mediawiki tail -n 5 $CONTAINER_WIKI_PATH/LocalSettings.php
+docker compose exec -T mediawiki ls -l $CONTAINER_LOG_PATH
 
+# --- Verify logging ---
+echo "==> Verifying MediaWiki debug log output..."
+docker compose exec -T mediawiki php -r "require_once \"$CONTAINER_WIKI_PATH/includes/Setup.php\"; wfDebugLog('labkipack','Reset complete – test entry');"
+docker compose exec -T mediawiki tail -n 3 $CONTAINER_LOG_FILE || true
+
+echo
 echo "==> All done!"
 echo "Visit: http://localhost:$MW_PORT/w"
 echo "Logs:  $LOG_DIR/labkipack.log (auto-updating via Docker volume)"

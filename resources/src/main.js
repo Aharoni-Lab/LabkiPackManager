@@ -74,7 +74,9 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
       return {
         ...createInitialState(),
         importSummary: [],
-        upgradeSummary: []
+        upgradeSummary: [],
+        messages: [],
+        nextMsgId: 1,
       };
     },
 
@@ -304,6 +306,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
        * Push a message to the UI message stack.
        */
       pushMessage(type, text, timeout = 5000) {
+        console.log('[pushMessage]', { type, text });
         const id = this.nextMsgId++;
         this.messages.push({ id, type, text });
         if (timeout) {
@@ -358,35 +361,37 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           return;
         }
         const payload = tree.exportSelectionSummary(this.activeRepo);
+        console.log('[DEBUG] All packs:', payload.packs);
+        
         // could instead send entire payload and have backend handle filtering. 
         // Basically just tell backend what packs are selected and what action to take.
         const selected = payload.packs.filter(p => p.selected && p.installStatus === 'new');
-        console.log('[Import payload]', selected);
+        console.log('[DEBUG] Selected packs (selected=true, installStatus=new):', selected);
 
         this.pushMessage(MSG_TYPES.INFO, 'Starting import…');
 
-        try {
-          // maybe should put in api.js?
-          const api = new mw.Api();
-          const res = await api.postWithToken('csrf', {
-            action: 'labkiUpdate',
-            format: 'json',
-            formatversion: '2',
-            actionType: 'installPack',
-            contentRepoUrl: payload.repoUrl,
-            packs: JSON.stringify(selected)   // new param to handle multi-pack
-          });
+        // try {
+        //   // maybe should put in api.js?
+        //   const api = new mw.Api();
+        //   const res = await api.postWithToken('csrf', {
+        //     action: 'labkiUpdate',
+        //     format: 'json',
+        //     formatversion: '2',
+        //     actionType: 'importPack',
+        //     contentRepoUrl: payload.repoUrl,
+        //     packs: JSON.stringify(selected)   // new param to handle multi-pack
+        //   });
 
-          if (res?.labkiUpdate?.success) {
-            this.pushMessage(MSG_TYPES.SUCCESS, 'Import completed.');
-          } else {
-            const err = res?.labkiUpdate?.error || 'Import failed.';
-            this.pushMessage(MSG_TYPES.ERROR, err);
-          }
-        } catch (e) {
-          console.error('[Import]', e);
-          this.pushMessage(MSG_TYPES.ERROR, e.message || 'Import error.');
-        }
+        //   if (res?.labkiUpdate?.success) {
+        //     this.pushMessage(MSG_TYPES.SUCCESS, 'Import completed.');
+        //   } else {
+        //     const err = res?.labkiUpdate?.error || 'Import failed.';
+        //     this.pushMessage(MSG_TYPES.ERROR, err);
+        //   }
+        // } catch (e) {
+        //   console.error('[Import]', e);
+        //   this.pushMessage(MSG_TYPES.ERROR, e.message || 'Import error.');
+        // }
       },
 
       doUpdate() {

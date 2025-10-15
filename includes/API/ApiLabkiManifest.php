@@ -51,6 +51,9 @@ final class ApiLabkiManifest extends ApiBase {
             $this->dieWithError('labkipackmanager-error-invalid-manifest');
         }
 
+        // Filter out backend-only data (pages) before sending to frontend
+        unset($result['manifest']['pages']);
+
         // Append runtime metadata
         $result['_meta']['timestamp'] = \wfTimestampNow();
         $result['_meta']['repo'] = $repoUrl;

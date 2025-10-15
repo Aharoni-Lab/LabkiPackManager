@@ -7,11 +7,11 @@
     >
       <p>{{ importMessage }}</p>
       <!-- Summary of selected packs -->
-      <div v-if="importSummary.length" class="lpm-import-summary">
+      <div v-if="safeImportSummary.length" class="lpm-import-summary">
         <ul>
-          <li v-for="pack in importSummary" :key="pack.name">
+          <li v-for="pack in safeImportSummary" :key="pack.name">
             <strong>{{ pack.name }}</strong>
-            <span v-if="pack.pages?.length">
+            <span v-if="pack.pages && Array.isArray(pack.pages) && pack.pages.length">
               — {{ pack.pages.length }} page<span v-if="pack.pages.length > 1">s</span>
             </span>
             <span v-if="pack.version">
@@ -40,11 +40,11 @@
       <p>{{ updateMessage }}</p>
 
       <!-- Summary of selected packs to be upgraded -->
-      <div v-if="upgradeSummary.length" class="lpm-import-summary">
+      <div v-if="safeUpgradeSummary.length" class="lpm-import-summary">
         <ul>
-          <li v-for="pack in upgradeSummary" :key="pack.name">
+          <li v-for="pack in safeUpgradeSummary" :key="pack.name">
             <strong>{{ pack.name }}</strong>
-            <span v-if="pack.pages?.length">
+            <span v-if="pack.pages && Array.isArray(pack.pages) && pack.pages.length">
               — {{ pack.pages.length }} page<span v-if="pack.pages.length > 1">s</span>
             </span>
             <span v-if="pack.version">
@@ -131,6 +131,26 @@ export default {
       localImportOpen: this.showImportConfirm,
       localUpdateOpen: this.showUpdateConfirm
     };
+  },
+
+  computed: {
+    /** Filtered import summary with only valid pack objects. */
+    safeImportSummary() {
+      return (this.importSummary || []).filter(pack => 
+        pack && 
+        typeof pack === 'object' && 
+        typeof pack.name === 'string'
+      );
+    },
+
+    /** Filtered upgrade summary with only valid pack objects. */
+    safeUpgradeSummary() {
+      return (this.upgradeSummary || []).filter(pack => 
+        pack && 
+        typeof pack === 'object' && 
+        typeof pack.name === 'string'
+      );
+    }
   },
 
   watch: {

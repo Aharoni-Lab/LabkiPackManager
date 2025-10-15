@@ -46,19 +46,14 @@
 }
 
 
-/* Layout container for the message region */
 .lpm-row-messages[data-v-1ba2a834] {
   margin-top: 1rem;
 }
-
-/* Stack messages vertically with spacing */
 .lpm-messages[data-v-1ba2a834] {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
-/* Optional: subtle fade-in for new messages */
 .lpm-message-item[data-v-1ba2a834] {
   transition: opacity 0.3s ease;
 }
