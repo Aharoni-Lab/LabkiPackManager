@@ -265,6 +265,39 @@ final class LabkiPageRegistry {
         }
         return $out;
     }
+
+    public function getRewriteMapForRepo( int $repoId ): array {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+    
+        $res = $dbr->newSelectQueryBuilder()
+            ->select( [ 'lp.name', 'lp.final_title' ] )
+            ->from( self::TABLE, 'lp' )
+            ->join( 'labki_pack', 'pack', [ 'lp.pack_id = pack.pack_id' ] )
+            ->where( [ 'pack.content_repo_id' => $repoId ] )
+            ->distinct()
+            ->caller( __METHOD__ )
+            ->fetchResultSet();
+    
+        if ( !$res->numRows() ) {
+            wfDebugLog( 'Labki', "No rewrite map rows found for repo_id=$repoId" );
+            return [];
+        }
+    
+        $map = [];
+        foreach ( $res as $row ) {
+            $orig = str_replace( ' ', '_', (string)$row->name );
+            $final = (string)$row->final_title;
+            if ( $orig !== '' && $final !== '' ) {
+                $map[$orig] = $final;
+            }
+        }
+    
+        wfDebugLog( 'Labki', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
+    
+        return $map;
+    }
+    
+    
 }
 
 

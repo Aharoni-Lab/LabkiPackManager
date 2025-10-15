@@ -349,7 +349,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         this.showUpdateConfirm = true;
       },
 
-      doImport() {
+      async doImport() {
         this.showImportConfirm = false;
         const root = this.$refs.root;
         const tree = root && root.$refs && root.$refs.tree;
@@ -358,13 +358,35 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           return;
         }
         const payload = tree.exportSelectionSummary(this.activeRepo);
-        console.log('[Import payload]', payload);
+        // could instead send entire payload and have backend handle filtering. 
+        // Basically just tell backend what packs are selected and what action to take.
+        const selected = payload.packs.filter(p => p.selected && p.installStatus === 'new');
+        console.log('[Import payload]', selected);
 
-        // Example: send to backend
-        // const api = new mw.Api();
-        // await api.post({ action: 'labkiPackImport', format: 'json', payload: JSON.stringify(payload) });
+        this.pushMessage(MSG_TYPES.INFO, 'Starting import…');
 
-        this.pushMessage(MSG_TYPES.SUCCESS, 'Import triggered.');
+        try {
+          // maybe should put in api.js?
+          const api = new mw.Api();
+          const res = await api.postWithToken('csrf', {
+            action: 'labkiUpdate',
+            format: 'json',
+            formatversion: '2',
+            actionType: 'installPack',
+            contentRepoUrl: payload.repoUrl,
+            packs: JSON.stringify(selected)   // new param to handle multi-pack
+          });
+
+          if (res?.labkiUpdate?.success) {
+            this.pushMessage(MSG_TYPES.SUCCESS, 'Import completed.');
+          } else {
+            const err = res?.labkiUpdate?.error || 'Import failed.';
+            this.pushMessage(MSG_TYPES.ERROR, err);
+          }
+        } catch (e) {
+          console.error('[Import]', e);
+          this.pushMessage(MSG_TYPES.ERROR, e.message || 'Import error.');
+        }
       },
 
       doUpdate() {
