@@ -13,9 +13,10 @@ use LabkiPackManager\Services\LabkiPageRegistry;
 use LabkiPackManager\Domain\PackId;
 use LabkiPackManager\Domain\PageId;
 use MediaWiki\MediaWikiServices;
-use WikiPage;
-use WikitextContent;
-use Title;
+use MediaWiki\Content\WikitextContent;
+use MediaWiki\Title\Title;
+use MediaWiki\CommentStore\CommentStoreComment;
+use MediaWiki\Revision\SlotRecord;
 
 final class ApiLabkiUpdate extends ApiBase {
 
@@ -105,6 +106,7 @@ final class ApiLabkiUpdate extends ApiBase {
             $createdPages = $this->importPackPages( $repoUrl, $pack, $rewriteMap, $manifestPages );
     
             // --- Register pack + pages in DB ---
+            // Need to add a check to make sure import into MW was successful before adding to DB
             $packIdObj = $packReg->registerPack( $repoId, $packName, $version, $this->getUser()->getId() );
             $packId = $packIdObj->toInt();
     
@@ -257,6 +259,7 @@ final class ApiLabkiUpdate extends ApiBase {
      * PAGE IMPORT HELPERS
      * ------------------------------------------------------------------------- */
     private function importPackPages( string $repoUrl, array $pack, array $rewriteMap, array $manifestPages ): array {
+        wfDebugLog( 'labkipack', 'importPackPages() called with repoUrl: ' . $repoUrl . ' and pack: ' . json_encode( $pack ) );
         $pagesOut = [];
         $pages = $pack['pages'] ?? [];
     
@@ -267,14 +270,17 @@ final class ApiLabkiUpdate extends ApiBase {
                 continue;
             }
     
-            $lookupKey = str_replace( ' ', '_', mb_strtolower( $sourceName ) );
+            // ✅ lookup using *exact* source name key (no normalization)
+            $lookupKey = $sourceName;
             $relPath = $manifestPages[$lookupKey] ?? null;
             if ( !$relPath ) {
                 wfDebugLog( 'labkipack', "No file path found for page: $sourceName" );
                 continue;
             }
     
-            $fileUrl = rtrim( $repoUrl, '/' ) . '/' . ltrim( $relPath, '/' );
+            $fileUrl = $this->buildPageUrl( $repoUrl, $relPath );
+            wfDebugLog( 'labkipack', "Fetching page from URL: $fileUrl" );
+
             $wikitext = $this->fetchWikiFile( $fileUrl );
             if ( $wikitext === null ) {
                 wfDebugLog( 'labkipack', "Failed to fetch wiki file: $fileUrl" );
@@ -282,22 +288,30 @@ final class ApiLabkiUpdate extends ApiBase {
             }
     
             // Rewrite internal links
+            wfDebugLog( 'labkipack', "Rewriting links for $finalTitle." );
             $updatedText = $this->rewriteLinks( $wikitext, $rewriteMap );
-    
-            $title = \Title::newFromText( $finalTitle );
+
+            wfDebugLog( 'labkipack', "Creating title for $finalTitle" );
+            $title = Title::newFromText( $finalTitle );
+            wfDebugLog( 'labkipack', "Title for $finalTitle: " . $title );
             if ( !$title ) {
+                wfDebugLog( 'labkipack', "Failed to create title for $finalTitle" );
                 continue;
             }
-    
-            $content = new \WikitextContent( $updatedText );
-            $page = \WikiPage::factory( $title );
-            $editResult = $page->doEditContent( $content, 'Imported via LabkiPackManager' );
-    
+            wfDebugLog( 'labkipack', "Creating content for $finalTitle" );
+            $content = new WikitextContent( $updatedText );
+            wfDebugLog('labkipack', "WikiPageFactory called");
+            $wikiPageFactory = MediaWikiServices::getInstance()->getWikiPageFactory();
+            $page = $wikiPageFactory->newFromTitle( $title );
+            wfDebugLog( 'labkipack', "Creating page for $finalTitle" );
+            $editResult = $this->editPage( $page, $content, 'Imported via LabkiPackManager' );
+            wfDebugLog( 'labkipack', "Edit result for $finalTitle: " . $editResult->isOK() );
             if ( !$editResult->isOK() ) {
                 wfDebugLog( 'labkipack', "Edit failed for $finalTitle" );
                 continue;
             }
     
+            // ✅ output uses the same unmodified name key
             $pagesOut[] = [
                 'name' => $sourceName,
                 'finalTitle' => $finalTitle,
@@ -309,60 +323,104 @@ final class ApiLabkiUpdate extends ApiBase {
         return $pagesOut;
     }
     
+    
 
     private function fetchWikiFile( string $url ): ?string {
-        $ctx = stream_context_create( [ 'http' => [ 'timeout' => 10 ] ] );
+        // Stream context with GitHub-friendly headers and redirect support
+        $ctx = stream_context_create( [
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 15,
+                'ignore_errors' => true,
+                'header' => [
+                    'User-Agent: LabkiPackManager/1.0 (+https://github.com/Aharoni-Lab/LabkiPackManager)',
+                    'Accept: text/plain, text/x-wiki, text/markdown, */*'
+                ],
+                'follow_location' => 1,
+                'max_redirects' => 5
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+                // These lines ensure CA certificates are loaded in minimal containers
+                'cafile' => '/etc/ssl/certs/ca-certificates.crt'
+            ]
+        ] );
+    
+        wfDebugLog( 'labkipack', "Fetching wiki file: $url" );
+    
         $data = @file_get_contents( $url, false, $ctx );
-        return $data !== false ? $data : null;
+    
+        if ( $data === false ) {
+            $error = error_get_last();
+            wfDebugLog( 'labkipack', "Failed to fetch URL: $url (" . ($error['message'] ?? 'unknown error') . ")" );
+            return null;
+        }
+    
+        // Trim BOM or whitespace that sometimes appears in raw GitHub files
+        $clean = preg_replace('/^\xEF\xBB\xBF/', '', $data);
+        wfDebugLog( 'labkipack', "Fetched " . strlen($clean) . " bytes from $url" );
+    
+        return $clean;
     }
+    
 
     private function rewriteLinks( string $text, array $map ): string {
         foreach ( $map as $orig => $final ) {
             if ( $orig === $final ) {
                 continue;
             }
+    
+            // Match either exact, space, or underscore variant of the original
             $escapedOrig = preg_quote( $orig, '/' );
-
-            // Replace [[Page]] or [[Page|...]]
-            $text = preg_replace(
-                '/\[\[' . $escapedOrig . '(\|[^]]*)?\]\]/u',
-                '[[' . $final . '$1]]',
-                $text
-            );
-
-            // Replace {{Template}} or {{Template|...}}
-            $text = preg_replace(
-                '/\{\{' . $escapedOrig . '(\|[^}]*)?\}\}/u',
-                '{{' . $final . '$1}}',
-                $text
-            );
+            $escapedAlt  = preg_quote( str_replace( ' ', '_', $orig ), '/' );
+            $pattern = '/\[\[(?:' . $escapedOrig . '|' . $escapedAlt . ')(\|[^]]*)?\]\]/u';
+            $text = preg_replace( $pattern, '[[' . $final . '$1]]', $text );
+    
+            $patternTmpl = '/\{\{(?:' . $escapedOrig . '|' . $escapedAlt . ')(\|[^}]*)?\}\}/u';
+            $text = preg_replace( $patternTmpl, '{{' . $final . '$1}}', $text );
         }
         return $text;
     }
+    
 
     private function buildRewriteMap( string $repoUrl, array $incomingPacks ): array {
         $pageReg = new LabkiPageRegistry();
         $repoReg = new LabkiRepoRegistry();
-
+    
         $repoId = $repoReg->ensureRepo( $repoUrl );
         wfDebugLog( 'labkipack', 'Ensuring repo second call ' . $repoUrl );
         wfDebugLog( 'labkipack', 'About to call getRewriteMapForRepo with repoId: ' . $repoId->toInt() );
+    
         $map = $pageReg->getRewriteMapForRepo( $repoId->toInt() );
         wfDebugLog( 'labkipack', 'Got rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
+    
         foreach ( $incomingPacks as $pack ) {
             foreach ( $pack['pages'] ?? [] as $pg ) {
-                $orig = str_replace( ' ', '_', $pg['original'] ?? $pg['name'] ?? '' );
+                $orig = $pg['original'] ?? ($pg['name'] ?? '');
                 $final = $pg['finalTitle'] ?? '';
-                if ( $orig && $final ) {
+                if ( $orig !== '' && $final !== '' ) {
+                    // ✅ store key exactly as original name
                     $map[$orig] = $final;
                 }
             }
         }
-
+    
         wfDebugLog( 'labkipack', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
         return $map;
     }
+    
 
+    private function editPage( \MediaWiki\Page\WikiPage $page, \MediaWiki\Content\Content $content, string $summary ): \Status {
+        $comment = CommentStoreComment::newUnsavedComment( $summary );
+        $pageUpdater = $page->newPageUpdater( $this->getUser() );
+        $pageUpdater->setContent( SlotRecord::MAIN, $content );
+        $pageUpdater->saveRevision( $comment );
+        return $pageUpdater->getStatus();
+    }
+    
+
+    
     /**
      * Retrieve the "pages" section from the cached manifest for a given repo,
      * returning a simple map of pageName => relative file path.
@@ -370,40 +428,65 @@ final class ApiLabkiUpdate extends ApiBase {
     private function getManifestPages( string $repoUrl ): array {
         $store = new \LabkiPackManager\Services\ManifestStore( $repoUrl );
         $status = $store->get( false ); // prefer cache
-
+    
         if ( !$status->isOK() ) {
             wfDebugLog( 'labkipack', "Failed to load manifest for repo: $repoUrl" );
             return [];
         }
-
+    
         $data = $status->getValue();
         $manifestPages = $data['manifest']['pages'] ?? [];
-
         if ( !is_array( $manifestPages ) ) {
             wfDebugLog( 'labkipack', "Manifest missing or invalid pages section for repo: $repoUrl" );
             return [];
         }
-
+    
         $map = [];
         foreach ( $manifestPages as $name => $info ) {
             if ( !is_array( $info ) ) {
                 continue;
             }
-
+    
             $path = $info['file'] ?? null;
             if ( !$path ) {
                 wfDebugLog( 'labkipack', "No file path found for page '$name' in manifest" );
                 continue;
             }
-
-            // Normalize for consistency (case/spacing)
-            //$normalized = str_replace( ' ', '_', mb_strtolower( $name ) );
-            $normalized = $name;
-            $map[$normalized] = $path;
+    
+            // ✅ Store using *exact* manifest name (no normalization)
+            $map[$name] = $path;
         }
-
+    
         wfDebugLog( 'labkipack', 'getManifestPages() loaded ' . count( $map ) . " entries for repo $repoUrl" );
         return $map;
+    }
+    
+    /**
+     * Build a full fetchable URL for a given file path within a content repository.
+     * Handles GitHub repos by converting to raw.githubusercontent.com format.
+     *
+     * Examples:
+     *   buildPageUrl("https://github.com/Aharoni-Lab/labki-packs", "pages/Foo Bar.wiki")
+     *   → https://raw.githubusercontent.com/Aharoni-Lab/labki-packs/refs/heads/main/pages/Foo%20Bar.wiki
+     */
+    // This should be moved to utils and have 1 file that helps map in and out of github URLs.
+    private function buildPageUrl( string $repoUrl, string $relPath, ?string $ref = null ): string {
+        $ref = $ref ?: 'refs/heads/main';
+        $cleanPath = ltrim( $relPath, '/' );
+
+        // Handle GitHub
+        if ( preg_match( '#^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?(?:/.*)?$#', $repoUrl, $m ) ) {
+            $owner = $m[1];
+            $repo  = $m[2];
+            // Encode each segment safely but keep slashes
+            $segments = array_map( 'rawurlencode', explode( '/', $cleanPath ) );
+            $encodedPath = implode( '/', $segments );
+
+            return "https://raw.githubusercontent.com/$owner/$repo/$ref/$encodedPath";
+        }
+
+        // Fallback: non-GitHub source (just join)
+        return rtrim( $repoUrl, '/' ) . '/' . str_replace( ' ', '%20', $cleanPath );
     }
 
     
