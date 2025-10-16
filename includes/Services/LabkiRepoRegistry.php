@@ -26,29 +26,38 @@ final class LabkiRepoRegistry {
      * Insert a repository if not present and return repo_id.
      */
     public function addRepo( string $url, ?string $defaultRef = null ): ContentRepoId {
+        wfDebugLog( 'labkipack', 'addRepo() called with url: ' . $url );
         $normUrl = $this->normalizeUrl( $url );
         $existingId = $this->getRepoIdByUrl( $normUrl );
         if ( $existingId !== null ) {
+            wfDebugLog( 'labkipack', 'addRepo() found existing repo with ID: ' . $existingId->toInt() );
             return $existingId;
         }
 
-        $now = \wfTimestampNow();
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        wfDebugLog( 'labkipack', 'addRepo() inserting new repo: ' . $normUrl );
+        try {
+            $now = \wfTimestampNow();
+            $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
 
-        $dbw->newInsertQueryBuilder()
-            ->insertInto( self::TABLE )
-            ->row( [
-                'content_repo_url' => $normUrl,
-                'default_ref' => $defaultRef,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ] )
-            ->caller( __METHOD__ )
-            ->execute();
+            $dbw->newInsertQueryBuilder()
+                ->insertInto( self::TABLE )
+                ->row( [
+                    'content_repo_url' => $normUrl,
+                    'default_ref' => $defaultRef,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ] )
+                ->caller( __METHOD__ )
+                ->execute();
 
-        $id = (int)$dbw->insertId();
-        wfDebugLog( 'Labki', 'Added repo ' . $normUrl . ' (repo_id=' . $id . ')' );
-        return new ContentRepoId( $id );
+            $id = (int)$dbw->insertId();
+            wfDebugLog( 'labkipack', 'Successfully added repo ' . $normUrl . ' (repo_id=' . $id . ')' );
+            return new ContentRepoId( $id );
+        } catch ( Exception $e ) {
+            wfDebugLog( 'labkipack', 'addRepo() failed with exception: ' . $e->getMessage() );
+            wfDebugLog( 'labkipack', 'Stack trace: ' . $e->getTraceAsString() );
+            throw $e;
+        }
     }
 
     /**
@@ -95,11 +104,17 @@ final class LabkiRepoRegistry {
 
     /** Ensure repo exists by URL and return its ID. */
     public function ensureRepo( string $url ): ContentRepoId {
+        wfDebugLog( 'labkipack', 'ensureRepo() called with url: ' . $url );
         $normUrl = $this->normalizeUrl( $url );
+        wfDebugLog( 'labkipack', 'ensureRepo() called with url: ' . $url . ', normalized: ' . $normUrl );
+        
         $id = $this->getRepoIdByUrl( $normUrl );
         if ( $id !== null ) {
+            wfDebugLog( 'labkipack', 'Found existing repo with ID: ' . $id->toInt() );
             return $id;
         }
+        
+        wfDebugLog( 'labkipack', 'No existing repo found, calling addRepo' );
         return $this->addRepo( $normUrl, null );
     }
 

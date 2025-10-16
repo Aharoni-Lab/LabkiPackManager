@@ -370,28 +370,28 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
         this.pushMessage(MSG_TYPES.INFO, 'Starting import…');
 
-        // try {
-        //   // maybe should put in api.js?
-        //   const api = new mw.Api();
-        //   const res = await api.postWithToken('csrf', {
-        //     action: 'labkiUpdate',
-        //     format: 'json',
-        //     formatversion: '2',
-        //     actionType: 'importPack',
-        //     contentRepoUrl: payload.repoUrl,
-        //     packs: JSON.stringify(selected)   // new param to handle multi-pack
-        //   });
+        try {
+          // maybe should put in api.js?
+          const api = new mw.Api();
+          const res = await api.postWithToken('csrf', {
+            action: 'labkiUpdate',
+            format: 'json',
+            formatversion: '2',
+            actionType: 'importPack',
+            contentRepoUrl: payload.repoUrl,
+            packs: JSON.stringify(selected)   // new param to handle multi-pack
+          });
 
-        //   if (res?.labkiUpdate?.success) {
-        //     this.pushMessage(MSG_TYPES.SUCCESS, 'Import completed.');
-        //   } else {
-        //     const err = res?.labkiUpdate?.error || 'Import failed.';
-        //     this.pushMessage(MSG_TYPES.ERROR, err);
-        //   }
-        // } catch (e) {
-        //   console.error('[Import]', e);
-        //   this.pushMessage(MSG_TYPES.ERROR, e.message || 'Import error.');
-        // }
+          if (res?.labkiUpdate?.success) {
+            this.pushMessage(MSG_TYPES.SUCCESS, 'Import completed.');
+          } else {
+            const err = res?.labkiUpdate?.error || 'Import failed.';
+            this.pushMessage(MSG_TYPES.ERROR, err);
+          }
+        } catch (e) {
+          console.error('[Import]', e);
+          this.pushMessage(MSG_TYPES.ERROR, e.message || 'Import error.');
+        }
       },
 
       doUpdate() {

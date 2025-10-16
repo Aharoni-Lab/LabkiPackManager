@@ -6,6 +6,7 @@ namespace LabkiPackManager\API;
 
 use ApiBase;
 use ApiMain;
+use Exception;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiPackRegistry;
 use LabkiPackManager\Services\LabkiPageRegistry;
@@ -60,15 +61,18 @@ final class ApiLabkiUpdate extends ApiBase {
      * INSTALL PACK
      * ------------------------------------------------------------------------- */
     public function handleImportPack(): array {
+        wfDebugLog( 'labkipack', 'handleImportPack() called' );
         $params = $this->extractRequestParams();
         $repoUrl = (string)( $params['contentRepoUrl'] ?? '' );
         $packsJson = $params['packs'] ?? '[]';
         $packs = json_decode( $packsJson, true ) ?: [];
-    
+        
+        wfDebugLog( 'labkipack', 'Got packs: ' . json_encode( $packs ) );
         if ( $repoUrl === '' ) {
             $this->dieWithError( 'apierror-missing-param' );
         }
     
+        wfDebugLog( 'labkipack', 'Ensuring repo ' . $repoUrl );
         $repoReg = new LabkiRepoRegistry();
         $packReg = new LabkiPackRegistry();
         $pageReg = new LabkiPageRegistry();
@@ -78,10 +82,12 @@ final class ApiLabkiUpdate extends ApiBase {
         // Build global rewrite mapping across both existing and new pages
         $rewriteMap = $this->buildRewriteMap( $repoUrl, $packs );
         
+        wfDebugLog( 'labkipack', 'Building rewrite map for repo ' . $repoUrl . ' (' . count( $packs ) . ' packs)' );
         // Get all manifest pages once for all pack imports - with error handling
         $manifestPages = [];
         try {
             $manifestPages = $this->getManifestPages( $repoUrl );
+            wfDebugLog( 'labkipack', 'Got manifest pages for repo ' . $repoUrl . ' (' . count( $manifestPages ) . ' pages)' );
         } catch ( Exception $e ) {
             wfDebugLog( 'labkipack', 'Failed to get manifest pages: ' . $e->getMessage() );
             // Continue without manifest pages - the import will still work
@@ -339,8 +345,10 @@ final class ApiLabkiUpdate extends ApiBase {
         $repoReg = new LabkiRepoRegistry();
 
         $repoId = $repoReg->ensureRepo( $repoUrl );
-        $map = $pageReg->getRewriteMapForRepo( $repoId );
-
+        wfDebugLog( 'labkipack', 'Ensuring repo second call ' . $repoUrl );
+        wfDebugLog( 'labkipack', 'About to call getRewriteMapForRepo with repoId: ' . $repoId->toInt() );
+        $map = $pageReg->getRewriteMapForRepo( $repoId->toInt() );
+        wfDebugLog( 'labkipack', 'Got rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
         foreach ( $incomingPacks as $pack ) {
             foreach ( $pack['pages'] ?? [] as $pg ) {
                 $orig = str_replace( ' ', '_', $pg['original'] ?? $pg['name'] ?? '' );

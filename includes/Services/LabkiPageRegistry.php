@@ -41,7 +41,7 @@ final class LabkiPageRegistry {
             ->caller( __METHOD__ )
             ->execute();
         $id = (int)$dbw->insertId();
-        wfDebugLog( 'Labki', 'Added page ' . $pageData['final_title'] . ' (page_id=' . $id . ', pack_id=' . $packId . ')' );
+        wfDebugLog( 'labkipack', 'Added page ' . $pageData['final_title'] . ' (page_id=' . $id . ', pack_id=' . $packId . ')' );
         return new PageId( $id );
     }
 
@@ -140,7 +140,7 @@ final class LabkiPageRegistry {
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Updated page ' . $pageId );
+        wfDebugLog( 'labkipack', 'Updated page ' . $pageId );
     }
 
     /**
@@ -154,7 +154,7 @@ final class LabkiPageRegistry {
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed pages for pack ' . $packId );
+        wfDebugLog( 'labkipack', 'Removed pages for pack ' . $packId );
     }
 
     /** Remove a single page by its internal page_id */
@@ -165,7 +165,7 @@ final class LabkiPageRegistry {
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed page ' . ( $pageId instanceof PageId ? $pageId->toInt() : $pageId ) );
+        wfDebugLog( 'labkipack', 'Removed page ' . ( $pageId instanceof PageId ? $pageId->toInt() : $pageId ) );
         return true;
     }
 
@@ -180,7 +180,7 @@ final class LabkiPageRegistry {
             ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed page by name ' . $name . ' for pack ' . ( $packId instanceof PackId ? $packId->toInt() : $packId ) );
+        wfDebugLog( 'labkipack', 'Removed page by name ' . $name . ' for pack ' . ( $packId instanceof PackId ? $packId->toInt() : $packId ) );
         return true;
     }
 
@@ -192,7 +192,7 @@ final class LabkiPageRegistry {
             ->where( [ 'final_title' => $finalTitle ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed page by final title ' . $finalTitle );
+        wfDebugLog( 'labkipack', 'Removed page by final title ' . $finalTitle );
         return true;
     }
 
@@ -267,19 +267,21 @@ final class LabkiPageRegistry {
     }
 
     public function getRewriteMapForRepo( int $repoId ): array {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        wfDebugLog( 'labkipack', 'getRewriteMapForRepo() called with repo_id=' . $repoId );
+    
+        $dbr = \MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
     
         $res = $dbr->newSelectQueryBuilder()
             ->select( [ 'lp.name', 'lp.final_title' ] )
             ->from( self::TABLE, 'lp' )
-            ->join( 'labki_pack', 'pack', [ 'lp.pack_id = pack.pack_id' ] )
+            ->join( 'labki_pack', 'pack', 'lp.pack_id = pack.pack_id' )  // ✅ FIXED
             ->where( [ 'pack.content_repo_id' => $repoId ] )
             ->distinct()
             ->caller( __METHOD__ )
             ->fetchResultSet();
     
         if ( !$res->numRows() ) {
-            wfDebugLog( 'Labki', "No rewrite map rows found for repo_id=$repoId" );
+            wfDebugLog( 'labkipack', "No rewrite map rows found for repo_id=$repoId" );
             return [];
         }
     
@@ -292,12 +294,10 @@ final class LabkiPageRegistry {
             }
         }
     
-        wfDebugLog( 'Labki', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
+        wfDebugLog( 'labkipack', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
     
         return $map;
     }
-    
-    
 }
 
 

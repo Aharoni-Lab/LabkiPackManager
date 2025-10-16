@@ -128,8 +128,16 @@ docker compose exec -T mediawiki ls -l $CONTAINER_LOG_PATH
 
 # --- Verify logging ---
 echo "==> Verifying MediaWiki debug log output..."
-docker compose exec -T mediawiki php -r "require_once \"$CONTAINER_WIKI_PATH/includes/Setup.php\"; wfDebugLog('labkipack','Reset complete – test entry');"
-docker compose exec -T mediawiki tail -n 3 $CONTAINER_LOG_FILE || true
+docker compose exec -T mediawiki bash -lc "chmod -R 777 $CONTAINER_LOG_PATH"
+docker compose exec -T mediawiki php -r "
+define('MW_INSTALL_PATH', '/var/www/html/w');
+\$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+require_once MW_INSTALL_PATH . '/includes/WebStart.php';
+wfDebugLog('labkipack', 'Reset complete – test entry at ' . date('H:i:s'));
+echo \"OK\n\";
+"
+docker compose exec -T mediawiki tail -n 5 $CONTAINER_LOG_FILE || true
+
 
 echo
 echo "==> All done!"
