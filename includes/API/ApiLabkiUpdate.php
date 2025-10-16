@@ -141,60 +141,26 @@ final class ApiLabkiUpdate extends ApiBase {
      * UPDATE PACK
      * ------------------------------------------------------------------------- */
     private function handleUpdatePack(): array {
-        $params = $this->extractRequestParams();
-        $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
-        $packName = (string)( $params['packName'] ?? '' );
-        $currentVersion = isset( $params['version'] ) ? (string)$params['version'] : null;
-        $newVersion = isset( $params['newVersion'] ) ? (string)$params['newVersion'] : null;
-        $pagesParam = $params['pages'] ?? null;
-        $pages = is_string( $pagesParam )
-            ? json_decode( $pagesParam, true )
-            : ( is_array( $pagesParam ) ? $pagesParam : [] );
-
-        if ( $contentRepoUrl === '' || $packName === '' ) {
-            $this->dieWithError( 'apierror-missing-param' );
-        }
-
-        $repoReg = new LabkiRepoRegistry();
-        $packReg = new LabkiPackRegistry();
-        $pageReg = new LabkiPageRegistry();
-
-        $repoId = $repoReg->ensureRepo( $contentRepoUrl );
-        $packIdObj = $packReg->getPackIdByName( $repoId, $packName, null );
-        if ( $packIdObj === null ) {
-            $this->dieWithError( [ 'apierror-pack-not-found', $packName ], 'pack_not_found' );
-        }
-        $packId = $packIdObj instanceof PackId ? $packIdObj->toInt() : (int)$packIdObj;
-
-        if ( $newVersion !== null && $newVersion !== '' ) {
-            $packReg->updatePack( $packId, [ 'version' => $newVersion ] );
-        } else {
-            $packReg->updatePack( $packId, [] );
-        }
-
-        // Replace pages
-        $pageReg->removePagesByPack( $packId );
-        $added = 0;
-        foreach ( $pages as $p ) {
-            if ( !is_array( $p ) ) {
-                continue;
-            }
-            $name = (string)( $p['name'] ?? '' );
-            $finalTitle = (string)( $p['finalTitle'] ?? '' );
-            $ns = (int)( $p['pageNamespace'] ?? 0 );
-            $wikiPageId = (int)( $p['wikiPageId'] ?? 0 );
-            if ( $name === '' || $finalTitle === '' ) {
-                continue;
-            }
-            $pageReg->addPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
-            $added++;
-        }
+        // TODO: Implement pack update functionality similar to handleImportPack
+        // 
+        // This function should:
+        // 1. Extract and validate parameters (contentRepoUrl, packName, newVersion, pages)
+        // 2. Ensure repo exists in registry
+        // 3. Find existing pack by name/version
+        // 4. Build rewrite map for the repo (similar to buildRewriteMap)
+        // 5. Get manifest pages for the repo (similar to getManifestPages)
+        // 6. For each page in the update:
+        //    - Fetch updated content from repo using manifest file paths
+        //    - Apply link rewriting using rewrite map
+        //    - Update the MediaWiki page with new content
+        //    - Update page registry with new wikiPageId if needed
+        // 7. Update pack version in registry if newVersion provided
+        // 8. Return success response with updated pack info
 
         return [
-            'success' => true,
+            'success' => false,
             'action' => 'updatePack',
-            'packId' => $packId,
-            'pagesAdded' => $added,
+            'error' => 'Not yet implemented',
             '_meta' => [ 'schemaVersion' => 1 ]
         ];
     }
@@ -203,54 +169,28 @@ final class ApiLabkiUpdate extends ApiBase {
      * REMOVE PACK
      * ------------------------------------------------------------------------- */
     private function handleRemovePack(): array {
-        $params = $this->extractRequestParams();
-        $packId = (int)( $params['packId'] ?? 0 );
-        $contentRepoUrl = (string)( $params['contentRepoUrl'] ?? '' );
-        $packName = (string)( $params['packName'] ?? '' );
-        $version = isset( $params['version'] ) ? (string)$params['version'] : null;
-        $pagesParam = $params['pages'] ?? null;
-        $pages = is_string( $pagesParam )
-            ? json_decode( $pagesParam, true )
-            : ( is_array( $pagesParam ) ? $pagesParam : [] );
-
-        $repoReg = new LabkiRepoRegistry();
-        $packReg = new LabkiPackRegistry();
-        $pageReg = new LabkiPageRegistry();
-
-        if ( $packId <= 0 ) {
-            if ( $contentRepoUrl === '' || $packName === '' ) {
-                $this->dieWithError( 'apierror-missing-param' );
-            }
-            $repoId = $repoReg->ensureRepo( $contentRepoUrl );
-            $packIdObj = $packReg->getPackIdByName( $repoId, $packName, null );
-            if ( $packIdObj === null ) {
-                $this->dieWithError( [ 'apierror-pack-not-found', $packName ], 'pack_not_found' );
-            }
-            $packId = $packIdObj->toInt();
-        }
-
-        // Remove wiki pages
-        $existingPages = $pageReg->listPagesByPack( $packId );
-        foreach ( $existingPages as $page ) {
-            $title = Title::newFromText( $page->getFinalTitle() );
-            if ( $title && $title->exists() ) {
-                $wikiPage = WikiPage::factory( $title );
-                $wikiPage->doDeleteArticle( 'Removed via LabkiPackManager' );
-            }
-        }
-
-        // Remove from registry
-        $pageReg->removePagesByPack( $packId );
-        $packReg->removePack( $packId );
+        // TODO: Implement pack removal functionality
+        //
+        // This function should:
+        // 1. Extract and validate parameters (packId OR contentRepoUrl+packName+version)
+        // 2. Find the pack to remove (either by packId or by name lookup)
+        // 3. Get list of all pages associated with this pack from page registry
+        // 4. For each page:
+        //    - Create Title object from finalTitle
+        //    - Check if the page exists in MediaWiki
+        //    - Delete the page using proper MediaWiki deletion API
+        //    - Log deletion results for verification
+        // 5. Remove all page entries from page registry for this pack
+        // 6. Remove pack entry from pack registry
+        // 7. Return success response with verification info (counts, packId, etc.)
+        // 
+        // Note: Should handle both packId-based removal and name-based removal
+        // Should use proper MediaWiki WikiPage deletion methods instead of direct doDeleteArticle
 
         return [
-            'success' => true,
+            'success' => false,
             'action' => 'removePack',
-            'packId' => $packId,
-            'verify' => [
-                'providedCount' => is_array( $pages ) ? count( $pages ) : 0,
-                'removedCount' => is_array( $existingPages ) ? count( $existingPages ) : 0
-            ],
+            'error' => 'Not yet implemented',
             '_meta' => [ 'schemaVersion' => 1 ]
         ];
     }
