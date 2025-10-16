@@ -197,13 +197,13 @@ describe('LpmTree', () => {
     data.hierarchy.nodes['pack:standalone pack'].installedVersion = '1.0.0';
     data.hierarchy.nodes['pack:top chain pack'].installStatus = 'safe-upgrade';
     data.hierarchy.nodes['pack:top chain pack'].installedVersion = '0.9.0';
-    data.hierarchy.nodes['pack:mid chain pack'].installStatus = 'incompatible-update';
+    data.hierarchy.nodes['pack:mid chain pack'].installStatus = 'incompatible-upgrade';
     data.hierarchy.nodes['pack:mid chain pack'].installedVersion = '0.5.0';
 
     const w = mount(LpmTree as any, { props: { ...props, data }, global });
     const text = w.text();
     expect(text).toMatch(/Already imported \(v1\.0\.0\)/);
-    expect(text).toMatch(/Update:\s+0\.9\.0 → 1\.0\.0/);
+    expect(text).toMatch(/Upgrade:\s+0\.9\.0 → 1\.0\.0/);
     expect(text).toMatch(/Major version change:\s+0\.5\.0 → 1\.0\.0/);
   });
 

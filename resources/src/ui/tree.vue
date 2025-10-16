@@ -191,7 +191,7 @@ export default {
               <span v-else-if="flatPack?.installStatus === 'safe-upgrade'" class="status-update">
                 Upgrade: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
               </span>
-              <span v-else-if="flatPack?.installStatus === 'incompatible-update' || flatPack?.installStatus === 'downgrade'" class="status-major">
+              <span v-else-if="flatPack?.installStatus === 'incompatible-upgrade' || flatPack?.installStatus === 'downgrade'" class="status-major">
                 Major version change: {{ flatPack?.installedVersion || '—' }} → {{ flatPack?.version || '—' }}
               </span>
               <span v-else class="status-new">New</span>
