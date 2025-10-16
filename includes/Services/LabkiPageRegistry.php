@@ -17,9 +17,31 @@ final class LabkiPageRegistry {
 
     /**
      * Add a page to a pack and return page_id.
-     * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int} $pageData
+     * 
+     * Can be called in two ways:
+     * 1. With array: addPage($packId, ['name' => '...', 'final_title' => '...', ...])
+     * 2. With individual params: addPage($packId, $name, $finalTitle, $pageNamespace, $wikiPageId)
+     * 
+     * @param int|PackId $packId
+     * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int}|string $pageDataOrName
+     * @param string|null $finalTitle
+     * @param int|null $pageNamespace
+     * @param int|null $wikiPageId
      */
-    public function addPage( int|PackId $packId, array $pageData ): PageId {
+    public function addPage( int|PackId $packId, array|string $pageDataOrName, ?string $finalTitle = null, ?int $pageNamespace = null, ?int $wikiPageId = null ): PageId {
+        // Handle both calling conventions
+        if ( is_array( $pageDataOrName ) ) {
+            $pageData = $pageDataOrName;
+        } else {
+            // Convert individual parameters to array format
+            $pageData = [
+                'name' => $pageDataOrName,
+                'final_title' => $finalTitle,
+                'page_namespace' => $pageNamespace,
+                'wiki_page_id' => $wikiPageId,
+            ];
+        }
+
         // Note: This persists registry state for an installed page. Caller must ensure
         // the corresponding MW page exists/was modified successfully before calling this.
         $now = \wfTimestampNow();
@@ -196,15 +218,6 @@ final class LabkiPageRegistry {
         return true;
     }
 
-    /** Record a page installation event with required fields */
-    public function recordInstalledPage( int|PackId $packId, string $name, string $finalTitle, int $pageNamespace, int $wikiPageId ): PageId {
-        return $this->addPage( $packId, [
-            'name' => $name,
-            'final_title' => $finalTitle,
-            'page_namespace' => $pageNamespace,
-            'wiki_page_id' => $wikiPageId,
-        ] );
-    }
 
     /**
      * Detect collisions with existing wiki pages by title.

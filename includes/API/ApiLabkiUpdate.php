@@ -113,7 +113,7 @@ final class ApiLabkiUpdate extends ApiBase {
             // Replace previous pages for this pack
             $pageReg->removePagesByPack( $packId );
             foreach ( $createdPages as $p ) {
-                $pageReg->recordInstalledPage(
+                $pageReg->addPage(
                     $packId,
                     $p['name'],
                     $p['finalTitle'],
@@ -186,7 +186,7 @@ final class ApiLabkiUpdate extends ApiBase {
             if ( $name === '' || $finalTitle === '' ) {
                 continue;
             }
-            $pageReg->recordInstalledPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
+            $pageReg->addPage( $packId, $name, $finalTitle, $ns, $wikiPageId );
             $added++;
         }
 
