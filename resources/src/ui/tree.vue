@@ -28,12 +28,10 @@
 
 <script>
 import { idToName, isPackNode } from '../utils/nodeUtils.js';
+
 export default {
   name: 'LpmTree',
 
-  /* ------------------------------------------------------------------------
-   *  COMPONENTS
-   * ---------------------------------------------------------------------- */
   components: {
     LpmPackNode: {
       name: 'lpm-pack-node',
@@ -61,8 +59,6 @@ export default {
         isSelected() {
           return !!this.lpmCtx.selectedPacks[this.packName];
         },
-
-        // --- Derived node data helpers ---
         pages() {
           return this.resolvePages();
         },
@@ -75,15 +71,10 @@ export default {
       },
 
       created() {
-        // Default to expanded
         if (!(this.packId in this.lpmCtx.expanded)) this.lpmCtx.expanded[this.packId] = true;
       },
 
-      /* --------------------------------------------------------------------
-       *  METHODS
-       * ------------------------------------------------------------------ */
       methods: {
-        // ---- Small utility helpers ----
         getNode(id) {
           const normalized = id.startsWith('pack:') ? id : `pack:${id}`;
           return this.lpmCtx.nodes[normalized];
@@ -91,10 +82,11 @@ export default {
 
         resolvePages() {
           const node = this.getNode(this.packName);
-          if (Array.isArray(node?.pages)) return node.pages;
-          return (this.node.children || [])
-            .filter(c => c.type === 'page')
-            .map(c => c.id);
+          if (!node) return [];
+          // Normalize to objects: { name, finalTitle? }
+          return (node.pages || []).map(p =>
+            typeof p === 'string' ? { name: p } : { name: p.name, finalTitle: p.finalTitle || null }
+          );
         },
 
         resolveChildPacks() {
@@ -103,7 +95,6 @@ export default {
           const packs = deps.map(d => this.getNode(d)).filter(Boolean);
           if (packs.length) return packs;
 
-          // fallback to children if no depends_on
           return (this.node.children || [])
             .filter(c => c.type === 'pack')
             .map(c => this.getNode(c.id) || c);
@@ -128,10 +119,13 @@ export default {
         updatePrefix(value) {
           const next = { ...this.lpmCtx.prefixes, [this.packName]: value };
           this.lpmCtx.updatePrefixes(next);
+
+          // Run collision checks only for unlocked packs
+          if (this.flatPack?.isLocked) return;
           for (const p of this.pages) {
-            const key = `${this.packName}::${p}`;
+            const key = `${this.packName}::${p.name}`;
             const rename = this.lpmCtx.renames[key] || '';
-            const title = this.computeTitleNow(p, value, rename);
+            const title = this.computeTitleNow(p.name, value, rename);
             this.lpmCtx.debounceCheck(key, title, 0);
           }
         },
@@ -141,22 +135,31 @@ export default {
           const next = { ...this.lpmCtx.renames, [key]: value };
           this.lpmCtx.updateRenames(next);
 
+          // Skip collision checks for locked/installed packs
+          if (this.flatPack?.isLocked) return;
           const prefix = this.lpmCtx.prefixes[this.packName] || '';
           const title = this.computeTitleNow(page, prefix, value);
           this.lpmCtx.debounceCheck(key, title, 0);
         },
 
-        final(page) {
-          return this.lpmCtx.computeTitle(this.packName, page);
+        // Live compute (used for new/uninstalled packs)
+        final(packName, pageName) {
+          return this.lpmCtx.computeTitle(packName, pageName);
         },
-        collide(page) {
-          return !!this.lpmCtx.collisions[`${this.packName}::${page}`];
+
+        // ✅ Authoritative display for the Final Name cell
+        displayFinal(page) {
+          // If the pack is locked (already installed) and DB gave us a finalTitle, show that.
+          if (this.flatPack?.isLocked && page.finalTitle) return page.finalTitle;
+          // Otherwise fall back to the live-computed title.
+          return this.final(this.packName, page.name);
+        },
+
+        collide(pageName) {
+          return !!this.lpmCtx.collisions[`${this.packName}::${pageName}`];
         }
       },
 
-      /* --------------------------------------------------------------------
-       *  TEMPLATE
-       * ------------------------------------------------------------------ */
       template: `
         <tbody>
           <!-- PACK ROW -->
@@ -197,25 +200,34 @@ export default {
 
           <!-- PAGE ROWS -->
           <tr
-            v-for="p in pages"
-            :key="packName + '::' + p"
+            v-for="page in pages"
+            :key="packName + '::' + page.name"
             v-show="isOpen"
-            :class="['page-row', { 'lpm-row-ok': isSelected && !collide(p),
-                                   'lpm-row-warn': isSelected && collide(p) }]">
+            :class="['page-row', { 'lpm-row-ok': isSelected && !collide(page.name),
+                                   'lpm-row-warn': isSelected && collide(page.name) }]">
             <td class="lpm-indent lpm-cell-pad-left"
-                :style="{ paddingLeft: ((depth + 1) * 1.75) + 'em' }">{{ p }}</td>
+                :style="{ paddingLeft: ((depth + 1) * 1.75) + 'em' }">{{ page.name }}</td>
             <td></td>
             <td>
               <cdx-text-input
-                :model-value="lpmCtx.renames[packName + '::' + p]"
+                :model-value="lpmCtx.renames[packName + '::' + page.name]"
                 placeholder="rename"
                 :disabled="!isSelected || !!(flatPack && flatPack.isLocked)"
-                @update:model-value="v => updateRename(p, v)" />
+                @update:model-value="v => updateRename(page.name, v)" />
             </td>
-            <td>{{ final(p) }}</td>
+            <td>
+              <!-- For installed packs, show stored finalTitle -->
+              <template v-if="flatPack?.isLocked && page.finalTitle">
+                {{ page.finalTitle }}
+              </template>
+              <template v-else>
+                {{ final(packName, page.name) }}
+              </template>
+            </td>
+
             <td class="lpm-status-cell">
-              <span v-if="isSelected && !collide(p)" class="lpm-status-included">✓</span>
-              <span v-else-if="isSelected && collide(p)" class="lpm-status-warning">⚠</span>
+              <span v-if="isSelected && !collide(page.name)" class="lpm-status-included">✓</span>
+              <span v-else-if="isSelected && collide(page.name)" class="lpm-status-warning">⚠</span>
             </td>
           </tr>
         </tbody>
@@ -231,9 +243,6 @@ export default {
     }
   },
 
-  /* ------------------------------------------------------------------------
-   *  INJECTION CONTEXT
-   * ---------------------------------------------------------------------- */
   provide() {
     const self = this;
     return {
@@ -263,9 +272,6 @@ export default {
     };
   },
 
-  /* ------------------------------------------------------------------------
-   *  PROPS / DATA / COMPUTED / METHODS
-   * ---------------------------------------------------------------------- */
   props: {
     data: { type: Object, default: null },
     selectedPacks: { type: Object, required: true },
@@ -349,31 +355,29 @@ export default {
       return `${p}::${pg}`;
     },
     splitNs(t) {
-      if (!t || typeof t !== 'string') {
-        console.warn('[LabkiPackManager] Invalid title parameter in splitNs:', t);
-        return { ns: '', base: '' };
-      }
+      if (!t || typeof t !== 'string') return { ns: '', base: '' };
       const i = t.indexOf(':');
       return i > 0 ? { ns: t.slice(0, i), base: t.slice(i + 1) } : { ns: '', base: t };
     },
     finalPageTitle(pack, page) {
-      if (!page || typeof page !== 'string') {
-        console.warn('[LabkiPackManager] Invalid page parameter in finalPageTitle:', page);
-        return '';
-      }
+      if (!page || typeof page !== 'string') return '';
       const { ns, base } = this.splitNs(page);
       const pre = this.prefixes[pack] || '';
       const rename = (this.renames[this.pageKey(pack, page)] || '').trim();
       return `${ns ? ns + ':' : ''}${pre}${rename || base}`;
     },
 
+    // Skip collision checks for locked packs (already installed)
     scheduleCollisionRecheckForVisible() {
       if (!this.checkTitleExists) return;
       for (const [pack, sel] of Object.entries(this.selectedPacks)) {
         if (!sel) continue;
-        const pages = this.nodes[`pack:${pack}`]?.pages || [];
-        for (const p of pages)
-          this.debounceCheck(this.pageKey(pack, p), this.finalPageTitle(pack, p));
+        const packNode = this.nodes[`pack:${pack}`];
+        if (packNode?.isLocked) continue; // ✅ skip installed packs
+        for (const p of (packNode?.pages || [])) {
+          const name = typeof p === 'string' ? p : p.name;
+          this.debounceCheck(this.pageKey(pack, name), this.finalPageTitle(pack, name));
+        }
       }
     },
 
@@ -426,8 +430,6 @@ export default {
       this.recomputeSelectedFromExplicit();
     },
 
-    // ID/Node helpers are provided by ../utils/nodeUtils.js
-
     asyncCheck(title) {
       if (!this.checkTitleExists) return Promise.resolve(false);
       if (title in this.collisionCache) return Promise.resolve(this.collisionCache[title]);
@@ -456,18 +458,12 @@ export default {
       this.debouncers[key] = setTimeout(run, delay);
     },
 
-    /**
-    * Return a flattened summary of all packs, pages, and user selections
-    * suitable for sending to the backend.
-    */
     exportSelectionSummary(repoUrl) {
       const packs = [];
-
       for (const [id, node] of Object.entries(this.nodes)) {
         if (!isPackNode(id, node)) continue;
         const name = idToName(id, node);
         const selected = !!this.selectedPacks[name];
-
         const packData = {
           name,
           id,
@@ -479,27 +475,23 @@ export default {
           pages: []
         };
 
-        const pages = node.pages || [];
-        for (const p of pages) {
-          // Skip if page data is invalid or undefined
-          if (!p || typeof p !== 'string') {
-            console.warn('[LabkiPackManager] Skipping invalid page data:', p);
-            continue;
-          }
-          
-          const finalTitle = this.finalPageTitle(name, p);
+        for (const p of node.pages || []) {
+          const nameStr = typeof p === 'string' ? p : p.name;
+          // Prefer DB finalTitle if present (installed), else compute current plan
+          const finalTitle = (typeof p !== 'string' && p.finalTitle)
+            ? p.finalTitle
+            : this.finalPageTitle(name, nameStr);
+
           packData.pages.push({
-            original: p,
+            original: nameStr,
             finalTitle,
             prefix: this.prefixes[name] || '',
-            rename: this.renames[this.pageKey(name, p)] || '',
-            collide: !!this.collisions[this.pageKey(name, p)]
+            rename: this.renames[this.pageKey(name, nameStr)] || '',
+            collide: !!this.collisions[this.pageKey(name, nameStr)]
           });
         }
-
         packs.push(packData);
       }
-
       return { repoUrl, packs };
     }
   }

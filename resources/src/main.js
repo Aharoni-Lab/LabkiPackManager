@@ -10,16 +10,23 @@ import { createInitialState } from './state.js';
 import { fetchRepos, fetchManifestFor, fetchInstalledFor } from './api.js';
 import { major, compareVersions } from './utils/version.js';
 import { MSG_TYPES } from './constants.js';
+import { idToName, isPackNode } from './utils/nodeUtils.js';
+import { buildMermaidFromGraph } from './utils/mermaidBuilder.js';
 
 // External libs
 import * as Vue from 'vue';
 import * as Codex from '@wikimedia/codex';
 import mermaid from 'mermaid';
-import { buildMermaidFromGraph } from './utils/mermaidBuilder.js';
-import { idToName, isPackNode } from './utils/nodeUtils.js';
 import './styles/labkipackmanager.scss';
+
+// Root UI components
+import LpmToolbar from './ui/toolbar.vue';
+import LpmTree from './ui/tree.vue';
+import LpmMessages from './ui/messages.vue';
+import LpmDialogs from './ui/dialogs.vue';
+
 // ------------------------------------------------------------
-// Mermaid configuration (guarded, on-demand)
+// Mermaid configuration (on-demand)
 // ------------------------------------------------------------
 let mermaidConfigured = false;
 function ensureMermaidConfigured() {
@@ -37,35 +44,25 @@ function ensureMermaidConfigured() {
       return true;
     }
   } catch {
-    // swallow; we'll skip rendering if not ready
+    // swallow; skip rendering if not ready
   }
   return false;
 }
 
-// Root UI components
-import LpmToolbar from './ui/toolbar.vue';
-import LpmTree from './ui/tree.vue';
-import LpmMessages from './ui/messages.vue';
-import LpmDialogs from './ui/dialogs.vue';
+// ------------------------------------------------------------
+// Helper utilities
+// ------------------------------------------------------------
 
-/**
- * Pretty-print a JSON object for debug or preformatted display.
- * @param {any} obj - Object to stringify.
- * @returns {string} Human-readable JSON or stringified fallback.
- */
-function pretty(obj) {
-  try {
-    return JSON.stringify(obj, null, 2);
-  } catch {
-    return String(obj);
+/** Returns true if any pack node satisfies predicate() and is selected. */
+function somePackSelected(nodes, selectedPacks, predicate) {
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!isPackNode(id, node)) continue;
+    const name = idToName(id, node);
+    if (selectedPacks[name] && predicate(node)) return true;
   }
+  return false;
 }
 
-/**
- * Mount the LabkiPackManager Vue application.
- * @param {string} [rootSelector='#labki-pack-manager-root']
- *   DOM selector for the root container.
- */
 export function mountApp(rootSelector = '#labki-pack-manager-root') {
   const app = Vue.createApp({
     template: '<lpm-root ref="root" />',
@@ -76,7 +73,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         importSummary: [],
         upgradeSummary: [],
         messages: [],
-        nextMsgId: 1,
+        nextMsgId: 1
       };
     },
 
@@ -84,39 +81,30 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
       hasActiveRepo() {
         return !!this.activeRepo;
       },
-
-      /** At least one selected pack is new (eligible for import). */
       hasImportableSelection() {
-        const nodes = this.data?.hierarchy?.nodes || {};
-        for (const [id, node] of Object.entries(nodes)) {
-          if (!isPackNode(id, node)) continue;
-          const name = idToName(id, node);
-          if (this.selectedPacks[name] && node?.installStatus === 'new') return true;
-        }
-        return false;
+        return somePackSelected(
+          this.data?.hierarchy?.nodes || {},
+          this.selectedPacks,
+          n => n.installStatus === 'new'
+        );
       },
-
-      /** At least one selected pack has a safe upgrade available. */
       hasUpgradeableSelection() {
-        const nodes = this.data?.hierarchy?.nodes || {};
-        for (const [id, node] of Object.entries(nodes)) {
-          if (!isPackNode(id, node)) continue;
-          const name = idToName(id, node);
-          if (this.selectedPacks[name] && node?.installStatus === 'safe-upgrade') return true;
-        }
-        return false;
+        return somePackSelected(
+          this.data?.hierarchy?.nodes || {},
+          this.selectedPacks,
+          n => n.installStatus === 'safe-upgrade'
+        );
       }
     },
 
     methods: {
-      pretty,
+      // --------------------------------------------------------
+      // Repository + Manifest loading
+      // --------------------------------------------------------
 
-      /**
-       * Initialize repository list from MediaWiki configuration.
-       */
-      async initRepos() {
+      async loadRepos(forceRefresh = false) {
         try {
-          const repos = await fetchRepos();
+          const repos = await fetchRepos(forceRefresh);
           this.repos = repos;
           this.repoMenuItems = repos.map(r => ({
             label: r.name || r.url,
@@ -128,9 +116,81 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /**
-       * Load manifest for the selected repository, using cache if available.
-       */
+      async getOrFetchManifest(repo) {
+        let manifest = repo?.data;
+        if (!manifest) {
+          this.pushMessage(MSG_TYPES.INFO, `Loading manifest for ${this.activeRepo}...`);
+          manifest = await fetchManifestFor(this.activeRepo, false);
+          if (repo) repo.data = manifest;
+        }
+        this.data =
+          manifest && (manifest.hierarchy || manifest.manifest)
+            ? manifest
+            : { hierarchy: null };
+        return manifest;
+      },
+
+      /** Merge installed pack/page data into the manifest hierarchy. */
+      mergeInstalledData(manifest, installed) {
+        const installedByPack = Object.create(null);
+        for (const pack of installed) {
+          if (!pack?.name) continue;
+          installedByPack[pack.name] = {
+            version: pack.version,
+            installedVersion: pack.installedVersion || pack.version,
+            installStatus: pack.installStatus,
+            pages: Object.fromEntries(
+              (pack.pages || []).map(pg => [pg.name, pg.final_title || pg.finalTitle])
+            )
+          };
+        }
+
+        const nodes = this.data?.hierarchy?.nodes || {};
+        const selectedPacks = { ...this.selectedPacks };
+
+        for (const [id, node] of Object.entries(nodes)) {
+          if (!isPackNode(id, node)) continue;
+          const name = idToName(id, node);
+          const info = installedByPack[name];
+
+          if (!info) {
+            Object.assign(node, {
+              installStatus: 'new',
+              isLocked: false,
+              installedVersion: null
+            });
+            continue;
+          }
+
+          const curV = String(info.installedVersion || '0.0.0');
+          const nextV = String(node.version || '0.0.0');
+          const cmp = compareVersions(curV, nextV);
+          const sameMajor = major(curV) === major(nextV);
+
+          node.installedVersion = curV;
+          node.isLocked = true;
+          node.installStatus =
+            cmp === 0
+              ? 'already-installed'
+              : sameMajor && cmp < 0
+              ? 'safe-upgrade'
+              : sameMajor && cmp > 0
+              ? 'downgrade'
+              : 'incompatible-update';
+
+          selectedPacks[name] = true;
+
+          // Attach final titles to pages
+          node.pages = (node.pages || []).map(p => {
+            const pageName = typeof p === 'string' ? p : p.name;
+            const finalTitle = info.pages[pageName] || null;
+            return { name: pageName, finalTitle };
+          });
+        }
+
+        this.selectedPacks = selectedPacks;
+      },
+
       async loadRepo() {
         if (!this.activeRepo) return;
 
@@ -138,70 +198,10 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         const repo = this.repos.find(r => r.url === this.activeRepo);
 
         try {
-          let manifest = repo?.data;
+          const manifest = await this.getOrFetchManifest(repo);
+          const installed = await fetchInstalledFor(this.activeRepo);
+          this.mergeInstalledData(manifest, installed);
 
-          if (!manifest) {
-            this.pushMessage(MSG_TYPES.INFO, `Loading manifest for ${this.activeRepo}...`);
-            manifest = await fetchManifestFor(this.activeRepo, false);
-          }
-
-          // Backend returns wrapper { manifest, hierarchy, graph }
-          this.data =
-            manifest && (manifest.hierarchy || manifest.manifest)
-              ? manifest
-              : { hierarchy: null };
-
-          if (repo) repo.data = manifest;
-
-          // --- Merge installed info for upgrade detection ---
-          try {
-            const installed = await fetchInstalledFor(this.activeRepo);
-            const installedByName = Object.create(null);
-            for (const p of installed) {
-              if (!p || !p.name) continue;
-              installedByName[p.name] = p;
-            }
-
-            const nodes = this.data?.hierarchy?.nodes || {};
-            const selectedPacks = { ...this.selectedPacks };
-            for (const [id, node] of Object.entries(nodes)) {
-              if (!isPackNode(id, node)) continue;
-              const name = idToName(id, node);
-              const installedInfo = installedByName[name];
-              if (!installedInfo) {
-                node.installedVersion = null;
-                node.installStatus = 'new';
-                node.isLocked = false;
-                continue;
-              }
-
-              const curV = String(installedInfo.version || '0.0.0');
-              const nextV = String(node.version || '0.0.0');
-              const cmp = compareVersions(curV, nextV);
-              const sameMajor = major(curV) === major(nextV);
-
-              let status = 'already-installed';
-              if (cmp === 0) status = 'already-installed';
-              else if (sameMajor && cmp < 0) status = 'safe-upgrade';
-              else if (sameMajor && cmp > 0) status = 'downgrade';
-              else status = 'incompatible-update';
-
-              node.installedVersion = curV;
-              node.installStatus = status;
-              node.isLocked = true; // imported packs are locked per requirements
-
-              // Ensure these are selected and not deselectable
-              selectedPacks[name] = true;
-            }
-
-            // Commit selected packs update (tree.vue will mark dependent packs disabled as needed)
-            this.selectedPacks = selectedPacks;
-          } catch (e) {
-            // Non-fatal; continue without installed status
-            console.warn('[LabkiPackManager] Failed to fetch installed packs:', e);
-          }
-
-          // Render Mermaid graph if available (after DOM updates settle)
           if (this.data?.graph) {
             await this.$nextTick();
             await this.renderMermaidGraph(this.data.graph);
@@ -219,9 +219,6 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /**
-       * Force-refresh manifest from the backend, bypassing cache.
-       */
       async refresh() {
         if (!this.activeRepo) {
           this.pushMessage(MSG_TYPES.WARNING, 'Select a repository first.');
@@ -230,14 +227,12 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
 
         this.isRefreshing = true;
         this.pushMessage(MSG_TYPES.INFO, `Refreshing manifest for ${this.activeRepo}...`);
-
         try {
           const data = await fetchManifestFor(this.activeRepo, true);
           this.data = data && (data.hierarchy || data.manifest) ? data : { hierarchy: null };
           const repo = this.repos.find(r => r.url === this.activeRepo);
           if (repo) repo.data = data;
 
-          // Render Mermaid graph if available (after DOM updates settle)
           if (this.data?.graph) {
             await this.$nextTick();
             await this.renderMermaidGraph(this.data.graph);
@@ -255,123 +250,108 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
         }
       },
 
-      /**
-       * Lightweight API helper that checks if a page exists in the wiki.
-       * Returns true if the page exists, false otherwise.
-       * (Used by LpmTree for live collision detection.)
-       */
+      // --------------------------------------------------------
+      // Page + Graph utilities
+      // --------------------------------------------------------
+
       async checkTitleExists(title) {
         try {
           const api = new mw.Api();
           const res = await api.get({
-            action: 'labkiPageExists', // planned API module
+            action: 'labkiPageExists',
             format: 'json',
             formatversion: '2',
             title
           });
-          // Response: { labkiPageExists: { exists: boolean } }
-          return Boolean(res && res.labkiPageExists && res.labkiPageExists.exists);
+          return Boolean(res?.labkiPageExists?.exists);
         } catch (err) {
           console.warn('[LabkiPackManager] checkTitleExists failed:', err);
           return false;
         }
       },
 
-      /**
-       * Render a Mermaid graph into the #lpm-graph container.
-       */
       async renderMermaidGraph(graph) {
         try {
           const code = buildMermaidFromGraph(graph);
           const container = document.getElementById('lpm-graph');
           if (!container) return;
-          // Defer to ensure Vue finished patching
-          await new Promise(r => requestAnimationFrame(() => r()));
-          container.innerHTML = '';
-          const el = document.createElement('div');
-          el.className = 'mermaid';
-          el.textContent = code; // Important: plain text, not innerHTML
-          container.appendChild(el);
+
+          await new Promise(r => requestAnimationFrame(r));
+          container.innerHTML = `<div class="mermaid">${code}</div>`;
+
           if (!ensureMermaidConfigured()) return;
           const api = mermaid && (mermaid.default?.run ? mermaid.default : mermaid);
           if (api && typeof api.run === 'function') {
-            await api.run({ nodes: [el] });
+            await api.run({ nodes: [container.firstChild] });
           }
         } catch (err) {
           console.error('[LabkiPackManager] Mermaid render failed:', err);
         }
       },
 
-      /**
-       * Push a message to the UI message stack.
-       */
+      // --------------------------------------------------------
+      // User feedback messages
+      // --------------------------------------------------------
+
       pushMessage(type, text, timeout = 5000) {
-        console.log('[pushMessage]', { type, text });
         const id = this.nextMsgId++;
         this.messages.push({ id, type, text });
-        if (timeout) {
-          setTimeout(() => this.dismissMessage(id), timeout);
-        }
+        if (timeout) setTimeout(() => this.dismissMessage(id), timeout);
       },
 
       dismissMessage(id) {
         this.messages = this.messages.filter(m => m.id !== id);
       },
 
+      // --------------------------------------------------------
+      // Import + Update Actions
+      // --------------------------------------------------------
+
       confirmImport() {
-        // Generate summary of what will be imported
         const root = this.$refs.root;
-        const tree = root && root.$refs && root.$refs.tree;
+        const tree = root?.$refs?.tree;
         if (tree && this.activeRepo) {
           const summary = tree.exportSelectionSummary(this.activeRepo);
-          // Only new packs (installStatus === 'new') will be imported
-          const selectedNew = (summary?.packs || [])
-            .filter(p => p.selected && (p.installStatus === 'new'));
-          this.importSummary = selectedNew;
+          this.importSummary = (summary?.packs || []).filter(
+            p => p.selected && p.installStatus === 'new'
+          );
         } else {
           this.importSummary = [];
         }
-
         this.showImportConfirm = true;
       },
 
       confirmUpdate() {
-        // Generate summary of what will be upgraded
         const root = this.$refs.root;
-        const tree = root && root.$refs && root.$refs.tree;
+        const tree = root?.$refs?.tree;
         if (tree && this.activeRepo) {
           const summary = tree.exportSelectionSummary(this.activeRepo);
-          // Only packs with safe-upgrade will be upgraded
-          const selectedUpgrades = (summary?.packs || [])
-            .filter(p => p.selected && (p.installStatus === 'safe-upgrade'));
-          this.upgradeSummary = selectedUpgrades;
+          this.upgradeSummary = (summary?.packs || []).filter(
+            p => p.selected && p.installStatus === 'safe-upgrade'
+          );
         } else {
           this.upgradeSummary = [];
         }
-
         this.showUpdateConfirm = true;
       },
 
       async doImport() {
         this.showImportConfirm = false;
         const root = this.$refs.root;
-        const tree = root && root.$refs && root.$refs.tree;
+        const tree = root?.$refs?.tree;
         if (!tree || typeof tree.exportSelectionSummary !== 'function') {
           this.pushMessage(MSG_TYPES.ERROR, 'Tree component not ready. Try again.');
           return;
         }
+
         const payload = tree.exportSelectionSummary(this.activeRepo);
-        console.log('[DEBUG] All packs:', payload.packs);
-        
-        // could instead send entire payload and have backend handle filtering. 
-        // Basically just tell backend what packs are selected and what action to take.
-        const selected = payload.packs.filter(p => p.selected && p.installStatus === 'new');
-        console.log('[DEBUG] Selected packs (selected=true, installStatus=new):', selected);
+        const selected = payload.packs.filter(
+          p => p.selected && p.installStatus === 'new'
+        );
 
         this.pushMessage(MSG_TYPES.INFO, 'Starting import…');
 
         try {
-          // maybe should put in api.js?
           const api = new mw.Api();
           const res = await api.postWithToken('csrf', {
             action: 'labkiUpdate',
@@ -379,7 +359,7 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
             formatversion: '2',
             actionType: 'importPack',
             contentRepoUrl: payload.repoUrl,
-            packs: JSON.stringify(selected)   // new param to handle multi-pack
+            packs: JSON.stringify(selected)
           });
 
           if (res?.labkiUpdate?.success) {
@@ -397,44 +377,37 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
       doUpdate() {
         this.showUpdateConfirm = false;
         const root = this.$refs.root;
-        const tree = root && root.$refs && root.$refs.tree;
+        const tree = root?.$refs?.tree;
         if (!tree || typeof tree.exportSelectionSummary !== 'function') {
           this.pushMessage(MSG_TYPES.ERROR, 'Tree component not ready. Try again.');
           return;
         }
         const payload = tree.exportSelectionSummary(this.activeRepo);
         console.log('[Upgrade payload]', payload);
-        
-        // Example: send to backend
-        // const api = new mw.Api();
-        // await api.post({ action: 'labkiPackUpgrade', format: 'json', payload: JSON.stringify(payload) });
-
         this.pushMessage(MSG_TYPES.SUCCESS, 'Upgrade triggered.');
       }
     },
 
     async mounted() {
-      await this.initRepos();
+      await this.loadRepos();
     }
   });
 
   // ------------------------------------------------------------
   // Register Codex Components
   // ------------------------------------------------------------
-  function toKebabFromCdx(name) {
-    return name
-      .replace(/^Cdx/, 'Cdx-')
-      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-      .toLowerCase();
-  }
   for (const [name, comp] of Object.entries(Codex)) {
-    if (name && name.startsWith('Cdx') && comp) {
-      app.component(toKebabFromCdx(name), comp);
+    if (name?.startsWith('Cdx') && comp) {
+      const kebab = name
+        .replace(/^Cdx/, 'Cdx-')
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .toLowerCase();
+      app.component(kebab, comp);
     }
   }
 
   // ------------------------------------------------------------
-  // Root Composition: Define root layout component
+  // Root UI Composition
   // ------------------------------------------------------------
   app.component('lpm-root', {
     components: { LpmToolbar, LpmTree, LpmMessages, LpmDialogs },
@@ -450,42 +423,28 @@ export function mountApp(rootSelector = '#labki-pack-manager-root') {
           @load="$root.loadRepo"
           @refresh="$root.refresh"
         />
-
-        <div class="lpm-row lpm-row-graph">
-          <div id="lpm-graph" class="lpm-graph"></div>
-        </div>
-
+        <div class="lpm-row lpm-row-graph"><div id="lpm-graph" class="lpm-graph"></div></div>
         <lpm-tree
           ref="tree"
           :data="$root.data"
           :selected-packs="$root.selectedPacks"
-          :selected-pages="$root.selectedPages"
           :prefixes="$root.prefixes"
           :renames="$root.renames"
           :check-title-exists="$root.checkTitleExists"
           @update:selectedPacks="val => $root.selectedPacks = val"
-          @update:selectedPages="val => $root.selectedPages = val"
           @update:prefixes="val => $root.prefixes = val"
           @update:renames="val => $root.renames = val"
         />
-
         <div class="lpm-row lpm-row-actionbar">
           <div class="lpm-actionbar">
             <cdx-button :disabled="!$root.hasImportableSelection" @click="$root.confirmImport">Import Selected</cdx-button>
             <cdx-button :disabled="!$root.hasUpgradeableSelection" @click="$root.confirmUpdate">Upgrade Existing</cdx-button>
             <span class="lpm-action-info" style="margin-left: 1em;">
-              {{ $root.activeRepo
-                ? ('Active repo: ' + $root.activeRepo)
-                : 'No repository selected.' }}
+              {{ $root.activeRepo ? ('Active repo: ' + $root.activeRepo) : 'No repository selected.' }}
             </span>
           </div>
         </div>
-
-        <lpm-messages
-          :messages="$root.messages"
-          @dismiss="$root.dismissMessage"
-        />
-
+        <lpm-messages :messages="$root.messages" @dismiss="$root.dismissMessage" />
         <lpm-dialogs
           :import-summary="$root.importSummary"
           :upgrade-summary="$root.upgradeSummary"
