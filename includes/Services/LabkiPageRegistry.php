@@ -17,9 +17,31 @@ final class LabkiPageRegistry {
 
     /**
      * Add a page to a pack and return page_id.
-     * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int} $pageData
+     * 
+     * Can be called in two ways:
+     * 1. With array: addPage($packId, ['name' => '...', 'final_title' => '...', ...])
+     * 2. With individual params: addPage($packId, $name, $finalTitle, $pageNamespace, $wikiPageId)
+     * 
+     * @param int|PackId $packId
+     * @param array{name:string,final_title:string,page_namespace:int,wiki_page_id?:?int,last_rev_id?:?int,content_hash?:?string,created_at?:?int}|string $pageDataOrName
+     * @param string|null $finalTitle
+     * @param int|null $pageNamespace
+     * @param int|null $wikiPageId
      */
-    public function addPage( int|PackId $packId, array $pageData ): PageId {
+    public function addPage( int|PackId $packId, array|string $pageDataOrName, ?string $finalTitle = null, ?int $pageNamespace = null, ?int $wikiPageId = null ): PageId {
+        // Handle both calling conventions
+        if ( is_array( $pageDataOrName ) ) {
+            $pageData = $pageDataOrName;
+        } else {
+            // Convert individual parameters to array format
+            $pageData = [
+                'name' => $pageDataOrName,
+                'final_title' => $finalTitle,
+                'page_namespace' => $pageNamespace,
+                'wiki_page_id' => $wikiPageId,
+            ];
+        }
+
         // Note: This persists registry state for an installed page. Caller must ensure
         // the corresponding MW page exists/was modified successfully before calling this.
         $now = \wfTimestampNow();
@@ -41,7 +63,7 @@ final class LabkiPageRegistry {
             ->caller( __METHOD__ )
             ->execute();
         $id = (int)$dbw->insertId();
-        wfDebugLog( 'Labki', 'Added page ' . $pageData['final_title'] . ' (page_id=' . $id . ', pack_id=' . $packId . ')' );
+        wfDebugLog( 'labkipack', 'Added page ' . $pageData['final_title'] . ' (page_id=' . $id . ', pack_id=' . $packId . ')' );
         return new PageId( $id );
     }
 
@@ -140,7 +162,7 @@ final class LabkiPageRegistry {
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Updated page ' . $pageId );
+        wfDebugLog( 'labkipack', 'Updated page ' . $pageId );
     }
 
     /**
@@ -154,7 +176,7 @@ final class LabkiPageRegistry {
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed pages for pack ' . $packId );
+        wfDebugLog( 'labkipack', 'Removed pages for pack ' . $packId );
     }
 
     /** Remove a single page by its internal page_id */
@@ -165,7 +187,7 @@ final class LabkiPageRegistry {
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed page ' . ( $pageId instanceof PageId ? $pageId->toInt() : $pageId ) );
+        wfDebugLog( 'labkipack', 'Removed page ' . ( $pageId instanceof PageId ? $pageId->toInt() : $pageId ) );
         return true;
     }
 
@@ -180,7 +202,7 @@ final class LabkiPageRegistry {
             ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed page by name ' . $name . ' for pack ' . ( $packId instanceof PackId ? $packId->toInt() : $packId ) );
+        wfDebugLog( 'labkipack', 'Removed page by name ' . $name . ' for pack ' . ( $packId instanceof PackId ? $packId->toInt() : $packId ) );
         return true;
     }
 
@@ -192,19 +214,10 @@ final class LabkiPageRegistry {
             ->where( [ 'final_title' => $finalTitle ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed page by final title ' . $finalTitle );
+        wfDebugLog( 'labkipack', 'Removed page by final title ' . $finalTitle );
         return true;
     }
 
-    /** Record a page installation event with required fields */
-    public function recordInstalledPage( int|PackId $packId, string $name, string $finalTitle, int $pageNamespace, int $wikiPageId ): PageId {
-        return $this->addPage( $packId, [
-            'name' => $name,
-            'final_title' => $finalTitle,
-            'page_namespace' => $pageNamespace,
-            'wiki_page_id' => $wikiPageId,
-        ] );
-    }
 
     /**
      * Detect collisions with existing wiki pages by title.
@@ -264,6 +277,39 @@ final class LabkiPageRegistry {
             $out[] = count( $parts ) === 2 ? $parts[1] : $parts[0];
         }
         return $out;
+    }
+
+    public function getRewriteMapForRepo( int $repoId ): array {
+        wfDebugLog( 'labkipack', 'getRewriteMapForRepo() called with repo_id=' . $repoId );
+    
+        $dbr = \MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+    
+        $res = $dbr->newSelectQueryBuilder()
+            ->select( [ 'lp.name', 'lp.final_title' ] )
+            ->from( self::TABLE, 'lp' )
+            ->join( 'labki_pack', 'pack', 'lp.pack_id = pack.pack_id' )  // ✅ FIXED
+            ->where( [ 'pack.content_repo_id' => $repoId ] )
+            ->distinct()
+            ->caller( __METHOD__ )
+            ->fetchResultSet();
+    
+        if ( !$res->numRows() ) {
+            wfDebugLog( 'labkipack', "No rewrite map rows found for repo_id=$repoId" );
+            return [];
+        }
+    
+        $map = [];
+        foreach ( $res as $row ) {
+            $orig = str_replace( ' ', '_', (string)$row->name );
+            $final = (string)$row->final_title;
+            if ( $orig !== '' && $final !== '' ) {
+                $map[$orig] = $final;
+            }
+        }
+    
+        wfDebugLog( 'labkipack', 'Built rewrite map for repo ' . $repoId . ' (' . count( $map ) . ' entries)' );
+    
+        return $map;
     }
 }
 

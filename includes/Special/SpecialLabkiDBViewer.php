@@ -28,8 +28,9 @@ final class SpecialLabkiDBViewer extends SpecialPage {
     public function execute($subPage): void {
         $this->checkPermissions();
         $config = $this->getConfig();
-        if ( !$config->get( 'LabkiEnableDBViewer' ) ) {
-            throw new PermissionsError('labkipackmanager-error-dbviewer-disabled');
+
+        if ( !$config->get('LabkiEnableDBViewer') ) {
+            throw new \PermissionsError('labkipackmanager-error-dbviewer-disabled');
         }
 
         $output = $this->getOutput();
@@ -37,11 +38,11 @@ final class SpecialLabkiDBViewer extends SpecialPage {
         $output->addModuleStyles('ext.LabkiPackManager.styles');
 
         $req = $this->getRequest();
-        $table = $req->getText('table', 'labki_pack'); // default table
+        $table = $req->getText('table', 'labki_pack');
         $limit = (int)$req->getInt('limit', 50);
 
         $tables = ['labki_content_repo', 'labki_pack', 'labki_page'];
-        if (!in_array($table, $tables, true)) {
+        if ( !in_array($table, $tables, true) ) {
             $output->addHTML('<p>Invalid table.</p>');
             return;
         }
@@ -60,18 +61,32 @@ final class SpecialLabkiDBViewer extends SpecialPage {
             '</form>'
         );
 
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
+        $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
+
+        // Try replica first
+        $dbr = $lb->getConnection(DB_REPLICA);
         $res = $dbr->newSelectQueryBuilder()
             ->select('*')
             ->from($table)
             ->limit($limit)
             ->fetchResultSet();
 
+        // If replica is empty, retry on primary
+        if ( $res->numRows() === 0 ) {
+            $output->addHTML('<p><em>No rows on replica — retrying on primary DB...</em></p>');
+            $dbw = $lb->getConnection(DB_PRIMARY);
+            $res = $dbw->newSelectQueryBuilder()
+                ->select('*')
+                ->from($table)
+                ->limit($limit)
+                ->fetchResultSet();
+        }
+
         $this->renderTable($output, $res);
     }
 
     private function renderTable($output, IResultWrapper $res): void {
-        if ($res->numRows() === 0) {
+        if ( $res->numRows() === 0 ) {
             $output->addHTML('<p>No records found.</p>');
             return;
         }
@@ -86,7 +101,8 @@ final class SpecialLabkiDBViewer extends SpecialPage {
         foreach ($res as $row) {
             $html .= '<tr>';
             foreach ($headers as $h) {
-                $html .= '<td>' . htmlspecialchars((string)$row->$h) . '</td>';
+                $val = $row->$h;
+                $html .= '<td>' . htmlspecialchars((string)$val) . '</td>';
             }
             $html .= '</tr>';
         }

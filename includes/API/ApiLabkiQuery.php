@@ -97,10 +97,24 @@ final class ApiLabkiQuery extends ApiBase {
                 ? $repoInfo->toArray()
                 : [ 'repo_id' => ($repoId instanceof ContentRepoId ? $repoId->toInt() : (int)$repoId) ];
 
-            // Case 2: Repo only → list packs in repo
+            // Case 2: Repo only → list packs and pages in repo
             if ( !$packParam ) {
                 $packs = $packReg->listPacksByRepo( $repoId ) ?? [];
-                $result['packs'] = $this->mapToArray( $packs );
+                $packsOut = [];
+            
+                foreach ( $packs as $pack ) {
+                    $packArr = is_object( $pack ) && method_exists( $pack, 'toArray' )
+                        ? $pack->toArray()
+                        : (array)$pack;
+            
+                    // Include pages for this pack
+                    $pages = $pageReg->listPagesByPack( $packArr['pack_id'] );
+                    $packArr['pages'] = $this->mapToArray( $pages );
+            
+                    $packsOut[] = $packArr;
+                }
+            
+                $result['packs'] = $packsOut;      
 
             } else {
                 // Case 3: Specific pack (and maybe page)

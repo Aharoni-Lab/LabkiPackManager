@@ -86,6 +86,7 @@ final class ManifestStore {
         }
 
         $packs = $manifestData['packs'] ?? [];
+        $pages = $manifestData['pages'] ?? [];
         $hierarchy = (new HierarchyBuilder())->buildViewModel($packs);
         $graph = (new GraphBuilder())->build($packs);
 
@@ -95,6 +96,7 @@ final class ManifestStore {
             'hash' => $manifestHash,
             'content_repo_url' => $this->repoUrl,
             'manifest' => $manifestData,
+            'pages' => $pages,
             'hierarchy' => $hierarchy,
             'graph' => $graph,
             '_meta' => [
