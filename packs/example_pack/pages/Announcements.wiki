@@ -1,6 +1,0 @@
-= Announcements =
-
-* <!-- Add announcement entries here (YYYY-MM-DD) -->
-* 
-
-[[Category:Example]]

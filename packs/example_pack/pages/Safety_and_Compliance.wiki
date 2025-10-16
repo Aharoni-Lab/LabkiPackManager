@@ -1,8 +1,0 @@
-= Safety & Compliance =
-
-- Institutional safety requirements (EH&S, IACUC, IRB)
-- Chemical hygiene plan
-- Maintenance & incident reporting procedures
-- Training records
-
-[[Category:Example]]
