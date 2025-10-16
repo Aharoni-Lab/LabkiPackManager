@@ -81,7 +81,7 @@
     "LabkiContentSources": {
       "value": [
         "https://github.com/Aharoni-Lab/labki-packs",
-        "https://github.com/Aharoni-Lab/labki-packs"
+        "https://github.com/Aharoni-Lab/labki-base-packs"
       ],
       "description": "Array of content pack manifest URLs."
     },
