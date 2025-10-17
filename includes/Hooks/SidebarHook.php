@@ -1,6 +1,8 @@
 <?php
 namespace LabkiPackManager\Hooks;
 
+use MediaWiki\Skin\SkinComponentUtils;
+
 class SidebarHook {
     /**
      * @param \Skin $skin
@@ -8,22 +10,15 @@ class SidebarHook {
      * @return bool
      */
     public static function onSkinBuildSidebar( $skin, &$bar ): bool {
+
         // Add a top-level section
         $bar['Labki'][] = [
             'text' => 'Pack Manager',
-            'href' => '/wiki/Special:Labki',
+            'href' => SkinComponentUtils::makeSpecialUrl( 'LabkiPackManager' ),
             'id' => 'n-labki-pack-manager',
             'active' => false,
         ];
-
-        // Add more links if needed
-        $bar['Labki'][] = [
-            'text' => 'Docs',
-            'href' => '/wiki/Labki:Documentation',
-            'id' => 'n-labki-docs',
-            'active' => false,
-        ];
-
+        
         return true;
     }
 }
