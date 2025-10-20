@@ -109,6 +109,10 @@
     "LabkiEnableDBViewer": {
       "value": false,
       "description": "If true, enables the Labki database viewer special page."
+    },
+    "LabkiContentRepoClonePath": {
+      "value": "/var/www/html/labki-content-repos",
+      "description": "Filesystem path where LabkiPackManager will clone and maintain content pack repositories."
     }
   },
   "AvailableRights": [
