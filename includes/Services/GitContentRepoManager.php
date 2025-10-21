@@ -59,7 +59,7 @@ final class GitContentRepoManager {
 
         // Determine current commit
         $commit = $this->getCurrentCommit($localPath);
-        wfDebugLog('labkipack', "Repository {$repoUrl}@{$safeRef} at commit {$commit}");
+        wfDebugLog('labkipack', "Repository {$repoUrl}@{$ref} at commit {$commit}");
 
         // Register repository in DB (unique per URL+ref)
         $repoId = $this->repoRegistry->ensureRepoEntry($gitUrl, $ref, [
@@ -67,7 +67,7 @@ final class GitContentRepoManager {
             'updated_at' => \wfTimestampNow(),
         ]);
 
-        wfDebugLog('labkipack', "Registered/updated repo {$gitUrl}@{$safeRef} as ID={$repoId->toInt()}");
+        wfDebugLog('labkipack', "Registered/updated repo {$gitUrl}@{$ref} as ID={$repoId->toInt()}");
         return $localPath;
     }
 
