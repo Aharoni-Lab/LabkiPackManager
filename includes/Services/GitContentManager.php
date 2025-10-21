@@ -42,35 +42,58 @@ final class GitContentRepoManager {
      * @return string The local path to the cloned repository
      * @throws RuntimeException
      */
-    public function ensureClone(string $repoUrl, string $ref): string {
-        wfDebugLog('labkipack', "ensureClone() called for URL={$repoUrl} ref={$ref}");
-
-        // This is already done in onMediaWikiServices, but we'll do it again here for safety
+    public function ensureClone(string $repoUrl, string $ref = 'main'): string {
+        wfDebugLog('labkipack', "ensureClone() hybrid called for {$repoUrl}@{$ref}");
+    
         $gitUrl = UrlResolver::resolveContentRepoUrl($repoUrl);
-        $repoDir = $this->generateRepoDirName($gitUrl, $ref);
-        $localPath = "{$this->cloneBasePath}/{$repoDir}";
-
-        if ($this->isValidGitRepo($localPath)) {
-            wfDebugLog('labkipack', "Repository already exists at {$localPath}, updating...");
-            $this->updateClone($localPath, $ref);
+        $safeName = $this->generateRepoDirName($gitUrl);
+        $barePath = "{$this->cloneBasePath}/cache/{$safeName}.git";
+        $worktreePath = "{$this->cloneBasePath}/worktrees/{$safeName}_{$ref}";
+    
+        // ────────────────────────────────────────────────
+        // 1. Ensure bare clone
+        // ────────────────────────────────────────────────
+        if (!is_dir($barePath)) {
+            wfDebugLog('labkipack', "Creating bare mirror at {$barePath}");
+            $this->runGit(['clone', '--mirror', $gitUrl, $barePath]);
         } else {
-            wfDebugLog('labkipack', "Cloning new repository {$gitUrl} (ref={$ref}) to {$localPath}");
-            $this->cloneRepo($gitUrl, $localPath, $ref);
+            wfDebugLog('labkipack', "Fetching updates for bare repo at {$barePath}");
+            $this->runGit(['-C', $barePath, 'fetch', '--all', '--tags', '--prune']);
         }
-
-        // Determine current commit
-        $commit = $this->getCurrentCommit($localPath);
-        wfDebugLog('labkipack', "Repository {$repoUrl}@{$ref} at commit {$commit}");
-
-        // Register repository in DB (unique per URL+ref)
+    
+        // ────────────────────────────────────────────────
+        // 2. Ensure worktree for the requested ref
+        // ────────────────────────────────────────────────
+        if (!is_dir($worktreePath)) {
+            wfDebugLog('labkipack', "Creating new worktree for ref={$ref} at {$worktreePath}");
+            $this->runGit(['-C', $barePath, 'worktree', 'add', '--detach', $worktreePath, $ref]);
+        } else {
+            // Optional: ensure it’s clean and at the correct commit
+            $currentRef = trim($this->runGit(['-C', $worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD'], true));
+            if ($currentRef !== $ref) {
+                wfDebugLog('labkipack', "Worktree {$worktreePath} not on {$ref}, resetting");
+                $this->runGit(['-C', $worktreePath, 'checkout', $ref]);
+                $this->runGit(['-C', $worktreePath, 'reset', '--hard', "origin/{$ref}"]);
+            } else {
+                wfDebugLog('labkipack', "Worktree {$worktreePath} already up-to-date on {$ref}");
+            }
+        }
+    
+        // ────────────────────────────────────────────────
+        // 3. Record commit and update DB
+        // ────────────────────────────────────────────────
+        $commit = trim($this->runGit(['-C', $worktreePath, 'rev-parse', 'HEAD'], true));
+    
         $repoId = $this->repoRegistry->ensureRepoEntry($gitUrl, $ref, [
             'last_commit' => $commit,
-            'updated_at' => \wfTimestampNow(),
+            'updated_at'  => \wfTimestampNow(),
         ]);
-
-        wfDebugLog('labkipack', "Registered/updated repo {$gitUrl}@{$ref} as ID={$repoId->toInt()}");
-        return $localPath;
+    
+        wfDebugLog('labkipack', "Repo {$gitUrl}@{$ref} ready (commit {$commit}, ID={$repoId->toInt()})");
+    
+        return $worktreePath;
     }
+    
 
     /**
      * Clone repository at specific ref (branch/tag/commit).
@@ -118,6 +141,45 @@ final class GitContentRepoManager {
 
         wfDebugLog('labkipack', "Successfully updated repo at {$localPath} to ref {$ref}");
     }
+
+    /**
+     * Ensure a bare repository exists and is up to date.
+     */
+    public function ensureBareRepo(string $repoUrl): string {
+        $gitUrl = UrlResolver::resolveContentRepoUrl($repoUrl);
+        $safeName = $this->generateRepoDirName($gitUrl);
+        $barePath = "{$this->cloneBasePath}/cache/{$safeName}.git";
+    
+        if (!is_dir($barePath)) {
+            wfDebugLog('labkipack', "Creating new bare clone: {$barePath}");
+            $this->runGit(['clone', '--mirror', $gitUrl, $barePath]);
+        }
+    
+        return $barePath;
+    }
+    
+    /**
+     * Fetch updates for a bare repository.
+     */
+    public function fetchBareRepo(string $barePath): void {
+        wfDebugLog('labkipack', "Fetching bare repo at {$barePath}");
+        $this->runGit(['-C', $barePath, 'fetch', '--all', '--tags', '--prune']);
+    }
+    
+    /**
+     * Ensure a worktree exists and is up to date.
+     */
+    public function ensureWorktree(string $barePath, string $repoUrl, string $ref): string {
+        $safeName = $this->generateRepoDirName($repoUrl);
+        $worktreePath = "{$this->cloneBasePath}/worktrees/{$safeName}_{$ref}";
+    
+        if (!is_dir($worktreePath)) {
+            wfDebugLog('labkipack', "Creating worktree for {$repoUrl}@{$ref}");
+            $this->runGit(['-C', $barePath, 'worktree', 'add', '--detach', $worktreePath, $ref]);
+        }
+    
+        return $worktreePath;
+    }    
 
     /**
      * Determine the current HEAD commit hash.
@@ -193,3 +255,5 @@ final class GitContentRepoManager {
         return $this->cloneBasePath;
     }
 }
+
+
