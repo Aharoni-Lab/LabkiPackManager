@@ -82,10 +82,15 @@
   "config": {
     "LabkiContentSources": {
       "value": [
-        "https://github.com/Aharoni-Lab/labki-packs",
-        "https://github.com/Aharoni-Lab/labki-base-packs"
+        {
+          "url": "https://github.com/Aharoni-Lab/labki-packs",
+          "ref": ["main", "v1.0.0"]
+        },        
+        {
+          "url": "https://github.com/Aharoni-Lab/labki-base-packs"
+        }
       ],
-      "description": "Array of content pack manifest URLs."
+      "description": "Array of content repositories with optional Git ref (branch, tag, or commit)."
     },
     "LabkiDefaultBranch": {
       "value": "main",
@@ -110,10 +115,6 @@
     "LabkiEnableDBViewer": {
       "value": false,
       "description": "If true, enables the Labki database viewer special page."
-    },
-    "LabkiContentRepoClonePath": {
-      "value": "/var/www/html/labki-content-repos",
-      "description": "Filesystem path where LabkiPackManager will clone and maintain content pack repositories."
     }
   },
   "AvailableRights": [
