@@ -1,14 +1,18 @@
 -- ===========================================================
 --  labki_content_repo: top-level content repository
 -- ===========================================================
-CREATE TABLE IF NOT EXISTS labki_content_repo (
-  content_repo_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content_repo_url TEXT NOT NULL,
-  content_repo_name TEXT,
-  default_ref TEXT,
-  created_at INTEGER,
-  updated_at INTEGER,
-  UNIQUE (content_repo_url)
+CREATE TABLE labki_content_repo (
+  content_repo_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_repo_url        TEXT NOT NULL,    -- canonical repository URL
+  content_repo_name       TEXT,             -- manifest-defined or inferred name
+  source_ref              TEXT,             -- branch, tag, or commit actually used
+  manifest_path           TEXT,             -- path to manifest file
+  manifest_hash           TEXT,             -- hash of manifest contents
+  manifest_last_parsed    INTEGER,          -- timestamp of last manifest parse
+  last_commit             TEXT,             -- HEAD commit hash from last successful pull
+  created_at              INTEGER NOT NULL,
+  updated_at              INTEGER NOT NULL,
+  UNIQUE (content_repo_url, source_ref)
 );
 
 -- ===========================================================
@@ -58,14 +62,14 @@ CREATE TABLE IF NOT EXISTS labki_page (
 -- ===========================================================
 --  Helpful indexes
 -- ===========================================================
-CREATE INDEX IF NOT EXISTS idx_labki_pack_repo
-  ON labki_pack (content_repo_id);
 
-CREATE INDEX IF NOT EXISTS idx_labki_page_pack
-  ON labki_page (pack_id);
+-- Core relational indexes
+CREATE INDEX idx_labki_pack_repo           ON labki_pack (content_repo_id);
+CREATE INDEX idx_labki_page_pack           ON labki_page (pack_id);
+CREATE INDEX idx_labki_page_final_title    ON labki_page (final_title);
+CREATE INDEX idx_labki_page_wiki_page_id   ON labki_page (wiki_page_id);
 
-CREATE INDEX IF NOT EXISTS idx_labki_page_final_title
-  ON labki_page (final_title);
-
-CREATE INDEX IF NOT EXISTS idx_labki_page_wiki_page_id
-  ON labki_page (wiki_page_id);
+-- New helpful indexes for multi-ref repos
+CREATE INDEX idx_labki_repo_url_ref        ON labki_content_repo (content_repo_url, source_ref);
+CREATE INDEX idx_labki_repo_name           ON labki_content_repo (content_repo_name);
+CREATE INDEX idx_labki_repo_last_commit    ON labki_content_repo (last_commit);
