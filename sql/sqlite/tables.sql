@@ -1,3 +1,9 @@
+
+-- labki_content_repo
+--  └── labki_content_ref
+--          └── labki_pack
+--                  └── labki_page
+
 -- ===========================================================
 --  labki_content_repo: top-level content repository (bare clone)
 -- ===========================================================
