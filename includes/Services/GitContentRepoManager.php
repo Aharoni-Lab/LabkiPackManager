@@ -21,9 +21,10 @@ final class GitContentRepoManager {
 
     public function __construct(?LabkiRepoRegistry $repoRegistry = null) {
         global $wgCacheDirectory;
-        $this->cloneBasePath = $wgCacheDirectory
-            ? "{$wgCacheDirectory}/labki-content-repos"
-            : wfTempDir() . '/labki-content-repos';
+        if (!$wgCacheDirectory) {
+            throw new RuntimeException('$wgCacheDirectory must be configured');
+        }
+        $this->cloneBasePath = "{$wgCacheDirectory}/labki-content-repos";
 
         $this->repoRegistry = $repoRegistry ?? new LabkiRepoRegistry();
 
