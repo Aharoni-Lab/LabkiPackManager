@@ -20,7 +20,8 @@
     "LabkiPackManagerAlias": "LabkiPackManager.alias.php"
   },
   "AutoloadNamespaces": {
-    "LabkiPackManager\\": "includes/"
+    "LabkiPackManager\\": "includes/",
+    "LabkiPackManager\\Maintenance\\": "maintenance/"
   },
   "ResourceFileModulePaths": {
     "localBasePath": "",
@@ -65,8 +66,7 @@
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
     "BeforePageDisplay": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onBeforePageDisplay",
-    "SkinBuildSidebar": "LabkiPackManager\\Hooks\\SidebarHook::onSkinBuildSidebar",
-    "SetupAfterCache": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onSetupAfterCache"
+    "SkinBuildSidebar": "LabkiPackManager\\Hooks\\SidebarHook::onSkinBuildSidebar"
   },
   "MaintenanceScripts": {
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"

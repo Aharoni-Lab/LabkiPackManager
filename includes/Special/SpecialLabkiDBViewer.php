@@ -38,7 +38,7 @@ final class SpecialLabkiDBViewer extends SpecialPage {
         $output->addModuleStyles('ext.LabkiPackManager.styles');
 
         $req = $this->getRequest();
-        $table = $req->getText('table', 'labki_pack');
+        $table = $req->getText('table', 'labki_content_repo');
         $limit = (int)$req->getInt('limit', 50);
 
         $tables = ['labki_content_repo', 'labki_content_ref', 'labki_pack', 'labki_page'];

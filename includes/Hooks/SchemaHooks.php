@@ -5,25 +5,27 @@ declare(strict_types=1);
 namespace LabkiPackManager\Hooks;
 
 use DatabaseUpdater;
+use LabkiPackManager\Maintenance\InitializeContentRepos;
 
 final class SchemaHooks {
     /**
      * @param DatabaseUpdater $updater
      */
-    public static function onLoadExtensionSchemaUpdates( $updater ): void {
+    public static function onLoadExtensionSchemaUpdates(DatabaseUpdater $updater ): void {
         $dir = dirname( dirname( __DIR__ ) ) . '/sql';
         $dbType = $updater->getDB()->getType();
-        $suffix = $dbType === 'sqlite' ? 'sqlite' : ( $dbType === 'mysql' ? 'mysql' : $dbType );
+        // Currently don't support other databases, so we'll use SQLite syntax for now.
+        // TODO: Add support for other databases.
+        $suffix = 'sqlite';
         $tablesFile = $dir . '/' . $suffix . '/tables.sql';
-        // Fallback to SQLite syntax when db-specific file missing (dev convenience)
-        if ( !file_exists( $tablesFile ) ) {
-            $tablesFile = $dir . '/sqlite/tables.sql';
-        }
         if ( file_exists( $tablesFile ) ) {
             $updater->addExtensionTable( 'labki_content_repo', $tablesFile );
+            $updater->addExtensionTable( 'labki_content_ref', $tablesFile );    
             $updater->addExtensionTable( 'labki_pack', $tablesFile );
             $updater->addExtensionTable( 'labki_page', $tablesFile );
         }
+        
+        $updater->addPostDatabaseUpdateMaintenance( InitializeContentRepos::class );
     }
 }
 
