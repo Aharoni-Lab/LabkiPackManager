@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace LabkiPackManager\Hooks;
 
 use LabkiPackManager\Services\LabkiRepoRegistry;
-use LabkiPackManager\Services\GitContentRepoManager;
+use LabkiPackManager\Services\LabkiRefRegistry;
+use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Util\UrlResolver;
 use LabkiPackManager\Util\ContentSourcesParser;
