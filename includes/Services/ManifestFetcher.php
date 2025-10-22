@@ -8,6 +8,7 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
 use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Util\UrlResolver;
+use LabkiPackManager\Services\LabkiRefRegistry;
 
 /**
  * ManifestFetcher
@@ -26,14 +27,14 @@ final class ManifestFetcher {
     }
 
     /**
-     * Fetch and parse a manifest from the given URL or file path.
+     * Fetch and parse a manifest from the given worktree path.
      *
      * @param string $url URL or file:// path
      * @return Status containing string YAML body on success or fatal error
      */
-    public function fetch(string $repoUrl): Status {
-        $manifestUrl = UrlResolver::resolveContentRepoUrl($repoUrl);        
-        $body = $this->getRawManifest($manifestUrl);
+    public function fetch(string $repoUrl, string $ref): Status {
+        $manifestPath = $this->refRegistry->getWorktreePath($repoUrl, $ref) . '/manifest.yml';      
+        $body = $this->getRawManifest($manifestPath);
         if (!$body->isOK()) {
             return $body;
         }
@@ -42,86 +43,29 @@ final class ManifestFetcher {
         return $body;
     }
 
-    /**
-     * Perform a lightweight hash or revision check on the given URL.
+        /**
+     * Retrieve the raw manifest file contents from a local path.
      *
-     * Attempts to extract a stable content signature using:
-     *   - ETag header (preferred)
-     *   - Last-Modified header (fallback)
-     *   - SHA1 of local file contents (for file://)
-     *   - SHA1 of fetched body (fallback only if headers not available)
-     *
-     * @param string $url
-     * @return string|null Unique hash string or null if unavailable
+     * @param string $manifestPath Absolute path to manifest.yml
+     * @return Status::newGood(string $body) or Status::newFatal(error)
      */
-    public function headHash(string $repoUrl): ?string {
-        $manifestUrl = UrlResolver::resolveContentRepoUrl($repoUrl);
-        $trimManifestUrl = trim($manifestUrl);
+    private function getRawManifest(string $manifestPath): Status {
+        $path = trim($manifestPath);
 
-        // Local filesystem paths are no longer supported
-
-        // Remote HTTP(S)
-        try {
-            $req = $this->httpRequestFactory->create($trimManifestUrl, [
-                'method' => 'HEAD',
-                'timeout' => 5,
-            ]);
-            $status = $req->execute();
-            if (!$status->isOK()) {
-                return null;
-            }
-
-            $headers = $req->getResponseHeaders();
-            if (isset($headers['etag'][0])) {
-                return trim($headers['etag'][0], '"\'');
-            }
-
-            if (isset($headers['last-modified'][0])) {
-                return sha1($headers['last-modified'][0]);
-            }
-
-            // Fallback: if HEAD didn’t give a signature, do a light GET to hash
-            $fallback = $this->getRawManifest($manifestUrl);
-            if ($fallback->isOK()) {
-                return sha1($fallback->getValue());
-            }
-        } catch (\Throwable $e) {
-            return null;
+        if ($path === '' || !is_file($path)) {
+            return Status::newFatal('labkipackmanager-error-manifest-missing');
         }
 
-        return null;
-    }
-
-
-    /**
-     * Retrieve the raw manifest file contents, local or remote.
-     *
-     * @param string $url
-     * @return StatusValue::newGood(string $body) or newFatal(error)
-     */
-    private function getRawManifest(string $manifestUrl): Status {
-        $trimManifestUrl = trim($manifestUrl);
-
-        // --- Remote HTTP(S) ---
         try {
-            $req = $this->httpRequestFactory->create($trimManifestUrl, [
-                'method' => 'GET',
-                'timeout' => 10,
-            ]);
-            $status = $req->execute();
-            if (!$status->isOK()) {
-                return Status::newFatal('labkipackmanager-error-fetch');
+            $content = file_get_contents($path);
+            if ($content === false || $content === '') {
+                return Status::newFatal('labkipackmanager-error-manifest-empty');
             }
-
-            $content = $req->getContent();
-            $code = $req->getStatus();
-            if ($code !== 200 || $content === '') {
-                return Status::newFatal('labkipackmanager-error-fetch');
-            }
-
             return Status::newGood($content);
         } catch (\Throwable $e) {
-            return Status::newFatal('labkipackmanager-error-fetch');
+            wfDebugLog('labkipack', "Failed to read manifest at {$path}: " . $e->getMessage());
+            return Status::newFatal('labkipackmanager-error-manifest-read');
         }
     }
+
 }
