@@ -25,77 +25,94 @@ class LabkiPackManagerHooks {
             $out->addJsConfigVars( 'LabkiContentSources', $wgLabkiContentSources );
         }
     }
-    /**
+
+     /**
      * Initialize content repositories defined in $wgLabkiContentSources.
      *
-     * - Clones or updates each repo.
-     * - Ensures DB entry exists (unique per URL+ref).
-     * - Parses manifest to update repo name when possible.
+     * - Ensures each content repo has a bare mirror (shared).
+     * - Ensures each requested ref has a dedicated worktree.
+     * - Registers/updates both repo and ref entries in DB.
+     * - Optionally updates repo name from manifest.
      */
-    public static function onMediaWikiServices(): void {
+    public static function onSetupAfterCache(): void {
         global $wgLabkiContentSources;
 
+        // If no content sources are configured, return
         if ( !isset( $wgLabkiContentSources ) || !is_array( $wgLabkiContentSources ) ) {
-            wfDebugLog( 'labkipack', 'No LabkiContentSources configured' );
+            wfDebugLog('labkipack', 'No LabkiContentSources configured');
             return;
         }
 
-        $parsedSources = ContentSourcesParser::parse( $wgLabkiContentSources );
-        if ( empty( $parsedSources ) ) {
-            wfDebugLog( 'labkipack', 'No valid LabkiContentSources found after parsing' );
+        // Parse the content sources
+        $parsedSources = ContentSourcesParser::parse($wgLabkiContentSources);
+        // If no valid content sources are found, return
+        if (empty($parsedSources)) {
+            wfDebugLog('labkipack', 'No valid LabkiContentSources found after parsing');
             return;
         }
 
-        $contentRepoManager = new GitContentRepoManager();
-        $repoRegistry = new LabkiRepoRegistry();
+        wfDebugLog('labkipack', 'Initializing Labki content repositories...');
 
-        foreach ( $parsedSources as $source ) {
+        // Initialize managers and registries
+        $contentManager = new GitContentManager();   // formerly GitContentRepoManager
+        $repoRegistry   = new LabkiRepoRegistry();
+        $refRegistry    = new LabkiRefRegistry();
+
+        // Process each content source
+        foreach ($parsedSources as $source) {
             $repoUrl = $source['url'];
-            $refs = $source['refs'];
+            $refs    = $source['refs'] ?? ['main'];
 
-            if ( !$repoUrl ) {
-                wfDebugLog( 'labkipack', 'Skipping invalid source: missing URL' );
+            if (!$repoUrl) {
+                wfDebugLog('labkipack', 'Skipping invalid content source (missing URL)');
                 continue;
             }
 
-            foreach ( $refs as $ref ) {
-                wfDebugLog( 'labkipack', "Processing content repo: {$repoUrl}@{$ref}" );
+            try {
+                // Normalize URL (removes .git, cleans up GitHub links)
+                $gitUrl = UrlResolver::resolveContentRepoUrl($repoUrl);
+                wfDebugLog('labkipack', "Initializing content repo {$gitUrl}");
 
-                try {
-                    // Resolve and clone
-                    $gitUrl = UrlResolver::resolveContentRepoUrl( $repoUrl );
-                    $localPath = $contentRepoManager->ensureClone( $gitUrl, $ref );
+                // Ensure the bare mirror exists and is current
+                $barePath = $contentManager->ensureBareRepo($gitUrl);
+                wfDebugLog('labkipack', "Bare repo ready at {$barePath}");
 
-                    wfDebugLog( 'labkipack', "Repo cloned/updated at {$localPath}" );
+                $repoId = $repoRegistry->getRepoIdByUrl($gitUrl);
+                if ($repoId === null) {
+                    throw new \RuntimeException("Repository not found in DB after ensureBareRepo: {$gitUrl}");
+                }
 
-                    // Currently also called in ensureClone, but we'll do it here for safety
-                    $repoId = $repoRegistry->ensureRepoEntry( $gitUrl, $ref );
-                    wfDebugLog( 'labkipack', "Registered repo entry: ID={$repoId->toInt()} ({$gitUrl}@{$ref})" );
-
-                    // Try to update repo name from manifest
+                foreach ($refs as $ref) {
+                    wfDebugLog('labkipack', "Ensuring worktree for {$gitUrl}@{$ref}");
+                    $worktreePath = $contentManager->ensureWorktree($gitUrl, $ref);
+                    
                     try {
-                        $manifestStore = new ManifestStore( $gitUrl );
+                        // Try to read manifest and update name
+                        $manifestStore = new ManifestStore($worktreePath);
                         $manifestResult = $manifestStore->get();
 
-                        if ( $manifestResult->isOK() ) {
+                        if ($manifestResult->isOK()) {
                             $manifest = $manifestResult->getValue();
-                            if ( isset( $manifest['manifest']['name'] ) ) {
+                            if (isset($manifest['manifest']['name'])) {
                                 $name = $manifest['manifest']['name'];
-                                $repoRegistry->updateRepoEntry(
-                                    $repoId,
-                                    [ 'content_repo_name' => $name ]
-                                );
-                                wfDebugLog( 'labkipack', "Updated repo name to '{$name}' for {$gitUrl}@{$ref}" );
+                                $repoRegistry->updateRepoEntry($repoId, [
+                                    'content_repo_name' => $name,
+                                    'updated_at' => \wfTimestampNow(),
+                                ]);
+                                wfDebugLog('labkipack', "Updated repo name to '{$name}' for {$gitUrl}");
                             }
                         }
-                    } catch ( Exception $e ) {
-                        wfDebugLog( 'labkipack', "Manifest parse failed for {$gitUrl}@{$ref}: " . $e->getMessage() );
+                    } catch (\Exception $e) {
+                        wfDebugLog('labkipack', "Manifest parse failed for {$gitUrl}@{$ref}: " . $e->getMessage());
                     }
-
-                } catch ( Exception $e ) {
-                    wfDebugLog( 'labkipack', "Error initializing {$repoUrl}@{$ref}: " . $e->getMessage() );
                 }
+
+            } catch (\Exception $e) {
+                wfDebugLog('labkipack', "Error initializing {$repoUrl}: " . $e->getMessage());
             }
         }
+
+        wfDebugLog('labkipack', 'All Labki content repositories initialized successfully');
     }
+
 }

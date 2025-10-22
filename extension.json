@@ -66,7 +66,7 @@
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
     "BeforePageDisplay": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onBeforePageDisplay",
     "SkinBuildSidebar": "LabkiPackManager\\Hooks\\SidebarHook::onSkinBuildSidebar",
-    "SetupAfterCache": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onMediaWikiServices"
+    "SetupAfterCache": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onSetupAfterCache"
   },
   "MaintenanceScripts": {
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
