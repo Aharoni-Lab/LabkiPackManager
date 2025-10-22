@@ -10,11 +10,11 @@ namespace LabkiPackManager\Domain;
 final class ContentRef {
     public const TABLE = 'labki_content_ref';
 
-    /** @var string[] */
     public const FIELDS = [
         'content_ref_id',
         'content_repo_id',
         'source_ref',
+        'content_ref_name',
         'last_commit',
         'manifest_path',
         'manifest_hash',
@@ -27,6 +27,7 @@ final class ContentRef {
     private ContentRefId $id;
     private ContentRepoId $repoId;
     private string $sourceRef;
+    private ?string $refName;
     private ?string $lastCommit;
     private ?string $manifestPath;
     private ?string $manifestHash;
@@ -39,6 +40,7 @@ final class ContentRef {
         ContentRefId $id,
         ContentRepoId $repoId,
         string $sourceRef,
+        ?string $refName = null,
         ?string $lastCommit = null,
         ?string $manifestPath = null,
         ?string $manifestHash = null,
@@ -50,6 +52,7 @@ final class ContentRef {
         $this->id = $id;
         $this->repoId = $repoId;
         $this->sourceRef = $sourceRef;
+        $this->refName = $refName;
         $this->lastCommit = $lastCommit;
         $this->manifestPath = $manifestPath;
         $this->manifestHash = $manifestHash;
@@ -62,6 +65,7 @@ final class ContentRef {
     public function id(): ContentRefId { return $this->id; }
     public function repoId(): ContentRepoId { return $this->repoId; }
     public function sourceRef(): string { return $this->sourceRef; }
+    public function refName(): ?string { return $this->refName; }
     public function lastCommit(): ?string { return $this->lastCommit; }
     public function manifestPath(): ?string { return $this->manifestPath; }
     public function manifestHash(): ?string { return $this->manifestHash; }
@@ -70,18 +74,35 @@ final class ContentRef {
     public function createdAt(): ?int { return $this->createdAt; }
     public function updatedAt(): ?int { return $this->updatedAt; }
 
+    public function toArray(): array {
+        return [
+            'content_ref_id'        => $this->id->toInt(),
+            'content_repo_id'       => $this->repoId->toInt(),
+            'source_ref'            => $this->sourceRef,
+            'content_ref_name'      => $this->refName,
+            'last_commit'           => $this->lastCommit,
+            'manifest_path'         => $this->manifestPath,
+            'manifest_hash'         => $this->manifestHash,
+            'manifest_last_parsed'  => $this->manifestLastParsed,
+            'worktree_path'         => $this->worktreePath,
+            'created_at'            => $this->createdAt,
+            'updated_at'            => $this->updatedAt,
+        ];
+    }
+
     public static function fromRow(object $row): self {
         return new self(
-            new ContentRefId((int) $row->content_ref_id),
-            new ContentRepoId((int) $row->content_repo_id),
-            (string) $row->source_ref,
+            new ContentRefId((int)$row->content_ref_id),
+            new ContentRepoId((int)$row->content_repo_id),
+            (string)$row->source_ref,
+            $row->content_ref_name ?? null,
             $row->last_commit ?? null,
             $row->manifest_path ?? null,
             $row->manifest_hash ?? null,
-            isset($row->manifest_last_parsed) ? (int) $row->manifest_last_parsed : null,
+            isset($row->manifest_last_parsed) ? (int)$row->manifest_last_parsed : null,
             $row->worktree_path ?? null,
-            isset($row->created_at) ? (int) $row->created_at : null,
-            isset($row->updated_at) ? (int) $row->updated_at : null
+            isset($row->created_at) ? (int)$row->created_at : null,
+            isset($row->updated_at) ? (int)$row->updated_at : null,
         );
     }
 }

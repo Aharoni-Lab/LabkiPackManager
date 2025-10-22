@@ -10,7 +10,6 @@
 CREATE TABLE labki_content_repo (
   content_repo_id     INTEGER PRIMARY KEY AUTOINCREMENT,
   content_repo_url    TEXT NOT NULL UNIQUE,   -- canonical repository URL (e.g., https://github.com/Aharoni-Lab/labki-packs)
-  content_repo_name   TEXT,                   -- manifest-defined or inferred name
   default_ref         TEXT DEFAULT 'main',    -- repo’s default branch
   bare_path           TEXT,                   -- filesystem path to the bare clone
   last_fetched        INTEGER,                -- timestamp of last git fetch
@@ -24,12 +23,13 @@ CREATE TABLE labki_content_repo (
 CREATE TABLE labki_content_ref (
   content_ref_id          INTEGER PRIMARY KEY AUTOINCREMENT,
   content_repo_id         INTEGER NOT NULL,
-  source_ref              TEXT NOT NULL,         -- branch, tag, or commit name
-  last_commit             TEXT,                  -- HEAD commit hash from last successful checkout
+  source_ref              TEXT NOT NULL,         -- canonical Git ref (branch/tag/commit)
+  content_ref_name        TEXT,                  -- optional descriptive name
+  last_commit             TEXT,                  -- HEAD commit hash
   manifest_path           TEXT,                  -- path to manifest within repo
   manifest_hash           TEXT,                  -- hash of manifest contents
   manifest_last_parsed    INTEGER,               -- timestamp of last manifest parse
-  worktree_path           TEXT,                  -- filesystem path to this worktree
+  worktree_path           TEXT,                  -- filesystem path to worktree
   created_at              INTEGER NOT NULL,
   updated_at              INTEGER NOT NULL,
   UNIQUE (content_repo_id, source_ref),
