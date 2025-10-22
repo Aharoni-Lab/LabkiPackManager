@@ -10,6 +10,7 @@ use WANObjectCache;
 use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Services\HierarchyBuilder;
 use LabkiPackManager\Services\GraphBuilder;
+use LabkiPackManager\Util\UrlResolver;
 
 /**
  * ManifestStore
@@ -34,18 +35,21 @@ use LabkiPackManager\Services\GraphBuilder;
  */
 final class ManifestStore {
 
-    private string $repoUrl;
+    private string $gitUrl;
     private string $cacheKey;
     private $cache;
     private ManifestFetcher $fetcher;
 
     public function __construct(
-        string $repoUrl,
+        string $gitUrl,
+        string $ref,
         ?WANObjectCache $wanObjectCache = null,
         ?ManifestFetcher $fetcher = null
     ) {
-        $this->repoUrl = $repoUrl;
-        $this->cacheKey = 'labki:manifest:' . sha1($repoUrl);
+        $gitUrl = UrlResolver::resolveContentRepoUrl($gitUrl);
+        $this->gitUrl = $gitUrl;
+        $this->ref = $ref;
+        $this->cacheKey = 'labki:manifest:' . sha1($gitUrl . ':' . $ref);
         $this->cache = $wanObjectCache ?? $this->resolveCache();
         $this->fetcher = $fetcher ?? new ManifestFetcher();
     }
@@ -56,16 +60,16 @@ final class ManifestStore {
     public function get(bool $forceRefresh = false): Status {
         $cached = $this->getCached();
 
-        // --- Check if repo has changed ---
-        $remoteHash = $this->fetcher->headHash($this->repoUrl);
-        $hasChanged = $remoteHash && $cached && ($remoteHash !== ($cached['hash'] ?? ''));
+        // We use to check if hash has changed, to determine if we need to refresh the cache
+        // But now we leave that work up to the GitContentManager to handle
 
-        if (!$forceRefresh && !$hasChanged && $cached !== null) {
+        // If the cache is not empty and we are not forcing a refresh, return the cached data
+        if (!$forceRefresh && $cached !== null) {
             return Status::newGood($cached + ['from_cache' => true]);
         }
 
         // --- Fetch new manifest ---
-        $fetched = $this->fetcher->fetch($this->repoUrl);
+        $fetched = $this->fetcher->fetch($this->gitUrl, $this->ref);
         if (!$fetched->isOK()) {
             // Return stale cache if available
             if ($cached !== null) {
@@ -75,7 +79,7 @@ final class ManifestStore {
         }
 
         $manifestYaml = $fetched->getValue();
-        $manifestHash = $remoteHash ?: sha1($manifestYaml);
+        $manifestHash = sha1($manifestYaml);
 
         // --- Parse and structure ---
         $parser = new ManifestParser();
@@ -94,17 +98,14 @@ final class ManifestStore {
 
         $data = [
             'hash' => $manifestHash,
-            'content_repo_url' => $this->repoUrl,
+            'content_repo_url' => $this->gitUrl,
+            'content_ref' => $this->ref,
+            'fetched_at' => time(),
+            'content_repo_name' => $repoName,
             'manifest' => $manifestData,
             'pages' => $pages,
             'hierarchy' => $hierarchy,
             'graph' => $graph,
-            '_meta' => [
-                'schemaVersion' => 1,
-                'repoUrl' => $this->repoUrl,
-                'fetchedAt' => time(),
-                'repoName' => $repoName,
-            ],
         ];
 
         $this->save($data);
