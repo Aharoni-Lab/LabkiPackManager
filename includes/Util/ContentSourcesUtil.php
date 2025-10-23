@@ -36,7 +36,7 @@ final class ContentSourcesUtil {
         }
 
         // Parse the content sources
-        $parsedSources = ContentSourcesParser::parse($wgLabkiContentSources);
+        $parsedSources = self::parseSources($wgLabkiContentSources);
         
         // If no valid content sources are found, return empty array
         if (empty($parsedSources)) {
@@ -109,4 +109,43 @@ final class ContentSourcesUtil {
         global $wgLabkiContentSources;
         return $wgLabkiContentSources ?? null;
     }
+
+        /**
+     * Normalize and validate raw $wgLabkiContentSources entries.
+     *
+     * Accepts either:
+     *   - string URLs
+     *   - arrays like ['url' => '...', 'refs' => ['main','dev']]
+     *
+     * @param array $sources
+     * @return array Array of ['url' => string, 'refs' => string[], 'original' => mixed]
+     */
+    private static function parseSources(array $sources): array {
+        $out = [];
+
+        foreach ($sources as $entry) {
+            if (is_string($entry)) {
+                $out[] = [
+                    'url' => trim($entry),
+                    'refs' => ['main'],
+                    'original' => $entry,
+                ];
+            } elseif (is_array($entry) && isset($entry['url'])) {
+                $refs = isset($entry['refs'])
+                    ? (array)$entry['refs']
+                    : ['main'];
+
+                $out[] = [
+                    'url' => trim((string)$entry['url']),
+                    'refs' => array_filter(array_map('trim', $refs)),
+                    'original' => $entry,
+                ];
+            } else {
+                wfDebugLog('labkipack', 'Skipping invalid content source entry: ' . json_encode($entry));
+            }
+        }
+
+        return $out;
+    }
+
 }
