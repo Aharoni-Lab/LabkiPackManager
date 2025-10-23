@@ -16,7 +16,6 @@ final class ContentRef {
         'source_ref',
         'content_ref_name',
         'last_commit',
-        'manifest_path',
         'manifest_hash',
         'manifest_last_parsed',
         'worktree_path',
@@ -29,7 +28,6 @@ final class ContentRef {
     private string $sourceRef;
     private ?string $refName;
     private ?string $lastCommit;
-    private ?string $manifestPath;
     private ?string $manifestHash;
     private ?int $manifestLastParsed;
     private ?string $worktreePath;
@@ -42,7 +40,6 @@ final class ContentRef {
         string $sourceRef,
         ?string $refName = null,
         ?string $lastCommit = null,
-        ?string $manifestPath = null,
         ?string $manifestHash = null,
         ?int $manifestLastParsed = null,
         ?string $worktreePath = null,
@@ -54,7 +51,6 @@ final class ContentRef {
         $this->sourceRef = $sourceRef;
         $this->refName = $refName;
         $this->lastCommit = $lastCommit;
-        $this->manifestPath = $manifestPath;
         $this->manifestHash = $manifestHash;
         $this->manifestLastParsed = $manifestLastParsed;
         $this->worktreePath = $worktreePath;
@@ -67,7 +63,6 @@ final class ContentRef {
     public function sourceRef(): string { return $this->sourceRef; }
     public function refName(): ?string { return $this->refName; }
     public function lastCommit(): ?string { return $this->lastCommit; }
-    public function manifestPath(): ?string { return $this->manifestPath; }
     public function manifestHash(): ?string { return $this->manifestHash; }
     public function manifestLastParsed(): ?int { return $this->manifestLastParsed; }
     public function worktreePath(): ?string { return $this->worktreePath; }
@@ -81,7 +76,6 @@ final class ContentRef {
             'source_ref'            => $this->sourceRef,
             'content_ref_name'      => $this->refName,
             'last_commit'           => $this->lastCommit,
-            'manifest_path'         => $this->manifestPath,
             'manifest_hash'         => $this->manifestHash,
             'manifest_last_parsed'  => $this->manifestLastParsed,
             'worktree_path'         => $this->worktreePath,
@@ -97,7 +91,6 @@ final class ContentRef {
             (string)$row->source_ref,
             $row->content_ref_name ?? null,
             $row->last_commit ?? null,
-            $row->manifest_path ?? null,
             $row->manifest_hash ?? null,
             isset($row->manifest_last_parsed) ? (int)$row->manifest_last_parsed : null,
             $row->worktree_path ?? null,

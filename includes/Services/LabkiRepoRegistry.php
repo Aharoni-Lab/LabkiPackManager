@@ -29,13 +29,12 @@ final class LabkiRepoRegistry {
         string $contentRepoUrl,
         array $extraFields = []
     ): ContentRepoId {
-        $normUrl = $this->normalizeUrl($contentRepoUrl);
         $now = \wfTimestampNow();
 
-        wfDebugLog('labkipack', "ensureRepoEntry() called for {$normUrl}");
+        wfDebugLog('labkipack', "ensureRepoEntry() called for {$contentRepoUrl}");
 
         // Check if repo already exists
-        $existingId = $this->getRepoIdByUrl($normUrl);
+        $existingId = $this->getRepoIdByUrl($contentRepoUrl);
         if ($existingId !== null) {
             wfDebugLog('labkipack', "ensureRepoEntry(): found existing repo (ID={$existingId->toInt()}) → updating");
             $this->updateRepoEntry($existingId, $extraFields);
@@ -43,7 +42,7 @@ final class LabkiRepoRegistry {
         }
 
         // Otherwise create new entry
-        return $this->addRepoEntry($normUrl, $extraFields);
+        return $this->addRepoEntry($contentRepoUrl, $extraFields);
     }
 
     /**
@@ -57,16 +56,14 @@ final class LabkiRepoRegistry {
         string $contentRepoUrl,
         array $extraFields = []
     ): ContentRepoId {
-        $normUrl = $this->normalizeUrl($contentRepoUrl);
         $now = \wfTimestampNow();
 
-        wfDebugLog('labkipack', "addRepoEntry() inserting {$normUrl}");
+        wfDebugLog('labkipack', "addRepoEntry() inserting {$contentRepoUrl}");
 
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
 
         $row = array_merge([
-            'content_repo_url'  => $normUrl,
-            'content_repo_name' => basename($normUrl, '.git'),
+            'content_repo_url'  => $contentRepoUrl,
             'default_ref'       => 'main',
             'bare_path'         => null,
             'last_fetched'      => null,
@@ -82,7 +79,7 @@ final class LabkiRepoRegistry {
                 ->execute();
 
             $newId = (int)$dbw->insertId();
-            wfDebugLog('labkipack', "addRepoEntry(): created new repo entry (ID={$newId}) for {$normUrl}");
+            wfDebugLog('labkipack', "addRepoEntry(): created new repo entry (ID={$newId}) for {$contentRepoUrl}");
             return new ContentRepoId($newId);
 
         } catch (\Exception $e) {
@@ -119,12 +116,11 @@ final class LabkiRepoRegistry {
      */
     public function getRepoIdByUrl(string $contentRepoUrl): ?ContentRepoId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
-        $normUrl = $this->normalizeUrl($contentRepoUrl);
 
         $row = $dbr->newSelectQueryBuilder()
             ->select('content_repo_id')
             ->from(self::TABLE)
-            ->where(['content_repo_url' => $normUrl])
+            ->where(['content_repo_url' => $contentRepoUrl])
             ->caller(__METHOD__)
             ->fetchRow();
 
@@ -185,10 +181,4 @@ final class LabkiRepoRegistry {
         wfDebugLog('labkipack', "deleteRepo(): deleted repo ID={$id}");
     }
 
-    /**
-     * Normalize URLs to ensure consistent lookup keys.
-     */
-    private function normalizeUrl(string $url): string {
-        return rtrim(trim($url), '/');
-    }
 }

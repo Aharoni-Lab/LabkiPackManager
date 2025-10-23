@@ -28,8 +28,11 @@ fi
 echo "==> Ensuring MediaWiki core is present..."
 if [ ! -d "$MW_DIR/.git" ]; then
   mkdir -p "$(dirname "$MW_DIR")"
-  git clone https://gerrit.wikimedia.org/r/mediawiki/core.git "$MW_DIR"
+  git config --global http.postBuffer 524288000
+  git config --global http.version HTTP/1.1
+  git clone --depth=1 https://github.com/wikimedia/mediawiki.git "$MW_DIR"
 fi
+
 cd "$MW_DIR"
 git fetch --all
 git checkout "$MW_BRANCH"

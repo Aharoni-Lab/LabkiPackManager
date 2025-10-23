@@ -8,8 +8,7 @@ use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\ManifestStore;
-use LabkiPackManager\Util\UrlResolver;
-use LabkiPackManager\Util\ContentSourcesParser;
+
 use Exception;
 
 class LabkiPackManagerHooks {

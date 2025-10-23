@@ -10,7 +10,6 @@ use WANObjectCache;
 use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Services\HierarchyBuilder;
 use LabkiPackManager\Services\GraphBuilder;
-use LabkiPackManager\Util\UrlResolver;
 
 /**
  * ManifestStore
@@ -21,35 +20,34 @@ use LabkiPackManager\Util\UrlResolver;
  *
  * Cached payload structure:
  * [
- *   'hash'          => string,  // SHA1 or ETag-equivalent
- *   'manifest'      => array,
- *   'hierarchy'     => array,
- *   'graph'         => array,
- *   '_meta' => [
- *       'schemaVersion' => int,
- *       'manifestUrl'   => string,
- *       'fetchedAt'     => int,
- *       'repoName'      => string
- *   ]
+ *   'hash' => string,  // SHA1 or ETag-equivalent
+ *   'content_repo_url' => string,
+ *   'content_ref' => string,
+ *   'fetched_at' => int,
+ *   'content_ref_name' => string,
+ *   'manifest' => array,
+ *   'pages' => array,
+ *   'hierarchy' => array,
+ *   'graph' => array,
  * ]
  */
 final class ManifestStore {
 
-    private string $gitUrl;
+    private string $repoUrl;
+    private string $ref;
     private string $cacheKey;
     private $cache;
     private ManifestFetcher $fetcher;
 
     public function __construct(
-        string $gitUrl,
+        string $repoUrl,
         string $ref,
         ?WANObjectCache $wanObjectCache = null,
         ?ManifestFetcher $fetcher = null
     ) {
-        $gitUrl = UrlResolver::resolveContentRepoUrl($gitUrl);
-        $this->gitUrl = $gitUrl;
+        $this->repoUrl = $repoUrl;
         $this->ref = $ref;
-        $this->cacheKey = 'labki:manifest:' . sha1($gitUrl . ':' . $ref);
+        $this->cacheKey = 'labki:manifest:' . sha1($repoUrl . ':' . $ref);
         $this->cache = $wanObjectCache ?? $this->resolveCache();
         $this->fetcher = $fetcher ?? new ManifestFetcher();
     }
@@ -69,7 +67,7 @@ final class ManifestStore {
         }
 
         // --- Fetch new manifest ---
-        $fetched = $this->fetcher->fetch($this->gitUrl, $this->ref);
+        $fetched = $this->fetcher->fetch($this->repoUrl, $this->ref);
         if (!$fetched->isOK()) {
             // Return stale cache if available
             if ($cached !== null) {
@@ -94,14 +92,14 @@ final class ManifestStore {
         $hierarchy = (new HierarchyBuilder())->buildViewModel($packs);
         $graph = (new GraphBuilder())->build($packs);
 
-        $repoName = isset($manifestData['name']) && is_string($manifestData['name']) ? $manifestData['name'] : null;
+        $name = isset($manifestData['name']) && is_string($manifestData['name']) ? $manifestData['name'] : null;
 
         $data = [
             'hash' => $manifestHash,
-            'content_repo_url' => $this->gitUrl,
+            'content_repo_url' => $this->repoUrl,
             'content_ref' => $this->ref,
-            'fetched_at' => time(),
-            'content_repo_name' => $repoName,
+            'last_parsed_at' => \wfTimestampNow(),
+            'content_ref_name' => $name,
             'manifest' => $manifestData,
             'pages' => $pages,
             'hierarchy' => $hierarchy,

@@ -7,7 +7,6 @@ namespace LabkiPackManager\Services;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
 use LabkiPackManager\Parser\ManifestParser;
-use LabkiPackManager\Util\UrlResolver;
 use LabkiPackManager\Services\LabkiRefRegistry;
 
 /**
@@ -20,8 +19,10 @@ use LabkiPackManager\Services\LabkiRefRegistry;
 final class ManifestFetcher {
 
     private $httpRequestFactory;
+    private LabkiRefRegistry $refRegistry;
 
-    public function __construct($httpRequestFactory = null) {
+    public function __construct(?LabkiRefRegistry $refRegistry = null, $httpRequestFactory = null) {
+        $this->refRegistry = $refRegistry ?? new LabkiRefRegistry();
         $this->httpRequestFactory = $httpRequestFactory
             ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
     }
@@ -67,5 +68,4 @@ final class ManifestFetcher {
             return Status::newFatal('labkipackmanager-error-manifest-read');
         }
     }
-
 }

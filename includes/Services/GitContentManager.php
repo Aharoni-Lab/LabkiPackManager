@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
-use LabkiPackManager\Util\UrlResolver;
 use RuntimeException;
 
 /**
@@ -62,8 +61,7 @@ final class GitContentManager {
     public function ensureBareRepo(string $repoUrl): string {
         wfDebugLog('labkipack', "ensureBareRepo() called for {$repoUrl}");
     
-        $gitUrl = UrlResolver::resolveContentRepoUrl($repoUrl);
-        $safeName = $this->generateRepoDirName($gitUrl);
+        $safeName = $this->generateRepoDirName($repoUrl);
         $barePath = "{$this->cloneBasePath}/cache/{$safeName}.git";
     
         // Ensure parent directory exists
@@ -74,16 +72,16 @@ final class GitContentManager {
         // Create bare repository if missing
         if (!is_dir($barePath)) {
             wfDebugLog('labkipack', "Creating new bare clone: {$barePath}");
-            $this->runGit(['clone', '--mirror', $gitUrl, $barePath]);
+            $this->runGit(['clone', '--mirror', $repoUrl, $barePath]);
         }
     
         // Check if the repository is registered
-        $repoId = $this->repoRegistry->getRepoIdByUrl($gitUrl);
+        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
     
         if ($repoId === null) {
             // Register new repository
-            wfDebugLog('labkipack', "Registering new repo {$gitUrl}");
-            $repoId = $this->repoRegistry->ensureRepoEntry($gitUrl, [
+            wfDebugLog('labkipack', "Registering new repo {$repoUrl}");
+            $repoId = $this->repoRegistry->ensureRepoEntry($repoUrl, [
                 'bare_path' => $barePath,
                 'last_fetched' => \wfTimestampNow(),
             ]);
@@ -100,7 +98,7 @@ final class GitContentManager {
     
             if ($lastFetched < $oneHourAgo) {
                 // Fetch latest updates for the bare repository
-                wfDebugLog('labkipack', "Fetching latest updates for {$gitUrl}");
+                wfDebugLog('labkipack', "Fetching latest updates for {$repoUrl}");
                 try {
                     wfDebugLog('labkipack', "Fetching bare repo at {$barePath}");
                     // fetches all branches, tags, and prunes any branches that no longer exist
@@ -111,10 +109,10 @@ final class GitContentManager {
                         'updated_at'   => \wfTimestampNow(),
                     ]);
                 } catch (\Exception $e) {
-                    wfDebugLog('labkipack', "Fetch failed for {$gitUrl}: " . $e->getMessage());
+                    wfDebugLog('labkipack', "Fetch failed for {$repoUrl}: " . $e->getMessage());
                 }
             } else {
-                wfDebugLog('labkipack', "Skipping fetch for {$gitUrl} (recently updated)");
+                wfDebugLog('labkipack', "Skipping fetch for {$repoUrl} (recently updated)");
             }
         }
     
@@ -171,19 +169,29 @@ final class GitContentManager {
             wfDebugLog('labkipack', "Worktree {$worktreePath} is up to date (commit {$commit})");
         }
 
-        // Register or update ref in database
-        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
-        if ($repoId !== null) {
-            $refId = $this->refRegistry->ensureRefEntry($repoId, $ref, [
-                'last_commit'   => $commit,
-                'worktree_path' => $worktreePath,
-                'updated_at'    => \wfTimestampNow(),
-                
-            ]);
-            wfDebugLog('labkipack', "Ref {$ref} registered (commit {$commit}, refID={$refId->toInt()}, repoID={$repoId->toInt()})");
-        } else {
-            throw new RuntimeException("No repo entry found for {$repoUrl} — ensureBareRepo() must be called first.");
+        // do an ensureRefEntry for the ref
+        // Manifest Store expects a refId, so we need to get it from the registry
+        $refId = $this->refRegistry->ensureRefEntry($repoUrl, $ref, [
+            'last_commit'   => $commit,
+            'worktree_path' => $worktreePath,
+            'updated_at'    => \wfTimestampNow(),
+            
+        ]);
+
+        // Handle Manifest Store updates
+        $manifestStore = new ManifestStore($repoUrl, $ref);
+        $manifestResult = $manifestStore->get(true); // force refresh
+        if ($manifestResult->isOK()) {
+            $manifest = $manifestResult->getValue();
         }
+        $refId = $this->refRegistry->ensureRefEntry($repoUrl, $ref, [
+            'content_ref_name' => $manifest['manifest']['name'],
+            'manifest_hash' => $manifest['hash'],
+            'manifest_last_parsed' => $manifest['last_parsed_at'],
+            'updated_at'    => \wfTimestampNow(),
+        ]);
+
+        wfDebugLog('labkipack', "Ref {$ref} registered (commit {$commit}, refID={$refId->toInt()}, repoID={$repoUrl})");
 
         return $worktreePath;
     }
@@ -212,8 +220,8 @@ final class GitContentManager {
      *   - long URLs remain deterministic (with optional hash suffix)
      *   - no collisions between similarly named hosts or subpaths
      */
-    private function generateRepoDirName(string $gitUrl): string {
-        $parsed = parse_url($gitUrl);
+    private function generateRepoDirName(string $repoUrl): string {
+        $parsed = parse_url($repoUrl);
         $host = $parsed['host'] ?? 'unknown';
         $path = trim((string)($parsed['path'] ?? ''), '/');
 
@@ -225,7 +233,7 @@ final class GitContentManager {
         $safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $full);
 
         // append short hash for uniqueness (useful for forks with same path)
-        $hash = substr(sha1($gitUrl), 0, 6);
+        $hash = substr(sha1($repoUrl), 0, 6);
 
         return "{$safe}_{$hash}";
     }

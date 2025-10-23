@@ -26,7 +26,6 @@ CREATE TABLE labki_content_ref (
   source_ref              TEXT NOT NULL,         -- canonical Git ref (branch/tag/commit)
   content_ref_name        TEXT,                  -- optional descriptive name
   last_commit             TEXT,                  -- HEAD commit hash
-  manifest_path           TEXT,                  -- path to manifest within repo
   manifest_hash           TEXT,                  -- hash of manifest contents
   manifest_last_parsed    INTEGER,               -- timestamp of last manifest parse
   worktree_path           TEXT,                  -- filesystem path to worktree
@@ -95,7 +94,7 @@ CREATE INDEX idx_labki_page_wiki_page_id   ON labki_page (wiki_page_id);
 
 -- Performance and metadata indexes
 CREATE INDEX idx_labki_repo_url            ON labki_content_repo (content_repo_url);
-CREATE INDEX idx_labki_repo_name           ON labki_content_repo (content_repo_name);
+CREATE INDEX idx_labki_ref_name            ON labki_content_ref (content_ref_name);
 CREATE INDEX idx_labki_repo_last_fetched   ON labki_content_repo (last_fetched);
 
 CREATE INDEX idx_labki_ref_source_ref      ON labki_content_ref (source_ref);
