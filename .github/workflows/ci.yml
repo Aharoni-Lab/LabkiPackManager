@@ -118,11 +118,13 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/extension" "extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
-          # Explicitly tell PHPUnit to include the extension source for coverage
+          # Collect coverage only for includes/ and maintenance/
           php tests/phpunit/phpunit.php \
             --coverage-clover=build/logs/clover.xml \
-            --coverage-filter extensions/LabkiPackManager \
+            --coverage-filter extensions/LabkiPackManager/includes \
+            --coverage-filter extensions/LabkiPackManager/maintenance \
             extensions/LabkiPackManager/tests/phpunit
+  
   
         
       - name: Upload coverage to Codecov
