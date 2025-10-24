@@ -109,4 +109,19 @@ jobs:
             echo "No integration tests directory found; skipping."
           fi
 
+      - name: Generate coverage report
+        if: success()
+        working-directory: mediawiki
+        run: |
+          mkdir -p build/logs
+          composer phpunit:entrypoint -- \
+            --coverage-clover=build/logs/clover.xml \
+            --extensions=LabkiPackManager
 
+      - name: Upload coverage to Codecov
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          files: mediawiki/build/logs/clover.xml
+          flags: phpunit
+          fail_ci_if_error: true
