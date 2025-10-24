@@ -115,21 +115,34 @@ jobs:
         working-directory: mediawiki
         run: |
           mkdir -p build/logs
-          ln -s "$GITHUB_WORKSPACE/extension" "extensions/LabkiPackManager"
+          EXT_PATH="$(pwd)/extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
-          # Minimal PHPUnit config that includes the correct absolute paths
-          cat > extensions/LabkiPackManager/tests/phpunit/coverage.xml <<'XML'
+          cat > "$EXT_PATH/tests/phpunit/coverage.xml" <<XML
           <?xml version="1.0" encoding="UTF-8"?>
           <phpunit bootstrap="tests/phpunit/bootstrap.php">
             <coverage>
               <include>
-                <directory suffix=".php">extensions/LabkiPackManager/includes</directory>
-                <directory suffix=".php">extensions/LabkiPackManager/maintenance</directory>
+                <directory suffix=".php">$EXT_PATH/includes</directory>
+                <directory suffix=".php">$EXT_PATH/maintenance</directory>
               </include>
             </coverage>
           </phpunit>
           XML
+
+          php tests/phpunit/phpunit.php \
+            --configuration "$EXT_PATH/tests/phpunit/coverage.xml" \
+            --coverage-clover=build/logs/clover.xml \
+            "$EXT_PATH/tests/phpunit"
+  
+
+      - name: Inspect coverage report contents
+        run: |
+          echo "Clover report size:"
+          wc -l mediawiki/build/logs/clover.xml
+          echo "First 20 filenames referenced:"
+          grep -oP 'filename="\K[^"]+' mediawiki/build/logs/clover.xml | head -n 20
+
 
           php tests/phpunit/phpunit.php \
             --configuration extensions/LabkiPackManager/tests/phpunit/coverage.xml \
