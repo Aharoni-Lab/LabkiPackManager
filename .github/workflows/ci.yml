@@ -115,15 +115,15 @@ jobs:
         working-directory: mediawiki
         run: |
           mkdir -p build/logs
-
-          # Ensure extension symlink exists and is loadable
           ln -s "$GITHUB_WORKSPACE/extension" "extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
-          # Run tests for the extension only, with coverage
+          # Explicitly tell PHPUnit to include the extension source for coverage
           php tests/phpunit/phpunit.php \
             --coverage-clover=build/logs/clover.xml \
+            --coverage-filter extensions/LabkiPackManager \
             extensions/LabkiPackManager/tests/phpunit
+  
         
       - name: Upload coverage to Codecov
         if: success()
