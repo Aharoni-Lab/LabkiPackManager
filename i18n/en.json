@@ -49,6 +49,7 @@
   "labkipackmanager-error-page-not-found": "The specified page could not be found.",
   "labkipackmanager-error-manifest-missing": "Manifest file (manifest.yml) not found in worktree.",
   "labkipackmanager-error-manifest-empty": "Manifest file exists but is empty.",
+  "labkipackmanager-error-manifest-unreadable": "Manifest file exists but cannot be read (permission denied).",
   "labkipackmanager-error-manifest-read": "Failed to read manifest file from worktree.",
   "labkipackmanager-error-invalid-manifest": "Invalid manifest data received.",
 

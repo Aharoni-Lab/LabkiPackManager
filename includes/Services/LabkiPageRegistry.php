@@ -11,8 +11,10 @@ use MediaWiki\MediaWikiServices;
 
 /**
  * Page-level registry service for labki_page table.
+ *
+ * Note: Not marked as final to allow mocking in unit tests.
  */
-final class LabkiPageRegistry {
+class LabkiPageRegistry {
     private const TABLE = 'labki_page';
 
     /**

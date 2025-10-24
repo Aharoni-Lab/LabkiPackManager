@@ -48,6 +48,7 @@ class I18nKeysTest extends TestCase {
             'labkipackmanager-error-page-not-found',
             'labkipackmanager-error-manifest-missing',
             'labkipackmanager-error-manifest-empty',
+            'labkipackmanager-error-manifest-unreadable',
             'labkipackmanager-error-manifest-read',
             'labkipackmanager-error-invalid-manifest',
             
@@ -78,7 +79,11 @@ class I18nKeysTest extends TestCase {
      * Ensures all keys follow the labkipackmanager- prefix convention.
      */
     public function testAllKeysFollowNamingConvention(): void {
-        $exceptions = [ '@metadata', 'specialpages-group-labki' ];
+        $exceptions = [
+            '@metadata',
+            'specialpages-group-labki',
+            'right-labkipackmanager-manage', // MediaWiki permission key
+        ];
         
         foreach ( array_keys( $this->i18nData ) as $key ) {
             if ( in_array( $key, $exceptions, true ) ) {

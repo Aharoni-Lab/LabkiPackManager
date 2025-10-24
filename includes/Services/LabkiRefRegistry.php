@@ -18,8 +18,10 @@ use LabkiPackManager\Services\LabkiRepoRegistry;
  *
  * This service provides CRUD and "ensure" semantics similar to
  * LabkiRepoRegistry, but scoped to (repo_id, source_ref).
+ *
+ * Note: Not marked as final to allow mocking in unit tests.
  */
-final class LabkiRefRegistry {
+class LabkiRefRegistry {
     private const TABLE = 'labki_content_ref';
     private LabkiRepoRegistry $repoRegistry;
 

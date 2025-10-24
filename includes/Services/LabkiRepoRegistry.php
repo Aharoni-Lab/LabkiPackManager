@@ -14,8 +14,10 @@ use RuntimeException;
  *
  * Each entry corresponds to one bare Git repository (unique per content_repo_url).
  * Per-branch/tag metadata is stored in labki_content_ref via LabkiRefRegistry.
+ *
+ * Note: Not marked as final to allow mocking in unit tests.
  */
-final class LabkiRepoRegistry {
+class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
     /**

@@ -11,8 +11,10 @@ use MediaWiki\MediaWikiServices;
 
 /**
  * Pack-level registry service for labki_pack table.
+ *
+ * Note: Not marked as final to allow mocking in unit tests.
  */
-final class LabkiPackRegistry {
+class LabkiPackRegistry {
     private const TABLE = 'labki_pack';
 
     /**

@@ -12,6 +12,12 @@ use LabkiPackManager\Services\LabkiRefRegistry;
  *
  * Responsible for retrieving manifest YAML files from local worktree storage
  * that has already been prepared by GitContentManager.
+ *
+ * Error messages:
+ * @error labkipackmanager-error-manifest-missing - File not found
+ * @error labkipackmanager-error-manifest-empty - File is empty or whitespace-only
+ * @error labkipackmanager-error-manifest-unreadable - File exists but no read permission
+ * @error labkipackmanager-error-manifest-read - General read failure
  */
 final class ManifestFetcher {
 
@@ -48,15 +54,28 @@ final class ManifestFetcher {
     private function getRawManifest(string $manifestPath): Status {
         $path = trim($manifestPath);
 
+        // Check if file exists
         if ($path === '' || !is_file($path)) {
             return Status::newFatal('labkipackmanager-error-manifest-missing');
         }
 
+        // Check if file is readable
+        if (!is_readable($path)) {
+            wfDebugLog('labkipack', "Manifest at {$path} exists but is not readable (permission denied)");
+            return Status::newFatal('labkipackmanager-error-manifest-unreadable');
+        }
+
         try {
             $content = file_get_contents($path);
-            if ($content === false || $content === '') {
+            if ($content === false) {
+                return Status::newFatal('labkipackmanager-error-manifest-read');
+            }
+            
+            // Treat empty or whitespace-only content as invalid
+            if (trim($content) === '') {
                 return Status::newFatal('labkipackmanager-error-manifest-empty');
             }
+            
             return Status::newGood($content);
         } catch (\Throwable $e) {
             wfDebugLog('labkipack', "Failed to read manifest at {$path}: " . $e->getMessage());
