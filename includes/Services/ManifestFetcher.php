@@ -4,33 +4,28 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
-use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
-use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Services\LabkiRefRegistry;
 
 /**
  * ManifestFetcher
  *
- * Responsible for retrieving manifest YAML files, either from local storage or
- * a remote HTTP(S) source, and providing change detection via lightweight HEAD
- * or hash requests.
+ * Responsible for retrieving manifest YAML files from local worktree storage
+ * that has already been prepared by GitContentManager.
  */
 final class ManifestFetcher {
 
-    private $httpRequestFactory;
     private LabkiRefRegistry $refRegistry;
 
-    public function __construct(?LabkiRefRegistry $refRegistry = null, $httpRequestFactory = null) {
+    public function __construct(?LabkiRefRegistry $refRegistry = null) {
         $this->refRegistry = $refRegistry ?? new LabkiRefRegistry();
-        $this->httpRequestFactory = $httpRequestFactory
-            ?? MediaWikiServices::getInstance()->getHttpRequestFactory();
     }
 
     /**
-     * Fetch and parse a manifest from the given worktree path.
+     * Fetch raw manifest YAML for the given repo/ref from the local worktree.
      *
-     * @param string $url URL or file:// path
+     * @param string $repoUrl Remote repository URL used to resolve the worktree path
+     * @param string $ref Branch, tag, or commit for the worktree
      * @return Status containing string YAML body on success or fatal error
      */
     public function fetch(string $repoUrl, string $ref): Status {
@@ -44,7 +39,7 @@ final class ManifestFetcher {
         return $body;
     }
 
-        /**
+    /**
      * Retrieve the raw manifest file contents from a local path.
      *
      * @param string $manifestPath Absolute path to manifest.yml
