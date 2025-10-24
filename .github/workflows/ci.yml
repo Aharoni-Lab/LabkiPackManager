@@ -76,6 +76,7 @@ jobs:
       - name: Enable extension
         run: |
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
+          echo "\$wgCacheDirectory = \"\$IP/cache\";" >> mediawiki/LocalSettings.php
           ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
 
       - name: Update DB schema (run extension schema updates)
@@ -125,3 +126,4 @@ jobs:
           files: mediawiki/build/logs/clover.xml
           flags: phpunit
           fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
