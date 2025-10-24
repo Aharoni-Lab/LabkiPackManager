@@ -75,10 +75,11 @@ jobs:
 
       - name: Enable extension
         run: |
-          ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
+          mkdir -p mediawiki/extensions
+          ln -s "$(pwd)/extension" "mediawiki/extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
           echo "\$wgCacheDirectory = \"\$IP/cache\";" >> mediawiki/LocalSettings.php
-          echo "\$wgEnableProfileInfo = false;" >> mediawiki/LocalSettings.php
+
 
       - name: Update DB schema
         working-directory: mediawiki
@@ -114,11 +115,11 @@ jobs:
         working-directory: mediawiki
         run: |
           mkdir -p build/logs
-          # Run coverage from MediaWiki root so extension is already loaded
-          php tests/phpunit/phpunit.php \
+          composer phpunit -- \
             --coverage-clover=build/logs/clover.xml \
             --extensions=LabkiPackManager \
             extensions/LabkiPackManager/tests/phpunit
+  
 
       - name: Upload coverage to Codecov
         if: success()
