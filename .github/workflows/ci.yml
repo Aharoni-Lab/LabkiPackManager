@@ -113,12 +113,19 @@ jobs:
       - name: Generate coverage report
         if: success()
         working-directory: mediawiki
+        env:
+          MW_INSTALL_PATH: ${{ github.workspace }}/mediawiki
         run: |
           mkdir -p build/logs
-          composer phpunit -- \
-            --coverage-clover=build/logs/clover.xml \
+          # explicitly load extension for MediaWiki's test runner
+          echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
+          vendor/bin/phpunit \
+            --configuration tests/phpunit/suite.xml \
             --extensions=LabkiPackManager \
+            --testsuite extensions \
+            --coverage-clover=build/logs/clover.xml \
             extensions/LabkiPackManager/tests/phpunit
+
   
 
       - name: Upload coverage to Codecov
