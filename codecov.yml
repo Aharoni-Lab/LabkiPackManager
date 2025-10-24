@@ -12,3 +12,8 @@ coverage:
 comment:
   layout: "header, diff, tree"
   behavior: default
+fixes:
+  # Strip the CI build path and the mediawiki/ prefix
+  - "/home/runner/work/LabkiPackManager/LabkiPackManager/mediawiki/::"
+  - "mediawiki/::"
+  - "extensions/LabkiPackManager/::"
