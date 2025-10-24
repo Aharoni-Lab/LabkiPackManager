@@ -148,6 +148,8 @@ class EntitiesTest extends TestCase {
         ];
         $ref3 = ContentRef::fromRow( $refRowNull );
         $this->assertSame( 7, $ref3->id()->toInt() );
+        $this->assertSame( 1, $ref3->repoId()->toInt() );
+        $this->assertSame( 'dev', $ref3->sourceRef() );
         $this->assertNull( $ref3->refName() );
         $this->assertNull( $ref3->lastCommit() );
         $this->assertNull( $ref3->manifestHash() );
@@ -159,17 +161,16 @@ class EntitiesTest extends TestCase {
         // Test TABLE and FIELDS constants
         $this->assertSame( 'labki_pack', Pack::TABLE );
         $this->assertSame(
-            [ 'pack_id', 'content_repo_id', 'name', 'version', 'source_ref', 'source_commit', 'installed_at', 'installed_by', 'updated_at', 'status' ],
+            [ 'pack_id', 'content_ref_id', 'name', 'version', 'source_commit', 'installed_at', 'installed_by', 'updated_at', 'status' ],
             Pack::FIELDS
         );
 
         // Test toArray()
         $pack = new Pack(
             new PackId( 10 ),
-            new ContentRepoId( 2 ),
+            new ContentRefId( 2 ),
             'lab-operations',
             '1.0.0',
-            'main',
             'abc123',
             111,
             5,
@@ -178,10 +179,9 @@ class EntitiesTest extends TestCase {
         );
         $packArr = $pack->toArray();
         $this->assertSame( 10, $packArr['pack_id'] );
-        $this->assertSame( 2, $packArr['content_repo_id'] );
+        $this->assertSame( 2, $packArr['content_ref_id'] );
         $this->assertSame( 'lab-operations', $pack->name() );
         $this->assertSame( '1.0.0', $packArr['version'] );
-        $this->assertSame( 'main', $packArr['source_ref'] );
         $this->assertSame( 'abc123', $packArr['source_commit'] );
         $this->assertSame( 111, $packArr['installed_at'] );
         $this->assertSame( 5, $packArr['installed_by'] );
@@ -191,10 +191,9 @@ class EntitiesTest extends TestCase {
         // Test fromRow()
         $packRow = (object)[
             'pack_id' => 11,
-            'content_repo_id' => 2,
+            'content_ref_id' => 2,
             'name' => 'chemistry-pack',
             'version' => '0.1.0',
-            'source_ref' => null,
             'source_commit' => 'def456',
             'installed_at' => 222,
             'installed_by' => null,
@@ -203,9 +202,9 @@ class EntitiesTest extends TestCase {
         ];
         $pack2 = Pack::fromRow( $packRow );
         $this->assertSame( 11, $pack2->id()->toInt() );
+        $this->assertSame( 2, $pack2->contentRefId()->toInt() );
         $this->assertSame( 'chemistry-pack', $pack2->name() );
         $this->assertSame( '0.1.0', $pack2->version() );
-        $this->assertNull( $pack2->sourceRef() );
         $this->assertSame( 'def456', $pack2->sourceCommit() );
         $this->assertSame( 222, $pack2->installedAt() );
         $this->assertNull( $pack2->installedBy() );
