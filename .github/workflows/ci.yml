@@ -116,15 +116,15 @@ jobs:
         run: |
           mkdir -p build/logs
 
-          # Absolute paths guarantee correct resolution
-          EXT_PATH="$(pwd)/extensions/LabkiPackManager"
+          # Ensure extension symlink exists and is loadable
+          ln -s "$GITHUB_WORKSPACE/extension" "extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
-          # Use MediaWiki's phpunit entrypoint so LocalSettings.php is loaded
+          # Run tests for the extension only, with coverage
           php tests/phpunit/phpunit.php \
-            --wiki wiki \
             --coverage-clover=build/logs/clover.xml \
-            "$EXT_PATH/tests/phpunit"
+            extensions/LabkiPackManager/tests/phpunit
+
 
 
   
