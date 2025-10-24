@@ -75,26 +75,25 @@ jobs:
 
       - name: Enable extension
         run: |
+          ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
           echo "\$wgCacheDirectory = \"\$IP/cache\";" >> mediawiki/LocalSettings.php
-          ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
+          echo "\$wgEnableProfileInfo = false;" >> mediawiki/LocalSettings.php
 
-      - name: Update DB schema (run extension schema updates)
+      - name: Update DB schema
         working-directory: mediawiki
         run: php maintenance/update.php --quick
 
-      - name: Verify labki table columns
+      - name: Verify labki tables
         working-directory: mediawiki
         run: |
           php maintenance/sql.php --query="SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'labki_%';"
-          php maintenance/sql.php --query="PRAGMA table_info(labki_pack_pages);"
 
       - name: PHPUnit unit
         working-directory: mediawiki
         run: |
           if [ -d "extensions/LabkiPackManager/tests/phpunit/unit" ]; then
-
-          composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit
+            composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit
           else
             echo "No unit tests directory found; skipping."
           fi
@@ -115,9 +114,11 @@ jobs:
         working-directory: mediawiki
         run: |
           mkdir -p build/logs
-          composer phpunit:entrypoint -- \
+          # Run coverage from MediaWiki root so extension is already loaded
+          php tests/phpunit/phpunit.php \
             --coverage-clover=build/logs/clover.xml \
-            --extensions=LabkiPackManager
+            --extensions=LabkiPackManager \
+            extensions/LabkiPackManager/tests/phpunit
 
       - name: Upload coverage to Codecov
         if: success()
@@ -126,4 +127,4 @@ jobs:
           files: mediawiki/build/logs/clover.xml
           flags: phpunit
           fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }} # required only if private
