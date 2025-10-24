@@ -118,24 +118,24 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/extension" "extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
-          # Create a minimal coverage config that keeps MW bootstrap but filters coverage
+          # Minimal PHPUnit config that includes the correct absolute paths
           cat > extensions/LabkiPackManager/tests/phpunit/coverage.xml <<'XML'
           <?xml version="1.0" encoding="UTF-8"?>
-          <phpunit bootstrap="../../tests/phpunit/bootstrap.php">
+          <phpunit bootstrap="tests/phpunit/bootstrap.php">
             <coverage>
               <include>
-                <directory>../../extensions/LabkiPackManager/includes</directory>
-                <directory>../../extensions/LabkiPackManager/maintenance</directory>
+                <directory suffix=".php">extensions/LabkiPackManager/includes</directory>
+                <directory suffix=".php">extensions/LabkiPackManager/maintenance</directory>
               </include>
             </coverage>
           </phpunit>
           XML
 
-          # Run PHPUnit using the custom config (still through MediaWiki bootstrap)
           php tests/phpunit/phpunit.php \
             --configuration extensions/LabkiPackManager/tests/phpunit/coverage.xml \
             --coverage-clover=build/logs/clover.xml \
             extensions/LabkiPackManager/tests/phpunit
+  
         
       - name: Upload coverage to Codecov
         if: success()
