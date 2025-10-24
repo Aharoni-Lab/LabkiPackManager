@@ -60,6 +60,7 @@ final class ContentRef {
 
     public function id(): ContentRefId { return $this->id; }
     public function repoId(): ContentRepoId { return $this->repoId; }
+    public function contentRepoId(): ContentRepoId { return $this->repoId; } // Alias for consistency
     public function sourceRef(): string { return $this->sourceRef; }
     public function refName(): ?string { return $this->refName; }
     public function lastCommit(): ?string { return $this->lastCommit; }

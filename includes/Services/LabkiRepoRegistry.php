@@ -10,10 +10,25 @@ use MediaWiki\MediaWikiServices;
 use RuntimeException;
 
 /**
- * Repository-level registry service for labki_content_repo table.
+ * LabkiRepoRegistry
  *
- * Each entry corresponds to one bare Git repository (unique per content_repo_url).
- * Per-branch/tag metadata is stored in labki_content_ref via LabkiRefRegistry.
+ * Repository-level registry service for the labki_content_repo table.
+ *
+ * This service manages content repository metadata, where each entry corresponds
+ * to one bare Git repository (unique per content_repo_url). It provides CRUD
+ * operations and "ensure" semantics for repository entries.
+ *
+ * Responsibilities:
+ * - Creating and updating repository entries
+ * - Tracking repository metadata (URL, default ref, bare path, last fetched)
+ * - Querying repositories by URL or ID
+ * - Listing all repositories
+ * - Deleting repositories (cascades to refs, packs, pages)
+ *
+ * Related tables:
+ * - labki_content_ref: Per-branch/tag metadata (managed by LabkiRefRegistry)
+ * - labki_pack: Pack metadata (managed by LabkiPackRegistry)
+ * - labki_page: Page metadata (managed by LabkiPageRegistry)
  *
  * Note: Not marked as final to allow mocking in unit tests.
  */
@@ -21,11 +36,17 @@ class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
     /**
-     * Ensure a bare repository entry exists (create or update) and return its ID.
+     * Ensure a repository entry exists (create or update) and return its ID.
      *
-     * @param string $contentRepoUrl Repository URL
-     * @param array<string,mixed> $extraFields Optional metadata (e.g. name, bare_path, last_fetched)
-     * @return ContentRepoId
+     * If a repository with the given URL already exists, it will be updated with
+     * the provided extra fields. Otherwise, a new repository entry is created.
+     *
+     * This is the recommended method for most use cases as it provides idempotent
+     * behavior - calling it multiple times with the same URL is safe.
+     *
+     * @param string $contentRepoUrl Repository URL (should be normalized)
+     * @param array<string,mixed> $extraFields Optional metadata (e.g., bare_path, last_fetched)
+     * @return ContentRepoId The repository ID (existing or newly created)
      */
     public function ensureRepoEntry(
         string $contentRepoUrl,
@@ -48,11 +69,22 @@ class LabkiRepoRegistry {
     }
 
     /**
-     * Insert a repository entry.
+     * Insert a new repository entry.
      *
-     * @param string $contentRepoUrl Repository URL
-     * @param array<string,mixed> $extraFields Optional metadata
-     * @return ContentRepoId
+     * Creates a new repository record with default values for required fields.
+     * Use ensureRepoEntry() instead if you want idempotent behavior.
+     *
+     * Default values:
+     * - default_ref: 'main'
+     * - bare_path: null
+     * - last_fetched: null
+     * - created_at: current timestamp
+     * - updated_at: current timestamp
+     *
+     * @param string $contentRepoUrl Repository URL (should be normalized)
+     * @param array<string,mixed> $extraFields Optional metadata to override defaults
+     * @return ContentRepoId The newly created repository ID
+     * @throws \Exception If database insertion fails
      */
     public function addRepoEntry(
         string $contentRepoUrl,
@@ -92,6 +124,13 @@ class LabkiRepoRegistry {
 
     /**
      * Update an existing repository record by ID.
+     *
+     * Updates the specified fields for a repository. The updated_at timestamp
+     * is automatically set to the current time unless explicitly provided.
+     *
+     * @param int|ContentRepoId $repoId Repository ID to update
+     * @param array<string,mixed> $fields Fields to update (e.g., bare_path, last_fetched)
+     * @return void
      */
     public function updateRepoEntry(int|ContentRepoId $repoId, array $fields): void {
         if (empty($fields)) {
@@ -115,6 +154,12 @@ class LabkiRepoRegistry {
 
     /**
      * Get a repository ID by its canonical URL.
+     *
+     * Performs an exact match lookup on the content_repo_url field.
+     * The URL should be normalized before calling this method.
+     *
+     * @param string $contentRepoUrl Repository URL to look up
+     * @return ContentRepoId|null Repository ID if found, null otherwise
      */
     public function getRepoIdByUrl(string $contentRepoUrl): ?ContentRepoId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
@@ -130,7 +175,12 @@ class LabkiRepoRegistry {
     }
 
     /**
-     * Fetch a repository record by ID.
+     * Fetch a complete repository record by ID.
+     *
+     * Returns a ContentRepo domain object with all repository metadata.
+     *
+     * @param int|ContentRepoId $repoId Repository ID to fetch
+     * @return ContentRepo|null Repository object if found, null otherwise
      */
     public function getRepoById(int|ContentRepoId $repoId): ?ContentRepo {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
@@ -149,7 +199,9 @@ class LabkiRepoRegistry {
     /**
      * List all repositories.
      *
-     * @return array<int,ContentRepo>
+     * Returns all repository records ordered by ID.
+     *
+     * @return array<int,ContentRepo> Array of ContentRepo objects
      */
     public function listRepos(): array {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
@@ -168,7 +220,16 @@ class LabkiRepoRegistry {
     }
 
     /**
-     * Delete a repository (cascade removes refs, packs, pages).
+     * Delete a repository entry.
+     *
+     * Removes the repository record from the database. Due to foreign key constraints,
+     * this will cascade delete all associated refs, packs, and pages.
+     *
+     * Warning: This is a destructive operation. Ensure all associated data should
+     * be removed before calling this method.
+     *
+     * @param int|ContentRepoId $repoId Repository ID to delete
+     * @return void
      */
     public function deleteRepo(int|ContentRepoId $repoId): void {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);

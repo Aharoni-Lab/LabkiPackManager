@@ -49,7 +49,13 @@ final class ContentRepo {
         $this->updatedAt = $updatedAt;
     }
 
-    // getters ...
+    public function id(): ContentRepoId { return $this->id; }
+    public function url(): string { return $this->url; }
+    public function defaultRef(): ?string { return $this->defaultRef; }
+    public function barePath(): ?string { return $this->barePath; }
+    public function lastFetched(): ?int { return $this->lastFetched; }
+    public function createdAt(): ?int { return $this->createdAt; }
+    public function updatedAt(): ?int { return $this->updatedAt; }
 
     public function toArray(): array {
         return [

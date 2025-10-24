@@ -10,7 +10,26 @@ use LabkiPackManager\Domain\PackId;
 use MediaWiki\MediaWikiServices;
 
 /**
- * Page-level registry service for labki_page table.
+ * LabkiPageRegistry
+ *
+ * Page-level registry service for the labki_page table.
+ *
+ * This service manages individual page metadata within content packs. Each entry
+ * corresponds to a wiki page that was installed as part of a pack, tracking its
+ * source name, final title, namespace, and content metadata.
+ *
+ * Responsibilities:
+ * - Creating and updating page entries
+ * - Tracking page metadata (name, final title, namespace, wiki page ID, content hash)
+ * - Querying pages by pack, name, title, or ID
+ * - Listing and counting pages for a pack
+ * - Deleting pages (individual or by pack)
+ * - Detecting page collisions with existing wiki pages
+ * - Building rewrite maps for link resolution
+ *
+ * Related tables:
+ * - labki_pack: Parent pack (managed by LabkiPackRegistry)
+ * - page: Core MediaWiki page table (for collision detection)
  *
  * Note: Not marked as final to allow mocking in unit tests.
  */

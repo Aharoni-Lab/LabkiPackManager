@@ -11,13 +11,26 @@ use MediaWiki\MediaWikiServices;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 
 /**
- * Ref-level registry service for labki_content_ref table.
+ * LabkiRefRegistry
  *
- * Each entry corresponds to a specific branch, tag, or commit (source_ref)
- * within a single content repository (labki_content_repo).
+ * Ref-level registry service for the labki_content_ref table.
  *
- * This service provides CRUD and "ensure" semantics similar to
- * LabkiRepoRegistry, but scoped to (repo_id, source_ref).
+ * This service manages Git reference metadata (branches, tags, commits) for
+ * content repositories. Each entry corresponds to a specific ref within a
+ * repository, storing worktree paths, commit hashes, and manifest metadata.
+ *
+ * Responsibilities:
+ * - Creating and updating ref entries for repositories
+ * - Tracking ref metadata (worktree path, last commit, manifest hash)
+ * - Querying refs by repository and ref name
+ * - Listing all refs for a repository
+ * - Deleting refs (cascades to packs and pages)
+ * - Resolving repository identifiers (ID, URL, or ContentRepoId)
+ *
+ * Related tables:
+ * - labki_content_repo: Parent repository (managed by LabkiRepoRegistry)
+ * - labki_pack: Pack metadata (managed by LabkiPackRegistry)
+ * - labki_page: Page metadata (managed by LabkiPageRegistry)
  *
  * Note: Not marked as final to allow mocking in unit tests.
  */
@@ -31,10 +44,16 @@ class LabkiRefRegistry {
     /**
      * Ensure a ref entry exists (create or update) for a given repo + ref.
      *
-     * @param int|string|ContentRepoId $contentRepoIdentifier Identifier for the content repository
-     * @param string $sourceRef Branch, tag, or commit name
-     * @param array<string,mixed> $extraFields Optional metadata (manifest path, last commit, etc.)
-     * @return ContentRefId
+     * If a ref with the given repository and ref name already exists, it will be
+     * updated with the provided extra fields. Otherwise, a new ref entry is created.
+     *
+     * This is the recommended method for most use cases as it provides idempotent
+     * behavior - calling it multiple times with the same repo/ref is safe.
+     *
+     * @param int|string|ContentRepoId $contentRepoIdentifier Repository ID, URL, or ContentRepoId
+     * @param string $sourceRef Branch, tag, or commit name (e.g., 'main', 'v1.0.0')
+     * @param array<string,mixed> $extraFields Optional metadata (worktree_path, last_commit, etc.)
+     * @return ContentRefId The ref ID (existing or newly created)
      */
     public function ensureRefEntry(
         int|string|ContentRepoId $contentRepoIdentifier,
@@ -63,10 +82,22 @@ class LabkiRefRegistry {
     /**
      * Insert a new ref entry.
      *
+     * Creates a new ref record with default values for required fields.
+     * Use ensureRefEntry() instead if you want idempotent behavior.
+     *
+     * Default values:
+     * - last_commit: null
+     * - manifest_hash: null
+     * - manifest_last_parsed: null
+     * - worktree_path: null
+     * - created_at: current timestamp
+     * - updated_at: current timestamp
+     *
      * @param int $repoId Parent repository ID
-     * @param string $sourceRef Branch, tag, or commit
-     * @param array<string,mixed> $extraFields Optional metadata
-     * @return ContentRefId
+     * @param string $sourceRef Branch, tag, or commit name
+     * @param array<string,mixed> $extraFields Optional metadata to override defaults
+     * @return ContentRefId The newly created ref ID
+     * @throws \Exception If database insertion fails
      */
     public function addRefEntry(
         int $repoId,
@@ -135,6 +166,12 @@ class LabkiRefRegistry {
 
     /**
      * Get a ref ID by (repo_id, source_ref) pair.
+     *
+     * Performs an exact match lookup on the repository ID and ref name.
+     *
+     * @param int|string|ContentRepoId $contentRepoIdentifier Repository ID, URL, or ContentRepoId
+     * @param string $sourceRef Branch, tag, or commit name to look up
+     * @return ContentRefId|null Ref ID if found, null otherwise
      */
     public function getRefIdByRepoAndRef(int|string|ContentRepoId $contentRepoIdentifier, string $sourceRef): ?ContentRefId {
         $repoId = $this->resolveRepoId($contentRepoIdentifier);
@@ -150,8 +187,14 @@ class LabkiRefRegistry {
             ])
             ->caller(__METHOD__)
             ->fetchRow();
-        wfDebugLog('labkipack', "getRefIdByRepoAndRef() returning refId={$row->content_ref_id}");
-        return $row ? new ContentRefId((int) $row->content_ref_id) : null;
+        
+        if ($row) {
+            wfDebugLog('labkipack', "getRefIdByRepoAndRef() returning refId={$row->content_ref_id}");
+            return new ContentRefId((int) $row->content_ref_id);
+        }
+        
+        wfDebugLog('labkipack', "getRefIdByRepoAndRef() ref not found for repoId={$repoId} ref={$sourceRef}");
+        return null;
     }
 
     /**
