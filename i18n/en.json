@@ -47,6 +47,10 @@
   "labkipackmanager-error-repo-not-found": "The specified repository could not be found.",
   "labkipackmanager-error-pack-not-found": "The specified pack could not be found.",
   "labkipackmanager-error-page-not-found": "The specified page could not be found.",
+  "labkipackmanager-error-manifest-missing": "Manifest file (manifest.yml) not found in worktree.",
+  "labkipackmanager-error-manifest-empty": "Manifest file exists but is empty.",
+  "labkipackmanager-error-manifest-read": "Failed to read manifest file from worktree.",
+  "labkipackmanager-error-invalid-manifest": "Invalid manifest data received.",
 
   "labkipackmanager-action-install": "Installing pack...",
   "labkipackmanager-action-remove": "Removing pack...",
