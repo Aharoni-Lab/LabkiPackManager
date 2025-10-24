@@ -118,14 +118,24 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/extension" "extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
-          # Collect coverage only for includes/ and maintenance/
-          php tests/phpunit/phpunit.php \
+          # Create a minimal phpunit config that includes only your extension
+          cat > extensions/LabkiPackManager/tests/phpunit/coverage.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <phpunit>
+            <coverage>
+              <include>
+                <directory>../../includes</directory>
+                <directory>../../maintenance</directory>
+              </include>
+            </coverage>
+          </phpunit>
+          XML
+
+          # Run PHPUnit using this config instead of MediaWiki's default
+          vendor/bin/phpunit \
+            --configuration extensions/LabkiPackManager/tests/phpunit/coverage.xml \
             --coverage-clover=build/logs/clover.xml \
-            --coverage-filter extensions/LabkiPackManager/includes \
-            --coverage-filter extensions/LabkiPackManager/maintenance \
             extensions/LabkiPackManager/tests/phpunit
-  
-  
         
       - name: Upload coverage to Codecov
         if: success()
