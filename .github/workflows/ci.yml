@@ -113,18 +113,19 @@ jobs:
       - name: Generate coverage report
         if: success()
         working-directory: mediawiki
-        env:
-          MW_INSTALL_PATH: ${{ github.workspace }}/mediawiki
         run: |
           mkdir -p build/logs
-          # explicitly load extension for MediaWiki's test runner
+
+          # Absolute paths guarantee correct resolution
+          EXT_PATH="$(pwd)/extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
-          vendor/bin/phpunit \
-            --configuration tests/phpunit/suite.xml \
-            --extensions=LabkiPackManager \
-            --testsuite extensions \
+
+          # Use MediaWiki's phpunit entrypoint so LocalSettings.php is loaded
+          php tests/phpunit/phpunit.php \
+            --wiki wiki \
             --coverage-clover=build/logs/clover.xml \
-            extensions/LabkiPackManager/tests/phpunit
+            "$EXT_PATH/tests/phpunit"
+
 
   
 
