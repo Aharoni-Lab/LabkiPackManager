@@ -279,4 +279,254 @@ final class GitContentManager {
     public function getCloneBasePath(): string {
         return $this->cloneBasePath;
     }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Sync/Update methods
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Sync a specific ref from remote.
+     *
+     * This performs:
+     * - Fetch updates for the bare repository
+     * - Update the worktree to match the remote ref
+     * - Update the ref entry in database with new commit hash
+     *
+     * @param string $repoUrl Repository URL
+     * @param string $ref Ref name to sync
+     * @throws RuntimeException If ref not found or sync fails
+     */
+    public function syncRef(string $repoUrl, string $ref): void {
+        wfDebugLog('labkipack', "GitContentManager::syncRef() syncing {$repoUrl}@{$ref}");
+
+        // Get repository ID
+        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        if ($repoId === null) {
+            throw new RuntimeException("Repository not found: {$repoUrl}");
+        }
+
+        // Get ref ID
+        $refId = $this->refRegistry->getRefIdByRepoAndRef($repoId, $ref);
+        if ($refId === null) {
+            throw new RuntimeException("Ref '{$ref}' not found in repository");
+        }
+
+        // Ensure bare repo is fetched (this will fetch updates)
+        $barePath = $this->ensureBareRepo($repoUrl);
+        wfDebugLog('labkipack', "Bare repo updated at {$barePath}");
+
+        // Ensure worktree is synced (this will reset to remote commit if needed)
+        $worktreePath = $this->ensureWorktree($repoUrl, $ref);
+        wfDebugLog('labkipack', "Worktree synced at {$worktreePath}");
+
+        wfDebugLog('labkipack', "Successfully synced ref {$repoUrl}@{$ref}");
+    }
+
+    /**
+     * Sync an entire repository and all its refs.
+     *
+     * This performs:
+     * - Fetch updates for the bare repository
+     * - Update all existing worktrees to match their remote refs
+     * - Update all ref entries in database with new commit hashes
+     *
+     * @param string $repoUrl Repository URL
+     * @return int Number of refs that were synced
+     * @throws RuntimeException If repository not found or sync fails
+     */
+    public function syncRepo(string $repoUrl): int {
+        wfDebugLog('labkipack', "GitContentManager::syncRepo() syncing {$repoUrl}");
+
+        // Get repository ID
+        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        if ($repoId === null) {
+            throw new RuntimeException("Repository not found: {$repoUrl}");
+        }
+
+        // First, update the bare repository
+        $barePath = $this->ensureBareRepo($repoUrl);
+        wfDebugLog('labkipack', "Bare repo updated at {$barePath}");
+
+        // Get all refs for this repository
+        $refs = $this->refRegistry->listRefsForRepo($repoId);
+        $refCount = count($refs);
+        
+        wfDebugLog('labkipack', "Found {$refCount} refs to sync for {$repoUrl}");
+
+        // Sync each ref
+        $syncedCount = 0;
+        foreach ($refs as $ref) {
+            try {
+                $this->syncRef($repoUrl, $ref->sourceRef());
+                $syncedCount++;
+            } catch (\Exception $e) {
+                wfDebugLog('labkipack', "Failed to sync ref {$ref->sourceRef()}: " . $e->getMessage());
+                // Continue syncing other refs even if one fails
+            }
+        }
+
+        wfDebugLog('labkipack', "Successfully synced repository {$repoUrl} ({$syncedCount}/{$refCount} refs)");
+
+        return $syncedCount;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Removal methods
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Remove a specific ref from a repository.
+     *
+     * This removes:
+     * - The worktree directory from filesystem
+     * - Associated packs and pages (TODO: implement when LabkiPackRegistry exists)
+     * - The ref entry from database
+     *
+     * @param string $repoUrl Repository URL
+     * @param string $ref Ref name to remove
+     * @throws RuntimeException If ref not found or removal fails
+     */
+    public function removeRef(string $repoUrl, string $ref): void {
+        wfDebugLog('labkipack', "GitContentManager::removeRef() removing {$repoUrl}@{$ref}");
+
+        // Get repository ID
+        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        if ($repoId === null) {
+            throw new RuntimeException("Repository not found: {$repoUrl}");
+        }
+
+        // Get ref ID
+        $refId = $this->refRegistry->getRefIdByRepoAndRef($repoId, $ref);
+        if ($refId === null) {
+            throw new RuntimeException("Ref '{$ref}' not found in repository");
+        }
+
+        // Get worktree path before deletion
+        $refData = $this->refRegistry->getRefById($refId);
+        $worktreePath = $refData ? $refData->worktreePath() : null;
+
+        // TODO: Remove associated packs and pages
+        // When LabkiPackRegistry exists:
+        // $packRegistry = new LabkiPackRegistry();
+        // $packs = $packRegistry->getPacksForRef($refId);
+        // foreach ($packs as $pack) {
+        //     $packRegistry->removePack($pack->id());
+        // }
+
+        // Remove from database first (foreign keys will cascade)
+        $this->refRegistry->deleteRef($refId);
+        wfDebugLog('labkipack', "Deleted ref entry from database (refId={$refId->toInt()})");
+
+        // Remove worktree from filesystem
+        if ($worktreePath && is_dir($worktreePath)) {
+            $this->removeDirectory($worktreePath);
+            wfDebugLog('labkipack', "Removed worktree directory: {$worktreePath}");
+        } elseif ($worktreePath) {
+            wfDebugLog('labkipack', "Worktree directory not found: {$worktreePath}");
+        }
+
+        // Remove the worktree entry from the bare repository
+        $safeName = $this->generateRepoDirName($repoUrl);
+        $barePath = "{$this->cloneBasePath}/cache/{$safeName}.git";
+        
+        if (is_dir($barePath)) {
+            try {
+                // Prune the worktree entry
+                $this->runGit(['-C', $barePath, 'worktree', 'prune']);
+                wfDebugLog('labkipack', "Pruned worktree entry from bare repo");
+            } catch (\Exception $e) {
+                wfDebugLog('labkipack', "Failed to prune worktree: " . $e->getMessage());
+            }
+        }
+
+        wfDebugLog('labkipack', "Successfully removed ref {$repoUrl}@{$ref}");
+    }
+
+    /**
+     * Remove an entire repository.
+     *
+     * This removes:
+     * - All refs (worktrees, packs, pages)
+     * - The bare repository from filesystem
+     * - The repository entry from database
+     *
+     * @param string $repoUrl Repository URL
+     * @return int Number of refs that were removed
+     * @throws RuntimeException If repository not found or removal fails
+     */
+    public function removeRepo(string $repoUrl): int {
+        wfDebugLog('labkipack', "GitContentManager::removeRepo() removing {$repoUrl}");
+
+        // Get repository ID
+        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        if ($repoId === null) {
+            throw new RuntimeException("Repository not found: {$repoUrl}");
+        }
+
+        // Get all refs for this repository
+        $refs = $this->refRegistry->listRefsForRepo($repoId);
+        $refCount = count($refs);
+        
+        wfDebugLog('labkipack', "Found {$refCount} refs to remove for {$repoUrl}");
+
+        // Remove each ref (this handles worktrees, packs, pages)
+        foreach ($refs as $ref) {
+            try {
+                $this->removeRef($repoUrl, $ref->sourceRef());
+            } catch (\Exception $e) {
+                wfDebugLog('labkipack', "Failed to remove ref {$ref->sourceRef()}: " . $e->getMessage());
+                // Continue removing other refs even if one fails
+            }
+        }
+
+        // Remove bare repository from filesystem
+        $safeName = $this->generateRepoDirName($repoUrl);
+        $barePath = "{$this->cloneBasePath}/cache/{$safeName}.git";
+        
+        if (is_dir($barePath)) {
+            $this->removeDirectory($barePath);
+            wfDebugLog('labkipack', "Removed bare repository directory: {$barePath}");
+        } else {
+            wfDebugLog('labkipack', "Bare repository directory not found: {$barePath}");
+        }
+
+        // Finally, remove repository entry from database
+        $this->repoRegistry->deleteRepo($repoId);
+        wfDebugLog('labkipack', "Deleted repository entry from database (repoId={$repoId})");
+
+        wfDebugLog('labkipack', "Successfully removed repository {$repoUrl} ({$refCount} refs)");
+
+        return $refCount;
+    }
+
+    /**
+     * Recursively remove a directory and all its contents.
+     *
+     * @param string $dir Directory path to remove
+     * @throws RuntimeException If removal fails
+     */
+    private function removeDirectory(string $dir): void {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        // Use iterator for safe recursive deletion
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($items as $item) {
+            if ($item->isDir()) {
+                rmdir($item->getRealPath());
+            } else {
+                unlink($item->getRealPath());
+            }
+        }
+
+        // Remove the directory itself
+        if (!rmdir($dir)) {
+            throw new RuntimeException("Failed to remove directory: {$dir}");
+        }
+    }
 }

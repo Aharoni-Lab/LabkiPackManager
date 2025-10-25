@@ -64,10 +64,13 @@
     "labkiPageExists": "LabkiPackManager\\API\\ApiLabkiPageExists",
     "labkiReposList": "LabkiPackManager\\API\\Repos\\ApiLabkiReposList",
     "labkiReposAdd": "LabkiPackManager\\API\\Repos\\ApiLabkiReposAdd",
+    "labkiReposSync": "LabkiPackManager\\API\\Repos\\ApiLabkiReposSync",
+    "labkiReposRemove": "LabkiPackManager\\API\\Repos\\ApiLabkiReposRemove",
     "labkiOperationsStatus": "LabkiPackManager\\API\\Operations\\ApiLabkiOperationsStatus"
   },
   "JobClasses": {
-    "labkiRepoAdd": "LabkiPackManager\\Jobs\\LabkiRepoAddJob"
+    "labkiRepoAdd": "LabkiPackManager\\Jobs\\LabkiRepoAddJob",
+    "labkiRepoSync": "LabkiPackManager\\Jobs\\LabkiRepoSyncJob"
   },
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
