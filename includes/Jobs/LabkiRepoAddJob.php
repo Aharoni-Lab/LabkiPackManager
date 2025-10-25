@@ -7,6 +7,7 @@ namespace LabkiPackManager\Jobs;
 use Job;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
+use MediaWiki\Title\Title;
 use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
@@ -37,7 +38,7 @@ use LabkiPackManager\Services\LabkiOperationRegistry;
 final class LabkiRepoAddJob extends Job {
 
 	/**
-	 * @param \Title $title Title context (unused but required)
+	 * @param Title $title Title context (unused but required)
 	 * @param array $params Job parameters:
 	 *  - url: string (repository URL)
 	 *  - refs: string[] (refs to initialize)
@@ -45,7 +46,7 @@ final class LabkiRepoAddJob extends Job {
 	 *  - operation_id: string
 	 *  - user_id: int
 	 */
-	public function __construct( \Title $title, array $params ) {
+	public function __construct( Title $title, array $params ) {
 		parent::__construct( 'labkiRepoAdd', $title, $params );
 	}
 

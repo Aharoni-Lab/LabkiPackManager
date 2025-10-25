@@ -70,14 +70,15 @@ final class LabkiOperationRegistry {
         string $status = self::STATUS_QUEUED,
         string $message = ''
     ): void {
+        $now = wfTimestampNow();
         $this->dbw->insert( 'labki_operations', [
             'operation_id' => $operationId,
             'operation_type' => $type,
             'status' => $status,
             'message' => $message,
             'user_id' => $userId,
-            'started_at' => wfTimestampNow(),
-            'updated_at' => wfTimestampNow(),
+            'created_at' => $now,
+            'updated_at' => $now,
         ], __METHOD__ );
     }
 
@@ -126,12 +127,34 @@ final class LabkiOperationRegistry {
      * Mark an operation as started/running
      *
      * Convenience method to transition an operation from 'queued' to 'running'.
+     * Sets started_at timestamp when operation begins execution.
      *
      * @param string $operationId The operation to start
      * @param string|null $message Optional status message
      * @return void
      */
     public function startOperation( string $operationId, ?string $message = null ): void {
+        $row = [
+            'status' => self::STATUS_RUNNING,
+            'started_at' => wfTimestampNow(),
+            'updated_at' => wfTimestampNow(),
+        ];
+        if ( $message !== null ) {
+            $row['message'] = $message;
+        }
+        $this->dbw->update(
+            'labki_operations',
+            $row,
+            [ 'operation_id' => $operationId ],
+            __METHOD__
+        );
+    }
+
+    /**
+     * Helper method that was here before - keeping for backwards compatibility
+     * @deprecated Use startOperation with proper started_at tracking
+     */
+    private function startOperationOld( string $operationId, ?string $message = null ): void {
         $this->updateOperation( $operationId, self::STATUS_RUNNING, $message );
     }
 

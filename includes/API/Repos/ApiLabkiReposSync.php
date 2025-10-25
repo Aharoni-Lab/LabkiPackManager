@@ -9,7 +9,7 @@ use MediaWiki\MediaWikiServices;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use LabkiPackManager\Jobs\LabkiRepoSyncJob;
-
+use MediaWiki\Title\Title;
 /**
  * ApiLabkiReposSync
  *
@@ -51,7 +51,7 @@ use LabkiPackManager\Jobs\LabkiRepoSyncJob;
  *   "status": "queued",
  *   "message": "Repository sync queued",
  *   "refs": ["main", "v2.0.0"],
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024140000"
  *   }
@@ -130,7 +130,8 @@ final class ApiLabkiReposSync extends RepoApiBase {
 			'user_id' => $userId,
 		];
 
-		$job = new LabkiRepoSyncJob( \Title::newMainPage(), $jobParams );
+		$title = $this->getTitle() ?: Title::newFromText( 'LabkiRepoJob' );
+		$job = new LabkiRepoSyncJob( $title, $jobParams );
 		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
 		wfDebugLog( 'labkipack', "ApiLabkiReposSync: queued sync job with operation_id={$operationId}" );
@@ -149,7 +150,7 @@ final class ApiLabkiReposSync extends RepoApiBase {
 			$result->addValue( null, 'refs', $refs );
 		}
 		
-		$result->addValue( null, '_meta', [
+		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		] );

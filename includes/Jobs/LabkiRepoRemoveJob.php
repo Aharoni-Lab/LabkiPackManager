@@ -7,6 +7,7 @@ namespace LabkiPackManager\Jobs;
 use Job;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
+use MediaWiki\Title\Title;
 use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
@@ -28,14 +29,14 @@ use LabkiPackManager\Services\LabkiOperationRegistry;
 final class LabkiRepoRemoveJob extends Job {
 
 	/**
-	 * @param \Title $title Title context (unused but required)
+	 * @param Title $title Title context (unused but required)
 	 * @param array $params Job parameters:
 	 *  - url: string (repository URL)
 	 *  - refs: string[]|null (specific refs to remove, or null to remove entire repo)
 	 *  - operation_id: string
 	 *  - user_id: int
 	 */
-	public function __construct( \Title $title, array $params ) {
+	public function __construct( Title $title, array $params ) {
 		parent::__construct( 'labkiRepoRemove', $title, $params );
 	}
 

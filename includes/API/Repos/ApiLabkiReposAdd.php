@@ -10,7 +10,7 @@ use LabkiPackManager\Jobs\LabkiRepoAddJob;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
-
+use MediaWiki\Title\Title;
 /**
  * API endpoint to add a new content repository and queue background fetch/setup.
  *
@@ -46,7 +46,7 @@ use LabkiPackManager\Services\LabkiOperationRegistry;
  *   "operation_id": "repo_add_abc123",
  *   "status": "queued",
  *   "message": "Repository validation started",
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024120000"
  *   }
@@ -147,7 +147,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			$result->addValue( null, 'success', true );
 			$result->addValue( null, 'message', 'Repository and all specified refs already exist' );
 			$result->addValue( null, 'refs', $refs );
-			$result->addValue( null, '_meta', [
+			$result->addValue( null, 'meta', [
 				'schemaVersion' => 1,
 				'timestamp' => wfTimestampNow(),
 			] );
@@ -176,7 +176,9 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			'operation_id' => $operationId,
 			'user_id' => $userId,
 		];
-		$job = new LabkiRepoAddJob( $this->getTitle(), $jobParams );
+        $title = $this->getTitle() ?: Title::newFromText( 'LabkiRepoJob' );
+		$job = new LabkiRepoAddJob( $title, $jobParams );
+
 		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
 		wfDebugLog( 'labkipack', "ApiLabkiReposAdd: queued job with operation_id={$operationId}" );
@@ -187,7 +189,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 		$result->addValue( null, 'operation_id', $operationId );
 		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
 		$result->addValue( null, 'message', 'Repository queued for initialization' );
-		$result->addValue( null, '_meta', [
+		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		] );
@@ -198,6 +200,11 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 	 * Returns true if reachable via HTTP(S) HEAD or ssh check.
 	 */
 	private function verifyGitUrlAccessible( string $url ): bool {
+        // Skip external reachability checks in test or maintenance environments
+        if ( defined( 'MW_PHPUNIT_TEST' ) || PHP_SAPI === 'cli' ) {
+            return true;
+        }
+
 		if ( preg_match( '/^https?:\/\//i', $url ) ) {
 			$ch = curl_init( $url );
 			curl_setopt( $ch, CURLOPT_NOBODY, true );

@@ -9,7 +9,7 @@ use MediaWiki\MediaWikiServices;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use LabkiPackManager\Jobs\LabkiRepoRemoveJob;
-
+use MediaWiki\Title\Title;
 /**
  * ApiLabkiReposRemove
  *
@@ -50,7 +50,7 @@ use LabkiPackManager\Jobs\LabkiRepoRemoveJob;
  *   "status": "queued",
  *   "message": "Repository removal queued",
  *   "refs": ["v1.0.0", "v2.0.0"],
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024140000"
  *   }
@@ -129,7 +129,8 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 			'user_id' => $userId,
 		];
 
-		$job = new LabkiRepoRemoveJob( \Title::newMainPage(), $jobParams );
+		$title = $this->getTitle() ?: Title::newFromText( 'LabkiRepoJob' );
+		$job = new LabkiRepoRemoveJob( $title, $jobParams );
 		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
 		wfDebugLog( 'labkipack', "ApiLabkiReposRemove: queued removal job with operation_id={$operationId}" );
@@ -148,7 +149,7 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 			$result->addValue( null, 'refs', $refs );
 		}
 		
-		$result->addValue( null, '_meta', [
+		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		] );

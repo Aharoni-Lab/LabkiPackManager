@@ -112,8 +112,9 @@ CREATE TABLE IF NOT EXISTS labki_operations (
   message          TEXT DEFAULT '',                   -- short human-readable message
   result_data      TEXT DEFAULT NULL,                 -- optional JSON payload or result metadata
   user_id          INTEGER DEFAULT 0,                 -- initiator user
-  started_at       INTEGER,                           -- wfTimestampNow()
-  updated_at       INTEGER,                           -- wfTimestampNow()
+  created_at       INTEGER NOT NULL,                  -- when operation was created
+  started_at       INTEGER,                           -- when operation started executing
+  updated_at       INTEGER NOT NULL,                  -- last update timestamp
   FOREIGN KEY (user_id) REFERENCES user (user_id)
     ON DELETE SET NULL
     ON UPDATE CASCADE
