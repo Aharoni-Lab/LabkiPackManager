@@ -62,7 +62,9 @@
     "labkiUpdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
     "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest",
     "labkiPageExists": "LabkiPackManager\\API\\ApiLabkiPageExists",
-    "labkiReposList": "LabkiPackManager\\API\\Repos\\ApiLabkiReposList"
+    "labkiReposList": "LabkiPackManager\\API\\Repos\\ApiLabkiReposList",
+    "labkiReposAdd": "LabkiPackManager\\API\\Repos\\ApiLabkiReposAdd",
+    "labkiOperationsStatus": "LabkiPackManager\\API\\Operations\\ApiLabkiOperationsStatus"
   },
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",

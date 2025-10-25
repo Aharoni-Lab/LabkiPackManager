@@ -100,3 +100,31 @@ CREATE INDEX idx_labki_repo_last_fetched   ON labki_content_repo (last_fetched);
 CREATE INDEX idx_labki_ref_source_ref      ON labki_content_ref (source_ref);
 CREATE INDEX idx_labki_ref_last_commit     ON labki_content_ref (last_commit);
 CREATE INDEX idx_labki_ref_manifest_hash   ON labki_content_ref (manifest_hash);
+
+-- ===========================================================
+--  labki_operations: track background job and API operations
+-- ===========================================================
+CREATE TABLE IF NOT EXISTS labki_operations (
+  operation_id     TEXT PRIMARY KEY,                  -- unique identifier (e.g., repo_add_abc123)
+  operation_type   TEXT NOT NULL,                     -- e.g., 'repo_add', 'repo_sync'
+  status           TEXT NOT NULL DEFAULT 'queued',    -- queued | running | success | failed
+  progress         INTEGER DEFAULT 0,                 -- optional percentage 0–100
+  message          TEXT DEFAULT '',                   -- short human-readable message
+  result_data      TEXT DEFAULT NULL,                 -- optional JSON payload or result metadata
+  user_id          INTEGER DEFAULT 0,                 -- initiator user
+  started_at       INTEGER,                           -- wfTimestampNow()
+  updated_at       INTEGER,                           -- wfTimestampNow()
+  FOREIGN KEY (user_id) REFERENCES user (user_id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE
+);
+
+-- Helpful indexes
+CREATE INDEX IF NOT EXISTS idx_labki_operations_status
+  ON labki_operations (status);
+CREATE INDEX IF NOT EXISTS idx_labki_operations_type
+  ON labki_operations (operation_type);
+CREATE INDEX IF NOT EXISTS idx_labki_operations_user
+  ON labki_operations (user_id);
+CREATE INDEX IF NOT EXISTS idx_labki_operations_updated
+  ON labki_operations (updated_at);
