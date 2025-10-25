@@ -103,6 +103,7 @@ CREATE INDEX idx_labki_ref_manifest_hash   ON labki_content_ref (manifest_hash);
 
 -- ===========================================================
 --  labki_operations: track background job and API operations
+--  Domain: Operation (OperationId)
 -- ===========================================================
 CREATE TABLE IF NOT EXISTS labki_operations (
   operation_id     TEXT PRIMARY KEY,                  -- unique identifier (e.g., repo_add_abc123)

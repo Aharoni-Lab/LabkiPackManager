@@ -8,6 +8,7 @@ use Job;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
 use MediaWiki\Title\Title;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
@@ -55,10 +56,11 @@ final class LabkiRepoAddJob extends Job {
 		$url = trim( (string)( $this->params['url'] ?? '' ) );
 		$refs = $this->params['refs'] ?? [];
 		$defaultRef = trim( (string)( $this->params['default_ref'] ?? '' ) );
-		$operationId = $this->params['operation_id'] ?? ('repo_add_' . uniqid());
+		$operationIdStr = $this->params['operation_id'] ?? ('repo_add_' . uniqid());
+		$operationId = new OperationId( $operationIdStr );
 		$userId = (int)( $this->params['user_id'] ?? 0 );
 
-		wfDebugLog( 'labkipack', "LabkiRepoAddJob::run() started for {$url} (operation_id={$operationId})" );
+		wfDebugLog( 'labkipack', "LabkiRepoAddJob::run() started for {$url} (operation_id={$operationIdStr})" );
 
 		// Basic validation
 		if ( $url === '' || empty( $refs ) ) {

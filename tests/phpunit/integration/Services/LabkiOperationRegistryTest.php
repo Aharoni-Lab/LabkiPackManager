@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Tests\Services;
 
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use MediaWikiIntegrationTestCase;
 
@@ -25,7 +26,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testCreateOperation_CreatesNewOperation(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation(
             $operationId,
@@ -44,7 +46,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testCreateOperation_WithAllFields_StoresCorrectly(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation(
             $operationId,
@@ -57,11 +60,11 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame($operationId, $operation['operation_id']);
-        $this->assertSame(LabkiOperationRegistry::TYPE_REPO_SYNC, $operation['operation_type']);
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $operation['status']);
-        $this->assertSame('Syncing repository', $operation['message']);
-        $this->assertSame(123, (int)$operation['user_id']);
+        $this->assertSame($operationIdStr, $operation->id()->toString());
+        $this->assertSame(LabkiOperationRegistry::TYPE_REPO_SYNC, $operation->type());
+        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $operation->status());
+        $this->assertSame('Syncing repository', $operation->message());
+        $this->assertSame(123, $operation->userId());
     }
 
     /**
@@ -70,7 +73,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testCreateOperation_WithDefaults_UsesDefaultValues(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation(
             $operationId,
@@ -80,9 +84,9 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $operation['status']);
-        $this->assertSame(0, (int)$operation['user_id']);
-        $this->assertSame('', $operation['message']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $operation->status());
+        $this->assertSame(0, $operation->userId());
+        $this->assertSame('', $operation->message());
     }
 
     /**
@@ -92,7 +96,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testUpdateOperation_UpdatesStatus(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->updateOperation(
@@ -104,8 +109,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $operation['status']);
-        $this->assertSame('Processing...', $operation['message']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $operation->status());
+        $this->assertSame('Processing...', $operation->message());
     }
 
     /**
@@ -115,7 +120,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testUpdateOperation_UpdatesProgress(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
         $registry->updateOperation(
@@ -128,7 +134,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame(45, (int)$operation['progress']);
+        $this->assertSame(45, $operation->progress());
     }
 
     /**
@@ -138,19 +144,20 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testUpdateOperation_ClampsProgressToRange(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
 
         // Test upper bound
         $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING, null, 150);
         $operation = $registry->getOperation($operationId);
-        $this->assertSame(100, (int)$operation['progress']);
+        $this->assertSame(100, $operation->progress());
 
         // Test lower bound
         $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING, null, -10);
         $operation = $registry->getOperation($operationId);
-        $this->assertSame(0, (int)$operation['progress']);
+        $this->assertSame(0, $operation->progress());
     }
 
     /**
@@ -160,7 +167,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testUpdateOperation_UpdatesResultData(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_INSTALL);
         $resultData = json_encode(['installed' => 5, 'failed' => 0]);
@@ -175,7 +183,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame($resultData, $operation['result_data']);
+        $this->assertSame($resultData, $operation->resultData());
     }
 
     /**
@@ -185,7 +193,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testStartOperation_MarksAsRunning(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->startOperation($operationId, 'Starting process');
@@ -202,7 +211,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testStartOperation_WithMessage_StoresMessage(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
         $registry->startOperation($operationId, 'Cloning repository');
@@ -210,7 +220,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame('Cloning repository', $operation['message']);
+        $this->assertSame('Cloning repository', $operation->message());
     }
 
     /**
@@ -220,7 +230,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testCompleteOperation_MarksAsSuccessWithFullProgress(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_INSTALL);
         $registry->completeOperation($operationId, 'Installation complete');
@@ -228,9 +239,9 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_SUCCESS, $operation['status']);
-        $this->assertSame(100, (int)$operation['progress']);
-        $this->assertSame('Installation complete', $operation['message']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_SUCCESS, $operation->status());
+        $this->assertSame(100, $operation->progress());
+        $this->assertSame('Installation complete', $operation->message());
     }
 
     /**
@@ -240,7 +251,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testCompleteOperation_WithResultData_StoresResultData(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $resultData = json_encode(['pages_created' => 10, 'duration_ms' => 1500]);
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_INSTALL);
@@ -249,7 +261,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame($resultData, $operation['result_data']);
+        $this->assertSame($resultData, $operation->resultData());
     }
 
     /**
@@ -259,7 +271,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testFailOperation_MarksAsFailed(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->failOperation($operationId, 'Network timeout');
@@ -267,8 +280,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_FAILED, $operation['status']);
-        $this->assertSame('Network timeout', $operation['message']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_FAILED, $operation->status());
+        $this->assertSame('Network timeout', $operation->message());
     }
 
     /**
@@ -278,7 +291,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testFailOperation_WithResultData_StoresErrorData(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $errorData = json_encode(['error_code' => 'E001', 'stack_trace' => 'Sample trace']);
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
@@ -287,7 +301,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame($errorData, $operation['result_data']);
+        $this->assertSame($errorData, $operation->resultData());
     }
 
     /**
@@ -297,7 +311,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testSetProgress_UpdatesProgressAndKeepsRunningStatus(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_UPDATE);
         $registry->startOperation($operationId);
@@ -306,9 +321,9 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $operation = $registry->getOperation($operationId);
 
         $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $operation['status']);
-        $this->assertSame(75, (int)$operation['progress']);
-        $this->assertSame('Almost done', $operation['message']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $operation->status());
+        $this->assertSame(75, $operation->progress());
+        $this->assertSame('Almost done', $operation->message());
     }
 
     /**
@@ -317,7 +332,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testOperationExists_WhenExists_ReturnsTrue(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
 
@@ -330,7 +346,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
     public function testOperationExists_WhenNotExists_ReturnsFalse(): void {
         $registry = $this->newRegistry();
 
-        $this->assertFalse($registry->operationExists('nonexistent_operation'));
+        $this->assertFalse($registry->operationExists(new OperationId('nonexistent_operation')));
     }
 
     /**
@@ -339,7 +355,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testGetOperationStatus_ReturnsCorrectStatus(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
 
@@ -354,7 +371,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
     public function testGetOperationStatus_WhenNotExists_ReturnsNull(): void {
         $registry = $this->newRegistry();
 
-        $status = $registry->getOperationStatus('nonexistent_operation');
+        $status = $registry->getOperationStatus(new OperationId('nonexistent_operation'));
 
         $this->assertNull($status);
     }
@@ -365,7 +382,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
     public function testGetOperation_WhenNotExists_ReturnsNull(): void {
         $registry = $this->newRegistry();
 
-        $operation = $registry->getOperation('nonexistent_operation');
+        $operation = $registry->getOperation(new OperationId('nonexistent_operation'));
 
         $this->assertNull($operation);
     }
@@ -376,8 +393,10 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testListOperations_ReturnsAllOperations(): void {
         $registry = $this->newRegistry();
-        $opId1 = 'test_op_' . uniqid();
-        $opId2 = 'test_op_' . uniqid();
+        $opIdStr1 = 'test_op_' . uniqid();
+        $opIdStr2 = 'test_op_' . uniqid();
+        $opId1 = new OperationId( $opIdStr1 );
+        $opId2 = new OperationId( $opIdStr2 );
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
@@ -386,9 +405,9 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
 
         $this->assertGreaterThanOrEqual(2, count($operations));
 
-        $operationIds = array_map(fn($op) => $op->operation_id, $operations);
-        $this->assertContains($opId1, $operationIds);
-        $this->assertContains($opId2, $operationIds);
+        $operationIds = array_map(fn($op) => $op->id()->toString(), $operations);
+        $this->assertContains($opIdStr1, $operationIds);
+        $this->assertContains($opIdStr2, $operationIds);
     }
 
     /**
@@ -397,17 +416,19 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testListOperations_WithTypeFilter_ReturnsOnlyMatchingType(): void {
         $registry = $this->newRegistry();
-        $opId1 = 'test_op_' . uniqid();
-        $opId2 = 'test_op_' . uniqid();
+        $opIdStr1 = 'test_op_' . uniqid();
+        $opIdStr2 = 'test_op_' . uniqid();
+        $opId1 = new OperationId( $opIdStr1 );
+        $opId2 = new OperationId( $opIdStr2 );
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_PACK_INSTALL);
 
         $operations = $registry->listOperations(LabkiOperationRegistry::TYPE_REPO_ADD);
 
-        $operationIds = array_map(fn($op) => $op->operation_id, $operations);
-        $this->assertContains($opId1, $operationIds);
-        $this->assertNotContains($opId2, $operationIds);
+        $operationIds = array_map(fn($op) => $op->id()->toString(), $operations);
+        $this->assertContains($opIdStr1, $operationIds);
+        $this->assertNotContains($opIdStr2, $operationIds);
     }
 
     /**
@@ -419,7 +440,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
 
         // Create more operations than the limit
         for ($i = 0; $i < 10; $i++) {
-            $registry->createOperation('test_op_' . uniqid(), LabkiOperationRegistry::TYPE_REPO_ADD);
+            $registry->createOperation(new OperationId('test_op_' . uniqid()), LabkiOperationRegistry::TYPE_REPO_ADD);
         }
 
         $operations = $registry->listOperations(null, 5);
@@ -434,9 +455,12 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testGetOperationsByStatus_ReturnsOnlyMatchingStatus(): void {
         $registry = $this->newRegistry();
-        $opId1 = 'test_op_' . uniqid();
-        $opId2 = 'test_op_' . uniqid();
-        $opId3 = 'test_op_' . uniqid();
+        $opIdStr1 = 'test_op_' . uniqid();
+        $opIdStr2 = 'test_op_' . uniqid();
+        $opIdStr3 = 'test_op_' . uniqid();
+        $opId1 = new OperationId( $opIdStr1 );
+        $opId2 = new OperationId( $opIdStr2 );
+        $opId3 = new OperationId( $opIdStr3 );
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
@@ -447,11 +471,11 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         // opId3 remains queued
 
         $runningOps = $registry->getOperationsByStatus(LabkiOperationRegistry::STATUS_RUNNING);
-        $runningIds = array_map(fn($op) => $op->operation_id, $runningOps);
+        $runningIds = array_map(fn($op) => $op->id()->toString(), $runningOps);
 
-        $this->assertContains($opId1, $runningIds);
-        $this->assertNotContains($opId2, $runningIds);
-        $this->assertNotContains($opId3, $runningIds);
+        $this->assertContains($opIdStr1, $runningIds);
+        $this->assertNotContains($opIdStr2, $runningIds);
+        $this->assertNotContains($opIdStr3, $runningIds);
     }
 
     /**
@@ -460,20 +484,23 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testGetOperationsByUser_ReturnsOnlyUserOperations(): void {
         $registry = $this->newRegistry();
-        $opId1 = 'test_op_' . uniqid();
-        $opId2 = 'test_op_' . uniqid();
-        $opId3 = 'test_op_' . uniqid();
+        $opIdStr1 = 'test_op_' . uniqid();
+        $opIdStr2 = 'test_op_' . uniqid();
+        $opIdStr3 = 'test_op_' . uniqid();
+        $opId1 = new OperationId( $opIdStr1 );
+        $opId2 = new OperationId( $opIdStr2 );
+        $opId3 = new OperationId( $opIdStr3 );
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD, 100);
         $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC, 200);
         $registry->createOperation($opId3, LabkiOperationRegistry::TYPE_PACK_INSTALL, 100);
 
         $user100Ops = $registry->getOperationsByUser(100);
-        $user100Ids = array_map(fn($op) => $op->operation_id, $user100Ops);
+        $user100Ids = array_map(fn($op) => $op->id()->toString(), $user100Ops);
 
-        $this->assertContains($opId1, $user100Ids);
-        $this->assertNotContains($opId2, $user100Ids);
-        $this->assertContains($opId3, $user100Ids);
+        $this->assertContains($opIdStr1, $user100Ids);
+        $this->assertNotContains($opIdStr2, $user100Ids);
+        $this->assertContains($opIdStr3, $user100Ids);
     }
 
     /**
@@ -485,9 +512,9 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $registry = $this->newRegistry();
 
         // Create some operations with different statuses
-        $opId1 = 'test_op_' . uniqid();
-        $opId2 = 'test_op_' . uniqid();
-        $opId3 = 'test_op_' . uniqid();
+        $opId1 = new OperationId('test_op_' . uniqid());
+        $opId2 = new OperationId('test_op_' . uniqid());
+        $opId3 = new OperationId('test_op_' . uniqid());
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
@@ -510,10 +537,10 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
     public function testGetOperationStats_ReturnsCountsByStatus(): void {
         $registry = $this->newRegistry();
 
-        $opId1 = 'test_op_' . uniqid();
-        $opId2 = 'test_op_' . uniqid();
-        $opId3 = 'test_op_' . uniqid();
-        $opId4 = 'test_op_' . uniqid();
+        $opId1 = new OperationId('test_op_' . uniqid());
+        $opId2 = new OperationId('test_op_' . uniqid());
+        $opId3 = new OperationId('test_op_' . uniqid());
+        $opId4 = new OperationId('test_op_' . uniqid());
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
         $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
@@ -546,10 +573,11 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testDeleteOldOperations_DeletesCompletedOperations(): void {
         $registry = $this->newRegistry();
-        $opId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
-        $registry->createOperation($opId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->completeOperation($opId);
+        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
+        $registry->completeOperation($operationId);
 
         // Manually update the updated_at to be old enough
         $db = $this->db;
@@ -557,14 +585,14 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $db->update(
             'labki_operations',
             ['updated_at' => $oldTimestamp],
-            ['operation_id' => $opId],
+            ['operation_id' => $operationIdStr],
             __METHOD__
         );
 
         $deleted = $registry->deleteOldOperations(30, true);
 
         $this->assertGreaterThanOrEqual(1, $deleted);
-        $this->assertFalse($registry->operationExists($opId));
+        $this->assertFalse($registry->operationExists($operationId));
     }
 
     /**
@@ -574,10 +602,11 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testDeleteOldOperations_PreservesRunningOperations(): void {
         $registry = $this->newRegistry();
-        $opId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
-        $registry->createOperation($opId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->startOperation($opId);
+        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
+        $registry->startOperation($operationId);
 
         // Manually update the updated_at to be old enough
         $db = $this->db;
@@ -585,14 +614,14 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $db->update(
             'labki_operations',
             ['updated_at' => $oldTimestamp],
-            ['operation_id' => $opId],
+            ['operation_id' => $operationIdStr],
             __METHOD__
         );
 
         $registry->deleteOldOperations(30, true);
 
         // Running operation should still exist when onlyCompleted = true
-        $this->assertTrue($registry->operationExists($opId));
+        $this->assertTrue($registry->operationExists($operationId));
     }
 
     /**
@@ -602,10 +631,11 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testDeleteOldOperations_WithOnlyCompletedFalse_DeletesAllOldOperations(): void {
         $registry = $this->newRegistry();
-        $opId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
-        $registry->createOperation($opId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->startOperation($opId);
+        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
+        $registry->startOperation($operationId);
 
         // Manually update the updated_at to be old enough
         $db = $this->db;
@@ -613,14 +643,14 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         $db->update(
             'labki_operations',
             ['updated_at' => $oldTimestamp],
-            ['operation_id' => $opId],
+            ['operation_id' => $operationIdStr],
             __METHOD__
         );
 
         $registry->deleteOldOperations(30, false);
 
         // Running operation should be deleted when onlyCompleted = false
-        $this->assertFalse($registry->operationExists($opId));
+        $this->assertFalse($registry->operationExists($operationId));
     }
 
     /**
@@ -630,8 +660,10 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testListOperations_OrdersByMostRecentFirst(): void {
         $registry = $this->newRegistry();
-        $opId1 = 'test_op_1_' . uniqid();
-        $opId2 = 'test_op_2_' . uniqid();
+        $opIdStr1 = 'test_op_1_' . uniqid();
+        $opIdStr2 = 'test_op_2_' . uniqid();
+        $opId1 = new OperationId( $opIdStr1 );
+        $opId2 = new OperationId( $opIdStr2 );
 
         $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
         sleep(1); // Ensure different timestamps
@@ -641,7 +673,7 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
 
         // First operation should be the most recent (opId2)
         $firstOp = reset($operations);
-        $this->assertSame($opId2, $firstOp->operation_id);
+        $this->assertSame($opIdStr2, $firstOp->id()->toString());
     }
 
     /**
@@ -650,7 +682,8 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testOperationLifecycle_CompleteWorkflow(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_lifecycle_' . uniqid();
+        $operationIdStr = 'test_lifecycle_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         // Create
         $registry->createOperation(
@@ -662,25 +695,25 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
         );
 
         $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $op['status']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $op->status());
 
         // Start
         $registry->startOperation($operationId, 'Cloning repository');
         $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $op['status']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $op->status());
 
         // Progress
         $registry->setProgress($operationId, 50, 'Halfway done');
         $op = $registry->getOperation($operationId);
-        $this->assertSame(50, (int)$op['progress']);
+        $this->assertSame(50, $op->progress());
 
         // Complete
         $resultData = json_encode(['files' => 42]);
         $registry->completeOperation($operationId, 'All done', $resultData);
         $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_SUCCESS, $op['status']);
-        $this->assertSame(100, (int)$op['progress']);
-        $this->assertSame($resultData, $op['result_data']);
+        $this->assertSame(LabkiOperationRegistry::STATUS_SUCCESS, $op->status());
+        $this->assertSame(100, $op->progress());
+        $this->assertSame($resultData, $op->resultData());
     }
 
     /**
@@ -690,21 +723,21 @@ final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
      */
     public function testUpdateOperation_OnlyUpdatesSpecifiedFields(): void {
         $registry = $this->newRegistry();
-        $operationId = 'test_op_' . uniqid();
+        $operationIdStr = 'test_op_' . uniqid();
+        $operationId = new OperationId( $operationIdStr );
 
         $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
         
         // Update only status
         $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING);
         $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $op['status']);
-        $this->assertSame('', $op['message']); // Should remain empty
-        $this->assertSame(0, (int)$op['progress']); // Should remain 0
+        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $op->status());
+        $this->assertSame('', $op->message()); // Should remain empty
+        $this->assertSame(0, $op->progress()); // Should remain 0
 
         // Update only message
         $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING, 'New message');
         $op = $registry->getOperation($operationId);
-        $this->assertSame('New message', $op['message']);
+        $this->assertSame('New message', $op->message());
     }
 }
-

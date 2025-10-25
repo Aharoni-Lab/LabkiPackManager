@@ -10,6 +10,7 @@ use LabkiPackManager\Jobs\LabkiRepoRemoveJob;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
+use LabkiPackManager\Domain\OperationId;
 
 /**
  * Integration tests for LabkiRepoRemoveJob.
@@ -104,7 +105,8 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 	 * is properly implemented.
 	 */
 	public function testRun_FullRepoRemoval_UpdatesOperationStatus(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		
 		// Create initial operation
 		$this->operationRegistry->createOperation(
@@ -117,13 +119,13 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify initial status
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
 
 		// Create and run job for full repo removal (no refs specified)
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			// No refs parameter = full repo removal
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -136,7 +138,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		// Operation status should have been updated (either running or failed)
 		$this->assertNotSame(
 			LabkiOperationRegistry::STATUS_QUEUED,
-			$operation['status'],
+			$operation->status(),
 			'Operation status should have changed from queued'
 		);
 	}
@@ -145,7 +147,8 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 	 * Test operation lifecycle for selective ref removal.
 	 */
 	public function testRun_SelectiveRefRemoval_UpdatesOperationStatus(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		
 		// Create initial operation
 		$this->operationRegistry->createOperation(
@@ -158,13 +161,13 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify initial status
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
 
 		// Create and run job for selective ref removal
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -177,7 +180,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		// Operation status should have been updated (either running or failed)
 		$this->assertNotSame(
 			LabkiOperationRegistry::STATUS_QUEUED,
-			$operation['status'],
+			$operation->status(),
 			'Operation status should have changed from queued'
 		);
 	}
@@ -201,7 +204,8 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$this->refRegistry->ensureRefEntry( $existingRepoId, 'main' );
 		$this->refRegistry->ensureRefEntry( $existingRepoId, 'develop' );
 
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		$this->operationRegistry->createOperation(
 			$operationId,
 			LabkiOperationRegistry::TYPE_REPO_REMOVE
@@ -211,7 +215,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			// No refs = full repo removal
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -232,15 +236,16 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify operation was completed successfully
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_SUCCESS, $operation['status'] );
-		$this->assertStringContainsString( 'successfully removed', $operation['message'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_SUCCESS, $operation->status() );
+		$this->assertStringContainsString( 'successfully removed', $operation->message() );
 	}
 
 	/**
 	 * Test that job stores user_id in operation.
 	 */
 	public function testRun_WithUserId_StoresInOperation(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		$userId = 42;
 
 		$this->operationRegistry->createOperation(
@@ -252,21 +257,22 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
 		] );
 
 		$job->run();
 
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( $userId, (int)$operation['user_id'] );
+		$this->assertSame( $userId, $operation->userId() );
 	}
 
 	/**
 	 * Test that job handles multiple refs for selective removal.
 	 */
 	public function testRun_WithMultipleRefs_ProcessesAll(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -276,7 +282,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0', 'v2.0'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -286,14 +292,15 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message or result_data mentions multiple refs
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test that job handles empty refs array (should trigger full repo removal).
 	 */
 	public function testRun_WithEmptyRefsArray_TreatsAsFullRemoval(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -303,7 +310,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => [], // Empty refs array should trigger full removal
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -313,14 +320,15 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message indicates full removal
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test that job fails operation on exception.
 	 */
 	public function testRun_OnException_FailsOperation(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -331,7 +339,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'invalid://not-a-real-url',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -341,16 +349,17 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify operation was marked as failed
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation['status'] );
-		$this->assertNotEmpty( $operation['message'] );
-		$this->assertStringContainsString( 'Failed', $operation['message'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation->status() );
+		$this->assertNotEmpty( $operation->message() );
+		$this->assertStringContainsString( 'Failed', $operation->message() );
 	}
 
 	/**
 	 * Test that failed operations store error information.
 	 */
 	public function testRun_OnFailure_StoresErrorData(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -360,7 +369,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/nonexistent/repo-' . uniqid(),
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -369,13 +378,13 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Verify operation failed
-		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation['status'] );
-		$this->assertNotEmpty( $operation['message'] );
-		$this->assertStringContainsString( 'Removal failed', $operation['message'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation->status() );
+		$this->assertNotEmpty( $operation->message() );
+		$this->assertStringContainsString( 'Removal failed', $operation->message() );
 		
 		// Should have result_data with error information
-		if ( $operation['result_data'] !== null ) {
-			$resultData = json_decode( $operation['result_data'], true );
+		if ( $operation->resultData() !== null ) {
+			$resultData = json_decode( $operation->resultData(), true );
 			$this->assertIsArray( $resultData );
 			$this->assertArrayHasKey( 'url', $resultData );
 		}
@@ -419,7 +428,8 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 	 * Test that job handles null refs parameter (full removal).
 	 */
 	public function testRun_WithNullRefs_TreatsAsFullRemoval(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -429,7 +439,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => null, // Null refs should trigger full removal
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -439,14 +449,15 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message indicates full removal
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test progress reporting during selective ref removal.
 	 */
 	public function testRun_SelectiveRemoval_ReportsProgress(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -456,7 +467,7 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoRemoveJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -465,8 +476,8 @@ class LabkiRepoRemoveJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Should have progress information
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 		// Progress should be greater than 0 if it started
-		$this->assertGreaterThanOrEqual( 0, $operation['progress'] );
+		$this->assertGreaterThanOrEqual( 0, $operation->progress() );
 	}
 }

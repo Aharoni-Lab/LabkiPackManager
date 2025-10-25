@@ -6,6 +6,7 @@ namespace LabkiPackManager\API\Repos;
 
 use Wikimedia\ParamValidator\ParamValidator;
 use MediaWiki\MediaWikiServices;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Jobs\LabkiRepoAddJob;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
@@ -155,7 +156,8 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 		}
 
 		// Generate operation ID
-		$operationId = 'repo_add_' . substr( md5( $normalizedUrl . microtime() ), 0, 8 );
+		$operationIdStr = 'repo_add_' . substr( md5( $normalizedUrl . microtime() ), 0, 8 );
+		$operationId = new OperationId( $operationIdStr );
 		$userId = $this->getUser()->getId();
 
 		// Create operation record in database
@@ -173,7 +175,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			'url' => $normalizedUrl,
 			'refs' => $refs,
 			'default_ref' => $defaultRef,
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
 		];
         $title = $this->getTitle() ?: Title::newFromText( 'LabkiRepoJob' );
@@ -181,12 +183,12 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 
 		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposAdd: queued job with operation_id={$operationId}" );
+		wfDebugLog( 'labkipack', "ApiLabkiReposAdd: queued job with operation_id={$operationIdStr}" );
 
 		// Build response
 		$result = $this->getResult();
 		$result->addValue( null, 'success', true );
-		$result->addValue( null, 'operation_id', $operationId );
+		$result->addValue( null, 'operation_id', $operationIdStr );
 		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
 		$result->addValue( null, 'message', 'Repository queued for initialization' );
 		$result->addValue( null, 'meta', [

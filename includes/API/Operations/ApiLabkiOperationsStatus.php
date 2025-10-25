@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\API\Operations;
 
 use Wikimedia\ParamValidator\ParamValidator;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use ApiBase;
 use ApiMain;
@@ -43,6 +44,7 @@ use ApiMain;
  *   "message": "Initializing ref main (1/2)",
  *   "result_data": null,
  *   "user_id": 1,
+ *   "created_at": "20251024115900",
  *   "started_at": "20251024120000",
  *   "updated_at": "20251024122300",
  *   "_meta": {
@@ -128,32 +130,33 @@ final class ApiLabkiOperationStatus extends ApiBase {
 		int $currentUserId,
 		bool $canManage
 	): void {
-		$operation = $registry->getOperation( $operationId );
+		$operation = $registry->getOperation( new OperationId( $operationId ) );
 
 		if ( $operation === null ) {
 			$this->dieWithError( 'labkipackmanager-error-operation-not-found', 'operation_not_found' );
 		}
 
 		// Permission check: users can only see their own operations unless they have manage permission
-		$operationUserId = (int)$operation['user_id'];
+		$operationUserId = $operation->userId() ?? 0;
 		if ( !$canManage && $operationUserId !== $currentUserId && $operationUserId !== 0 ) {
 			$this->dieWithError( 'apierror-permissiondenied-generic', 'permission_denied' );
 		}
 
 		// Parse result_data if it's valid JSON
-		$resultData = $this->parseResultData( $operation['result_data'] );
+		$resultData = $this->parseResultData( $operation->resultData() );
 
 		// Normalize and build response
 		$response = [
-			'operation_id' => $operation['operation_id'],
-			'operation_type' => $operation['operation_type'],
-			'status' => $operation['status'],
-			'progress' => (int)( $operation['progress'] ?? 0 ),
-			'message' => $operation['message'] ?? '',
+			'operation_id' => $operation->id()->toString(),
+			'operation_type' => $operation->type(),
+			'status' => $operation->status(),
+			'progress' => $operation->progress() ?? 0,
+			'message' => $operation->message() ?? '',
 			'result_data' => $resultData,
 			'user_id' => $operationUserId,
-			'started_at' => $operation['started_at'],
-			'updated_at' => $operation['updated_at'],
+			'created_at' => $operation->createdAt(),
+			'started_at' => $operation->startedAt(),
+			'updated_at' => $operation->updatedAt(),
 			'_meta' => [
 				'schemaVersion' => 1,
 				'timestamp' => wfTimestampNow(),
@@ -189,15 +192,16 @@ final class ApiLabkiOperationStatus extends ApiBase {
 		$formattedOps = [];
 		foreach ( $operations as $op ) {
 			$formattedOps[] = [
-				'operation_id' => $op->operation_id,
-				'operation_type' => $op->operation_type,
-				'status' => $op->status,
-				'progress' => (int)( $op->progress ?? 0 ),
-				'message' => $op->message ?? '',
-				'result_data' => $this->parseResultData( $op->result_data ?? null ),
-				'user_id' => (int)$op->user_id,
-				'started_at' => $op->started_at,
-				'updated_at' => $op->updated_at,
+				'operation_id' => $op->id()->toString(),
+				'operation_type' => $op->type(),
+				'status' => $op->status(),
+				'progress' => $op->progress() ?? 0,
+				'message' => $op->message() ?? '',
+				'result_data' => $this->parseResultData( $op->resultData() ),
+				'user_id' => $op->userId() ?? 0,
+				'created_at' => $op->createdAt(),
+				'started_at' => $op->startedAt(),
+				'updated_at' => $op->updatedAt(),
 			];
 		}
 

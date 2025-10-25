@@ -8,6 +8,7 @@ use ApiTestCase;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
+use LabkiPackManager\Domain\OperationId;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -86,12 +87,12 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		// Verify operation was created in database
 		$operationId = $data['operation_id'];
-		$this->assertTrue( $this->operationRegistry->operationExists( $operationId ) );
+		$this->assertTrue( $this->operationRegistry->operationExists( new OperationId( $operationId ) ) );
 		
-		$operation = $this->operationRegistry->getOperation( $operationId );
+		$operation = $this->operationRegistry->getOperation( new OperationId( $operationId ) );
 		$this->assertNotNull( $operation );
-		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_ADD, $operation['operation_type'] );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
+		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_ADD, $operation->type() );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
 		
 		// Verify job was queued
 		$jobQueue = MediaWikiServices::getInstance()->getJobQueueGroup();
@@ -112,7 +113,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		// The job should be queued with 'main' as both refs and default_ref
 		// This is tested by verifying the operation was created
-		$this->assertTrue( $this->operationRegistry->operationExists( $result[0]['operation_id'] ) );
+		$this->assertTrue( $this->operationRegistry->operationExists( new OperationId( $result[0]['operation_id'] ) ) );
 	}
 
 	/**
@@ -328,14 +329,14 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		], null, false, $this->getTestUser()->getUser() );
 
 		$operationId = $result[0]['operation_id'];
-		$operation = $this->operationRegistry->getOperation( $operationId );
+		$operation = $this->operationRegistry->getOperation( new OperationId( $operationId ) );
 		
 		$this->assertNotNull( $operation );
-		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_ADD, $operation['operation_type'] );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
-		$this->assertSame( 'Repository queued for initialization', $operation['message'] );
-		$this->assertGreaterThan( 0, (int)$operation['user_id'] );
-		$this->assertNotEmpty( $operation['created_at'] );
+		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_ADD, $operation->type() );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
+		$this->assertSame( 'Repository queued for initialization', $operation->message() );
+		$this->assertGreaterThan( 0, $operation->userId() );
+		$this->assertNotEmpty( $operation->createdAt() );
 	}
 
 	/**

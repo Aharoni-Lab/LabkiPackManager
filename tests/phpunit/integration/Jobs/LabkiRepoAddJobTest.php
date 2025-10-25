@@ -6,6 +6,7 @@ namespace LabkiPackManager\Tests\Integration\Jobs;
 
 use MediaWikiIntegrationTestCase;
 use MediaWiki\Title\Title;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Jobs\LabkiRepoAddJob;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
@@ -125,7 +126,8 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 	 * is properly implemented.
 	 */
 	public function testRun_UpdatesOperationStatus(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		
 		// Create initial operation
 		$this->operationRegistry->createOperation(
@@ -138,14 +140,14 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify initial status
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
 
 		// Create and run job
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			'default_ref' => 'main',
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -158,7 +160,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		// Operation status should have been updated (either running or failed)
 		$this->assertNotSame(
 			LabkiOperationRegistry::STATUS_QUEUED,
-			$operation['status'],
+			$operation->status(),
 			'Operation status should have changed from queued'
 		);
 	}
@@ -181,7 +183,8 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		// Pre-create one ref
 		$this->refRegistry->ensureRefEntry( $existingRepoId, 'main' );
 
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		$this->operationRegistry->createOperation(
 			$operationId,
 			LabkiOperationRegistry::TYPE_REPO_ADD
@@ -192,7 +195,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
 			'default_ref' => 'main',
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -215,7 +218,8 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 	 * Test that job stores user_id in operation.
 	 */
 	public function testRun_WithUserId_StoresInOperation(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		$userId = 42;
 
 		$this->operationRegistry->createOperation(
@@ -227,21 +231,22 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
 		] );
 
 		$job->run();
 
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( $userId, (int)$operation['user_id'] );
+		$this->assertSame( $userId, $operation->userId() );
 	}
 
 	/**
 	 * Test that job handles multiple refs.
 	 */
 	public function testRun_WithMultipleRefs_ProcessesAll(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -252,7 +257,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0', 'v2.0'],
 			'default_ref' => 'main',
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -262,14 +267,15 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message or result_data mentions multiple refs
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test that job fails operation on exception.
 	 */
 	public function testRun_OnException_FailsOperation(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -280,7 +286,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
 			'url' => 'invalid://not-a-real-url',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -290,16 +296,17 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify operation was marked as failed
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation['status'] );
-		$this->assertNotEmpty( $operation['message'] );
-		$this->assertStringContainsString( 'Failed', $operation['message'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation->status() );
+		$this->assertNotEmpty( $operation->message() );
+		$this->assertStringContainsString( 'Failed', $operation->message() );
 	}
 
 	/**
 	 * Test that failed operations store error information.
 	 */
 	public function testRun_OnFailure_StoresErrorData(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -309,7 +316,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
 			'url' => 'https://github.com/nonexistent/repo-' . uniqid(),
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -318,8 +325,8 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Should have result_data with error information
-		if ( $operation['result_data'] !== null ) {
-			$resultData = json_decode( $operation['result_data'], true );
+		if ( $operation->resultData() !== null ) {
+			$resultData = json_decode( $operation->resultData(), true );
 			$this->assertIsArray( $resultData );
 			$this->assertArrayHasKey( 'url', $resultData );
 			$this->assertArrayHasKey( 'error', $resultData );

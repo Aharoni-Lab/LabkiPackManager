@@ -8,6 +8,7 @@ use ApiTestCase;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
+use LabkiPackManager\Domain\OperationId;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -105,10 +106,10 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		// Verify operation was created
 		$operationId = $data['operation_id'];
-		$this->assertTrue( $this->operationRegistry->operationExists( $operationId ) );
+		$this->assertTrue( $this->operationRegistry->operationExists( new OperationId( $operationId ) ) );
 		
-		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_REMOVE, $operation['operation_type'] );
+		$operation = $this->operationRegistry->getOperation( new OperationId( $operationId ) );
+		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_REMOVE, $operation->type() );
 		
 		// Verify job was queued
 		$jobQueue = MediaWikiServices::getInstance()->getJobQueueGroup();
@@ -147,8 +148,8 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		$this->assertContains( 'v1.0', $data['refs'] );
 		
 		// Verify operation message mentions refs
-		$operation = $this->operationRegistry->getOperation( $data['operation_id'] );
-		$this->assertStringContainsString( 'ref(s) queued for removal', $operation['message'] );
+		$operation = $this->operationRegistry->getOperation( new OperationId( $data['operation_id'] ) );
+		$this->assertStringContainsString( 'ref(s) queued for removal', $operation->message() );
 	}
 
 	/**
@@ -302,13 +303,13 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		], null, false, $this->getTestUser()->getUser() );
 
 		$operationId = $result[0]['operation_id'];
-		$operation = $this->operationRegistry->getOperation( $operationId );
+		$operation = $this->operationRegistry->getOperation( new OperationId( $operationId ) );
 		
 		$this->assertNotNull( $operation );
-		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_REMOVE, $operation['operation_type'] );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
-		$this->assertGreaterThan( 0, (int)$operation['user_id'] );
-		$this->assertNotEmpty( $operation['created_at'] );
+		$this->assertSame( LabkiOperationRegistry::TYPE_REPO_REMOVE, $operation->type() );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
+		$this->assertGreaterThan( 0, $operation->userId() );
+		$this->assertNotEmpty( $operation->createdAt() );
 	}
 
 	/**
@@ -325,8 +326,8 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 			'url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 		
-		$op1 = $this->operationRegistry->getOperation( $result1[0]['operation_id'] );
-		$this->assertStringContainsString( 'Repository queued for removal', $op1['message'] );
+		$op1 = $this->operationRegistry->getOperation( new OperationId( $result1[0]['operation_id'] ) );
+		$this->assertStringContainsString( 'Repository queued for removal', $op1->message() );
 		
 		// Selective removal (need another repo)
 		$repoId2 = $this->createTestRepo( 'https://github.com/test/repo2' );
@@ -339,8 +340,8 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 			'refs' => 'develop',
 		], null, false, $this->getTestUser()->getUser() );
 		
-		$op2 = $this->operationRegistry->getOperation( $result2[0]['operation_id'] );
-		$this->assertStringContainsString( 'ref(s) queued for removal', $op2['message'] );
+		$op2 = $this->operationRegistry->getOperation( new OperationId( $result2[0]['operation_id'] ) );
+		$this->assertStringContainsString( 'ref(s) queued for removal', $op2->message() );
 	}
 
 	/**

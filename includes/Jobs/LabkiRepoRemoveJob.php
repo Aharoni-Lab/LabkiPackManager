@@ -8,6 +8,7 @@ use Job;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Status\Status;
 use MediaWiki\Title\Title;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
@@ -48,14 +49,16 @@ final class LabkiRepoRemoveJob extends Job {
 	public function run(): bool {
 		$url = $this->params['url'] ?? '';
 		$refs = $this->params['refs'] ?? null;
-		$operationId = $this->params['operation_id'] ?? '';
+		$operationIdStr = $this->params['operation_id'] ?? '';
 
 		wfDebugLog( 'labkipack', "LabkiRepoRemoveJob: starting removal for {$url}" );
 
-		if ( empty( $url ) || empty( $operationId ) ) {
+		if ( empty( $url ) || empty( $operationIdStr ) ) {
 			wfDebugLog( 'labkipack', 'LabkiRepoRemoveJob: missing required parameters' );
 			return false;
 		}
+		
+		$operationId = new OperationId( $operationIdStr );
 
 		$operationRegistry = new LabkiOperationRegistry();
 		$contentManager = new GitContentManager();

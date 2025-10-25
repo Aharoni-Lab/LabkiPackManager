@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Services;
 
+use LabkiPackManager\Domain\Operation;
+use LabkiPackManager\Domain\OperationId;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\IDatabase;
 
@@ -23,18 +25,17 @@ use Wikimedia\Rdbms\IDatabase;
  */
 final class LabkiOperationRegistry {
 
-    // Operation status constants
-    public const STATUS_QUEUED = 'queued';
-    public const STATUS_RUNNING = 'running';
-    public const STATUS_SUCCESS = 'success';
-    public const STATUS_FAILED = 'failed';
+    // Re-export Operation constants for backward compatibility
+    public const STATUS_QUEUED = Operation::STATUS_QUEUED;
+    public const STATUS_RUNNING = Operation::STATUS_RUNNING;
+    public const STATUS_SUCCESS = Operation::STATUS_SUCCESS;
+    public const STATUS_FAILED = Operation::STATUS_FAILED;
 
-    // Common operation types
-    public const TYPE_REPO_ADD = 'repo_add';
-    public const TYPE_REPO_SYNC = 'repo_sync';
-    public const TYPE_REPO_REMOVE = 'repo_remove';
-    public const TYPE_PACK_INSTALL = 'pack_install';
-    public const TYPE_PACK_UPDATE = 'pack_update';
+    public const TYPE_REPO_ADD = Operation::TYPE_REPO_ADD;
+    public const TYPE_REPO_SYNC = Operation::TYPE_REPO_SYNC;
+    public const TYPE_REPO_REMOVE = Operation::TYPE_REPO_REMOVE;
+    public const TYPE_PACK_INSTALL = Operation::TYPE_PACK_INSTALL;
+    public const TYPE_PACK_UPDATE = Operation::TYPE_PACK_UPDATE;
 
     private IDatabase $dbw;
     private IDatabase $dbr;
@@ -56,7 +57,7 @@ final class LabkiOperationRegistry {
      * Inserts a new operation into the tracking table. The operation is created with
      * 'queued' status by default and can be updated as it progresses.
      *
-     * @param string $operationId Unique identifier for this operation
+     * @param OperationId $operationId Unique identifier for this operation
      * @param string $type Operation type (e.g., 'repo_add', 'pack_install')
      * @param int $userId User ID initiating the operation (0 for system)
      * @param string $status Initial status (default: 'queued')
@@ -64,15 +65,15 @@ final class LabkiOperationRegistry {
      * @return void
      */
     public function createOperation(
-        string $operationId,
+        OperationId $operationId,
         string $type,
         int $userId = 0,
-        string $status = self::STATUS_QUEUED,
+        string $status = Operation::STATUS_QUEUED,
         string $message = ''
     ): void {
         $now = wfTimestampNow();
-        $this->dbw->insert( 'labki_operations', [
-            'operation_id' => $operationId,
+        $this->dbw->insert( Operation::TABLE, [
+            'operation_id' => $operationId->toString(),
             'operation_type' => $type,
             'status' => $status,
             'message' => $message,
@@ -88,7 +89,7 @@ final class LabkiOperationRegistry {
      * Updates operation status, message, progress, and result data. All parameters
      * except operationId and status are optional; null values are ignored.
      *
-     * @param string $operationId The operation to update
+     * @param OperationId $operationId The operation to update
      * @param string $status New status value
      * @param string|null $message Optional status message
      * @param int|null $progress Optional progress percentage (0-100)
@@ -96,7 +97,7 @@ final class LabkiOperationRegistry {
      * @return void
      */
     public function updateOperation(
-        string $operationId,
+        OperationId $operationId,
         string $status,
         ?string $message = null,
         ?int $progress = null,
@@ -116,9 +117,9 @@ final class LabkiOperationRegistry {
             $row['result_data'] = $resultData;
         }
         $this->dbw->update(
-            'labki_operations',
+            Operation::TABLE,
             $row,
-            [ 'operation_id' => $operationId ],
+            [ 'operation_id' => $operationId->toString() ],
             __METHOD__
         );
     }
@@ -129,13 +130,13 @@ final class LabkiOperationRegistry {
      * Convenience method to transition an operation from 'queued' to 'running'.
      * Sets started_at timestamp when operation begins execution.
      *
-     * @param string $operationId The operation to start
+     * @param OperationId $operationId The operation to start
      * @param string|null $message Optional status message
      * @return void
      */
-    public function startOperation( string $operationId, ?string $message = null ): void {
+    public function startOperation( OperationId $operationId, ?string $message = null ): void {
         $row = [
-            'status' => self::STATUS_RUNNING,
+            'status' => Operation::STATUS_RUNNING,
             'started_at' => wfTimestampNow(),
             'updated_at' => wfTimestampNow(),
         ];
@@ -143,9 +144,9 @@ final class LabkiOperationRegistry {
             $row['message'] = $message;
         }
         $this->dbw->update(
-            'labki_operations',
+            Operation::TABLE,
             $row,
-            [ 'operation_id' => $operationId ],
+            [ 'operation_id' => $operationId->toString() ],
             __METHOD__
         );
     }
@@ -154,8 +155,8 @@ final class LabkiOperationRegistry {
      * Helper method that was here before - keeping for backwards compatibility
      * @deprecated Use startOperation with proper started_at tracking
      */
-    private function startOperationOld( string $operationId, ?string $message = null ): void {
-        $this->updateOperation( $operationId, self::STATUS_RUNNING, $message );
+    private function startOperationOld( OperationId $operationId, ?string $message = null ): void {
+        $this->updateOperation( $operationId, Operation::STATUS_RUNNING, $message );
     }
 
     /**
@@ -163,17 +164,17 @@ final class LabkiOperationRegistry {
      *
      * Convenience method to mark an operation as completed with 100% progress.
      *
-     * @param string $operationId The operation to complete
+     * @param OperationId $operationId The operation to complete
      * @param string|null $message Optional completion message
      * @param string|null $resultData Optional JSON result data
      * @return void
      */
     public function completeOperation(
-        string $operationId,
+        OperationId $operationId,
         ?string $message = null,
         ?string $resultData = null
     ): void {
-        $this->updateOperation( $operationId, self::STATUS_SUCCESS, $message, 100, $resultData );
+        $this->updateOperation( $operationId, Operation::STATUS_SUCCESS, $message, 100, $resultData );
     }
 
     /**
@@ -181,17 +182,17 @@ final class LabkiOperationRegistry {
      *
      * Convenience method to mark an operation as failed with an error message.
      *
-     * @param string $operationId The operation to fail
+     * @param OperationId $operationId The operation to fail
      * @param string $errorMessage Error description
      * @param string|null $resultData Optional JSON error data
      * @return void
      */
     public function failOperation(
-        string $operationId,
+        OperationId $operationId,
         string $errorMessage,
         ?string $resultData = null
     ): void {
-        $this->updateOperation( $operationId, self::STATUS_FAILED, $errorMessage, null, $resultData );
+        $this->updateOperation( $operationId, Operation::STATUS_FAILED, $errorMessage, null, $resultData );
     }
 
     /**
@@ -199,26 +200,26 @@ final class LabkiOperationRegistry {
      *
      * Convenience method to update the progress percentage of a running operation.
      *
-     * @param string $operationId The operation to update
+     * @param OperationId $operationId The operation to update
      * @param int $progress Progress percentage (0-100)
      * @param string|null $message Optional progress message
      * @return void
      */
-    public function setProgress( string $operationId, int $progress, ?string $message = null ): void {
-        $this->updateOperation( $operationId, self::STATUS_RUNNING, $message, $progress );
+    public function setProgress( OperationId $operationId, int $progress, ?string $message = null ): void {
+        $this->updateOperation( $operationId, Operation::STATUS_RUNNING, $message, $progress );
     }
 
     /**
      * Check if an operation exists
      *
-     * @param string $operationId The operation ID to check
+     * @param OperationId $operationId The operation ID to check
      * @return bool True if the operation exists in the database
      */
-    public function operationExists( string $operationId ): bool {
+    public function operationExists( OperationId $operationId ): bool {
         return $this->dbr->selectField(
-            'labki_operations',
+            Operation::TABLE,
             '1',
-            [ 'operation_id' => $operationId ],
+            [ 'operation_id' => $operationId->toString() ],
             __METHOD__
         ) !== false;
     }
@@ -226,14 +227,14 @@ final class LabkiOperationRegistry {
     /**
      * Get the current status of an operation
      *
-     * @param string $operationId The operation ID
+     * @param OperationId $operationId The operation ID
      * @return string|null The status string, or null if operation doesn't exist
      */
-    public function getOperationStatus( string $operationId ): ?string {
+    public function getOperationStatus( OperationId $operationId ): ?string {
         $status = $this->dbr->selectField(
-            'labki_operations',
+            Operation::TABLE,
             'status',
-            [ 'operation_id' => $operationId ],
+            [ 'operation_id' => $operationId->toString() ],
             __METHOD__
         );
         return $status !== false ? (string)$status : null;
@@ -244,17 +245,17 @@ final class LabkiOperationRegistry {
      *
      * Returns all fields for the requested operation, or null if not found.
      *
-     * @param string $operationId The operation ID to fetch
-     * @return array|null Associative array of operation data, or null if not found
+     * @param OperationId $operationId The operation ID to fetch
+     * @return Operation|null Operation domain object, or null if not found
      */
-    public function getOperation( string $operationId ): ?array {
+    public function getOperation( OperationId $operationId ): ?Operation {
         $row = $this->dbr->selectRow(
-            'labki_operations',
-            '*',
-            [ 'operation_id' => $operationId ],
+            Operation::TABLE,
+            Operation::FIELDS,
+            [ 'operation_id' => $operationId->toString() ],
             __METHOD__
         );
-        return $row ? (array)$row : null;
+        return $row ? Operation::fromRow( $row ) : null;
     }
 
     /**
@@ -264,7 +265,7 @@ final class LabkiOperationRegistry {
      *
      * @param string|null $type Filter by operation type (null for all types)
      * @param int|null $limit Maximum number of operations to return
-     * @return array Array of operation records (as associative arrays)
+     * @return Operation[] Array of Operation domain objects
      */
     public function listOperations( ?string $type = null, ?int $limit = 50 ): array {
         $conds = [];
@@ -272,13 +273,13 @@ final class LabkiOperationRegistry {
             $conds['operation_type'] = $type;
         }
         $res = $this->dbr->select(
-            'labki_operations',
-            '*',
+            Operation::TABLE,
+            Operation::FIELDS,
             $conds,
             __METHOD__,
             [ 'ORDER BY' => 'updated_at DESC', 'LIMIT' => $limit ]
         );
-        return iterator_to_array( $res );
+        return array_map( static fn( $row ) => Operation::fromRow( $row ), iterator_to_array( $res ) );
     }
 
     /**
@@ -289,17 +290,17 @@ final class LabkiOperationRegistry {
      *
      * @param string $status Status to filter by (e.g., 'running', 'failed')
      * @param int|null $limit Maximum number of operations to return
-     * @return array Array of operation records
+     * @return Operation[] Array of Operation domain objects
      */
     public function getOperationsByStatus( string $status, ?int $limit = 50 ): array {
         $res = $this->dbr->select(
-            'labki_operations',
-            '*',
+            Operation::TABLE,
+            Operation::FIELDS,
             [ 'status' => $status ],
             __METHOD__,
             [ 'ORDER BY' => 'updated_at DESC', 'LIMIT' => $limit ]
         );
-        return iterator_to_array( $res );
+        return array_map( static fn( $row ) => Operation::fromRow( $row ), iterator_to_array( $res ) );
     }
 
     /**
@@ -309,17 +310,17 @@ final class LabkiOperationRegistry {
      *
      * @param int $userId User ID to filter by
      * @param int|null $limit Maximum number of operations to return
-     * @return array Array of operation records
+     * @return Operation[] Array of Operation domain objects
      */
     public function getOperationsByUser( int $userId, ?int $limit = 50 ): array {
         $res = $this->dbr->select(
-            'labki_operations',
-            '*',
+            Operation::TABLE,
+            Operation::FIELDS,
             [ 'user_id' => $userId ],
             __METHOD__,
             [ 'ORDER BY' => 'updated_at DESC', 'LIMIT' => $limit ]
         );
-        return iterator_to_array( $res );
+        return array_map( static fn( $row ) => Operation::fromRow( $row ), iterator_to_array( $res ) );
     }
 
     /**
@@ -333,7 +334,7 @@ final class LabkiOperationRegistry {
      */
     public function countOperationsByStatus( string $status ): int {
         return (int)$this->dbr->selectField(
-            'labki_operations',
+            Operation::TABLE,
             'COUNT(*)',
             [ 'status' => $status ],
             __METHOD__
@@ -355,11 +356,11 @@ final class LabkiOperationRegistry {
         $conds = [ 'updated_at < ' . $this->dbr->addQuotes( $cutoffTimestamp ) ];
         
         if ( $onlyCompleted ) {
-            $conds['status'] = [ self::STATUS_SUCCESS, self::STATUS_FAILED ];
+            $conds['status'] = [ Operation::STATUS_SUCCESS, Operation::STATUS_FAILED ];
         }
 
         $this->dbw->delete(
-            'labki_operations',
+            Operation::TABLE,
             $conds,
             __METHOD__
         );
@@ -376,7 +377,7 @@ final class LabkiOperationRegistry {
      */
     public function getOperationStats(): array {
         $res = $this->dbr->select(
-            'labki_operations',
+            Operation::TABLE,
             [ 'status', 'count' => 'COUNT(*)' ],
             [],
             __METHOD__,

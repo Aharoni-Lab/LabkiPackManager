@@ -10,6 +10,7 @@ use LabkiPackManager\Jobs\LabkiRepoSyncJob;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
+use LabkiPackManager\Domain\OperationId;
 
 /**
  * Integration tests for LabkiRepoSyncJob.
@@ -104,7 +105,8 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 * is properly implemented.
 	 */
 	public function testRun_FullRepoSync_UpdatesOperationStatus(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		
 		// Create initial operation
 		$this->operationRegistry->createOperation(
@@ -117,13 +119,13 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify initial status
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
 
 		// Create and run job for full repo sync (no refs specified)
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			// No refs parameter = full repo sync
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -136,7 +138,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		// Operation status should have been updated (either running or failed)
 		$this->assertNotSame(
 			LabkiOperationRegistry::STATUS_QUEUED,
-			$operation['status'],
+			$operation->status(),
 			'Operation status should have changed from queued'
 		);
 	}
@@ -145,7 +147,8 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 * Test operation lifecycle for selective ref sync.
 	 */
 	public function testRun_SelectiveRefSync_UpdatesOperationStatus(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		
 		// Create initial operation
 		$this->operationRegistry->createOperation(
@@ -158,13 +161,13 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify initial status
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation['status'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $operation->status() );
 
 		// Create and run job for selective ref sync
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -177,7 +180,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		// Operation status should have been updated (either running or failed)
 		$this->assertNotSame(
 			LabkiOperationRegistry::STATUS_QUEUED,
-			$operation['status'],
+			$operation->status(),
 			'Operation status should have changed from queued'
 		);
 	}
@@ -201,7 +204,8 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$this->refRegistry->ensureRefEntry( $existingRepoId, 'main' );
 		$this->refRegistry->ensureRefEntry( $existingRepoId, 'develop' );
 
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		$this->operationRegistry->createOperation(
 			$operationId,
 			LabkiOperationRegistry::TYPE_REPO_SYNC
@@ -211,7 +215,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			// No refs = full repo sync
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -235,7 +239,8 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 * Test that job stores user_id in operation.
 	 */
 	public function testRun_WithUserId_StoresInOperation(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 		$userId = 42;
 
 		$this->operationRegistry->createOperation(
@@ -247,21 +252,22 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
 		] );
 
 		$job->run();
 
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( $userId, (int)$operation['user_id'] );
+		$this->assertSame( $userId, $operation->userId() );
 	}
 
 	/**
 	 * Test that job handles multiple refs for selective sync.
 	 */
 	public function testRun_WithMultipleRefs_ProcessesAll(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -271,7 +277,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0', 'v2.0'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -281,14 +287,15 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message or result_data mentions multiple refs
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test that job handles empty refs array (should trigger full repo sync).
 	 */
 	public function testRun_WithEmptyRefsArray_TreatsAsFullSync(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -298,7 +305,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => [], // Empty refs array should trigger full sync
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -308,14 +315,15 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message indicates full sync
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test that job fails operation on exception.
 	 */
 	public function testRun_OnException_FailsOperation(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -326,7 +334,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'invalid://not-a-real-url',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -336,16 +344,17 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Verify operation was marked as failed
 		$operation = $this->operationRegistry->getOperation( $operationId );
-		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation['status'] );
-		$this->assertNotEmpty( $operation['message'] );
-		$this->assertStringContainsString( 'Sync failed', $operation['message'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation->status() );
+		$this->assertNotEmpty( $operation->message() );
+		$this->assertStringContainsString( 'Sync failed', $operation->message() );
 	}
 
 	/**
 	 * Test that failed operations store error information.
 	 */
 	public function testRun_OnFailure_StoresErrorData(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -355,7 +364,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/nonexistent/repo-' . uniqid(),
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -364,13 +373,13 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Verify operation failed
-		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation['status'] );
-		$this->assertNotEmpty( $operation['message'] );
-		$this->assertStringContainsString( 'Sync failed', $operation['message'] );
+		$this->assertSame( LabkiOperationRegistry::STATUS_FAILED, $operation->status() );
+		$this->assertNotEmpty( $operation->message() );
+		$this->assertStringContainsString( 'Sync failed', $operation->message() );
 		
 		// Should have result_data with error information
-		if ( $operation['result_data'] !== null ) {
-			$resultData = json_decode( $operation['result_data'], true );
+		if ( $operation->resultData() !== null ) {
+			$resultData = json_decode( $operation->resultData(), true );
 			$this->assertIsArray( $resultData );
 			$this->assertArrayHasKey( 'url', $resultData );
 		}
@@ -414,7 +423,8 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 * Test that job handles null refs parameter (full sync).
 	 */
 	public function testRun_WithNullRefs_TreatsAsFullSync(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -424,7 +434,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => null, // Null refs should trigger full sync
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -434,14 +444,15 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Check that message indicates full sync
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 	}
 
 	/**
 	 * Test progress reporting during selective ref sync.
 	 */
 	public function testRun_SelectiveSync_ReportsProgress(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -451,7 +462,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -460,16 +471,17 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Should have progress information
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 		// Progress should be greater than 0 if it started
-		$this->assertGreaterThanOrEqual( 0, $operation['progress'] );
+		$this->assertGreaterThanOrEqual( 0, $operation->progress() );
 	}
 
 	/**
 	 * Test that job handles bare repository fetching before ref sync.
 	 */
 	public function testRun_SelectiveSync_FetchesBareRepoFirst(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -479,7 +491,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -488,16 +500,17 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Should have attempted to fetch bare repo first
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 		// Progress should indicate it started with fetching
-		$this->assertGreaterThanOrEqual( 0, $operation['progress'] );
+		$this->assertGreaterThanOrEqual( 0, $operation->progress() );
 	}
 
 	/**
 	 * Test that job handles partial sync failures gracefully.
 	 */
 	public function testRun_PartialSyncFailure_HandlesGracefully(): void {
-		$operationId = 'test_op_' . uniqid();
+		$operationIdStr = 'test_op_' . uniqid();
+		$operationId = new OperationId( $operationIdStr );
 
 		$this->operationRegistry->createOperation(
 			$operationId,
@@ -507,7 +520,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
 			'url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'nonexistent-ref'],
-			'operation_id' => $operationId,
+			'operation_id' => $operationIdStr,
 			'user_id' => 1,
 		] );
 
@@ -516,8 +529,8 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		$operation = $this->operationRegistry->getOperation( $operationId );
 		
 		// Should have attempted to process both refs
-		$this->assertNotEmpty( $operation['message'] );
+		$this->assertNotEmpty( $operation->message() );
 		// Should have some progress even if some refs fail
-		$this->assertGreaterThanOrEqual( 0, $operation['progress'] );
+		$this->assertGreaterThanOrEqual( 0, $operation->progress() );
 	}
 }
