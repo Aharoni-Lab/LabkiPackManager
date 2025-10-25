@@ -52,9 +52,20 @@
   "labkipackmanager-error-manifest-unreadable": "Manifest file exists but cannot be read (permission denied).",
   "labkipackmanager-error-manifest-read": "Failed to read manifest file from worktree.",
   "labkipackmanager-error-invalid-manifest": "Invalid manifest data received.",
+  "labkipackmanager-error-invalid-url": "The provided URL is not a valid repository URL.",
+  "labkipackmanager-error-invalid-protocol": "The URL protocol is not supported. Use https, http, git, or ssh.",
+  "labkipackmanager-error-repo-multiple-identifiers": "Cannot specify both repo_id and repo_url. Please provide only one identifier.",
 
   "labkipackmanager-action-install": "Installing pack...",
   "labkipackmanager-action-remove": "Removing pack...",
   "labkipackmanager-action-update": "Updating pack...",
-  "labkipackmanager-action-complete": "Operation complete."
+  "labkipackmanager-action-complete": "Operation complete.",
+
+  "labkipackmanager-api-repos-list-param-repoid": "Optional repository ID to fetch a single repository. Mutually exclusive with repo_url.",
+  "labkipackmanager-api-repos-list-param-repourl": "Optional repository URL to fetch a single repository. The URL will be normalized before lookup. Mutually exclusive with repo_id.",
+  "apihelp-labkireposlist-summary": "List and query content repositories.",
+  "apihelp-labkireposlist-description": "Returns information about configured content repositories, including their associated refs (branches/tags), sync status, and metadata.",
+  "apihelp-labkireposlist-example-all": "List all content repositories with their refs",
+  "apihelp-labkireposlist-example-by-id": "Get details for repository with ID 1",
+  "apihelp-labkireposlist-example-by-url": "Get details for repository by URL"
 }

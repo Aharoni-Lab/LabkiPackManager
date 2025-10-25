@@ -87,7 +87,7 @@ final class GitContentManager {
             ]);
         } else {
             // Repository exists, check if we need to update it
-            $repo = $this->repoRegistry->getRepoById($repoId);
+            $repo = $this->repoRegistry->getRepo($repoId);
             $lastFetched = method_exists($repo, 'lastFetched')
                 ? (int)wfTimestamp(TS_UNIX, $repo->lastFetched())
                 : 0;

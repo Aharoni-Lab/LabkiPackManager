@@ -85,15 +85,29 @@ class I18nKeysTest extends TestCase {
             'right-labkipackmanager-manage', // MediaWiki permission key
         ];
         
+        // Allow MediaWiki API help message keys (apihelp-* pattern)
+        $allowedPrefixes = [
+            'labkipackmanager-',
+            'apihelp-', // MediaWiki API documentation keys
+        ];
+        
         foreach ( array_keys( $this->i18nData ) as $key ) {
             if ( in_array( $key, $exceptions, true ) ) {
                 continue;
             }
             
-            $this->assertStringStartsWith(
-                'labkipackmanager-',
-                $key,
-                "i18n key '$key' must start with 'labkipackmanager-' prefix (or be in exceptions list)"
+            // Check if key starts with any allowed prefix
+            $hasValidPrefix = false;
+            foreach ( $allowedPrefixes as $prefix ) {
+                if ( str_starts_with( $key, $prefix ) ) {
+                    $hasValidPrefix = true;
+                    break;
+                }
+            }
+            
+            $this->assertTrue(
+                $hasValidPrefix,
+                "i18n key '$key' must start with one of: " . implode( ', ', $allowedPrefixes ) . " (or be in exceptions list)"
             );
         }
     }
