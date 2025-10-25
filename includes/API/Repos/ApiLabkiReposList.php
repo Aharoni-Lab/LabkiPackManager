@@ -40,7 +40,6 @@ use Wikimedia\ParamValidator\ParamValidator;
  *       "repo_id": 1,
  *       "url": "https://github.com/Aharoni-Lab/labki-packs",
  *       "default_ref": "main",
- *       "bare_path": "/path/to/cache/repo.git",
  *       "refs": [
  *         {
  *           "ref_id": 1,
@@ -48,7 +47,6 @@ use Wikimedia\ParamValidator\ParamValidator;
  *           "is_default": true,
  *           "last_commit": "abc123",
  *           "manifest_name": "Labki Base Packs",
- *           "worktree_path": "/path/to/worktree",
  *           "last_synced": "20251024120000"
  *         }
  *       ],
@@ -56,7 +54,7 @@ use Wikimedia\ParamValidator\ParamValidator;
  *       "created_at": "20251001000000"
  *     }
  *   ],
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024120000"
  *   }
@@ -133,7 +131,7 @@ class ApiLabkiReposList extends RepoApiBase {
 		// Build response
 		$result = $this->getResult();
 		$result->addValue( null, 'repos', $repos );
-		$result->addValue( null, '_meta', [
+		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		] );
@@ -220,7 +218,6 @@ class ApiLabkiReposList extends RepoApiBase {
 				'last_commit' => $ref->lastCommit(),
 				'manifest_hash' => $ref->manifestHash(),
 				'manifest_last_parsed' => $ref->manifestLastParsed(),
-				'worktree_path' => $ref->worktreePath(),
 				'created_at' => $ref->createdAt(),
 				'updated_at' => $ref->updatedAt(),
 			];
@@ -242,7 +239,6 @@ class ApiLabkiReposList extends RepoApiBase {
 			'repo_id' => $repoId->toInt(),
 			'url' => $repo->url(),
 			'default_ref' => $repo->defaultRef(),
-			'bare_path' => $repo->barePath(),
 			'last_fetched' => $repo->lastFetched(),
 			'refs' => $refsData,
 			'ref_count' => count( $refsData ),
