@@ -70,7 +70,8 @@
   },
   "JobClasses": {
     "labkiRepoAdd": "LabkiPackManager\\Jobs\\LabkiRepoAddJob",
-    "labkiRepoSync": "LabkiPackManager\\Jobs\\LabkiRepoSyncJob"
+    "labkiRepoSync": "LabkiPackManager\\Jobs\\LabkiRepoSyncJob",
+    "labkiRepoRemove": "LabkiPackManager\\Jobs\\LabkiRepoRemoveJob"
   },
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",

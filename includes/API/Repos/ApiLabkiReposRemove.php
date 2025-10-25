@@ -7,8 +7,8 @@ namespace LabkiPackManager\API\Repos;
 use Wikimedia\ParamValidator\ParamValidator;
 use MediaWiki\MediaWikiServices;
 use LabkiPackManager\Services\LabkiRepoRegistry;
-use LabkiPackManager\Services\GitContentManager;
 use LabkiPackManager\Services\LabkiOperationRegistry;
+use LabkiPackManager\Jobs\LabkiRepoRemoveJob;
 
 /**
  * ApiLabkiReposRemove
@@ -47,10 +47,9 @@ use LabkiPackManager\Services\LabkiOperationRegistry;
  * {
  *   "success": true,
  *   "operation_id": "repo_remove_abc123",
- *   "status": "success",
- *   "message": "Repository successfully removed",
- *   "removed_refs": 3,
- *   "failed_refs": [],
+ *   "status": "queued",
+ *   "message": "Repository removal queued",
+ *   "refs": ["v1.0.0", "v2.0.0"],
  *   "_meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024140000"
@@ -59,8 +58,8 @@ use LabkiPackManager\Services\LabkiOperationRegistry;
  * ```
  *
  * ## Implementation Notes
- * - Currently executes synchronously
- * - Future version may queue background job for large repositories
+ * - Executes asynchronously via LabkiRepoRemoveJob
+ * - Use ApiLabkiOperationsStatus to check removal progress
  * - Uses operation tracking for consistency
  *
  * @ingroup API
@@ -96,9 +95,6 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 			$this->dieWithError( 'labkipackmanager-error-repo-not-found', 'repo_not_found' );
 		}
 
-		// Initialize GitContentManager for removal operations
-		$contentManager = new GitContentManager();
-
 		// Validate refs if provided
 		if ( $refs !== null && !is_array( $refs ) ) {
 			$this->dieWithError( [ 'apierror-badvalue', 'refs' ], 'invalid_refs' );
@@ -125,89 +121,37 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 			$message
 		);
 
-		// Mark operation as started
-		$operationRegistry->startOperation( $operationId, 'Starting removal process' );
+		// Queue the removal job
+		$jobParams = [
+			'url' => $normalizedUrl,
+			'refs' => $refs,
+			'operation_id' => $operationId,
+			'user_id' => $userId,
+		];
 
-		// For now, we handle removal synchronously.
-		// Future version may queue a background job (LabkiRepoRemoveJob).
+		$job = new LabkiRepoRemoveJob( \Title::newMainPage(), $jobParams );
+		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
-		try {
-			$removedRefs = [];
-			$failedRefs = [];
+		wfDebugLog( 'labkipack', "ApiLabkiReposRemove: queued removal job with operation_id={$operationId}" );
 
-			if ( $refs !== null ) {
-				// Remove specific refs/worktrees
-				wfDebugLog( 'labkipack', "ApiLabkiReposRemove: removing " . count( $refs ) . " ref(s)" );
-				
-				foreach ( $refs as $ref ) {
-					try {
-						$contentManager->removeRef( $normalizedUrl, $ref );
-						$removedRefs[] = $ref;
-						wfDebugLog( 'labkipack', "ApiLabkiReposRemove: successfully removed ref {$ref}" );
-					} catch ( \Throwable $e ) {
-						$failedRefs[] = [
-							'ref' => $ref,
-							'error' => $e->getMessage()
-						];
-						wfDebugLog( 'labkipack', "ApiLabkiReposRemove: failed to remove ref {$ref}: " . $e->getMessage() );
-					}
-				}
-
-				$summary = count( $removedRefs ) . '/' . count( $refs ) . ' refs removed successfully';
-				if ( !empty( $failedRefs ) ) {
-					$summary .= ' (' . count( $failedRefs ) . ' failed)';
-				}
-
-				// Update operation based on results
-				if ( count( $removedRefs ) === count( $refs ) ) {
-					$operationRegistry->completeOperation( $operationId, $summary );
-				} elseif ( count( $removedRefs ) > 0 ) {
-					$operationRegistry->completeOperation( $operationId, "Partial success: {$summary}" );
-				} else {
-					throw new \RuntimeException( "No refs were removed successfully" );
-				}
-
-			} else {
-				// Remove entire repo and all associated refs
-				wfDebugLog( 'labkipack', "ApiLabkiReposRemove: removing entire repo" );
-				$totalRefs = $contentManager->removeRepo( $normalizedUrl );
-				$removedRefs = $totalRefs;
-				
-				$operationRegistry->completeOperation(
-					$operationId,
-					"Repository successfully removed ({$totalRefs} refs)"
-				);
-			}
-
-			$result = $this->getResult();
-			$result->addValue( null, 'success', true );
-			$result->addValue( null, 'operation_id', $operationId );
-			$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_SUCCESS );
-			$result->addValue( null, 'message', $refs !== null
-				? count( $removedRefs ) . '/' . count( $refs ) . ' ref(s) removed successfully'
-				: "Repository successfully removed"
-			);
-			$result->addValue( null, 'removed_refs', $removedRefs );
-			
-			if ( !empty( $failedRefs ) ) {
-				$result->addValue( null, 'failed_refs', $failedRefs );
-			}
-			
-			$result->addValue( null, '_meta', [
-				'schemaVersion' => 1,
-				'timestamp' => wfTimestampNow(),
-			] );
-
-		} catch ( \Throwable $e ) {
-			wfDebugLog( 'labkipack', "ApiLabkiReposRemove: exception during removal - " . $e->getMessage() );
-
-			$operationRegistry->failOperation(
-				$operationId,
-				"Removal failed: " . $e->getMessage()
-			);
-
-			$this->dieWithError( 'labkipackmanager-error-repo-removal-failed', 'repo_removal_failed' );
+		// Return response
+		$result = $this->getResult();
+		$result->addValue( null, 'success', true );
+		$result->addValue( null, 'operation_id', $operationId );
+		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
+		$result->addValue( null, 'message', $refs !== null
+			? 'Repository removal queued for ' . count( $refs ) . ' ref(s)'
+			: 'Repository removal queued'
+		);
+		
+		if ( $refs !== null ) {
+			$result->addValue( null, 'refs', $refs );
 		}
+		
+		$result->addValue( null, '_meta', [
+			'schemaVersion' => 1,
+			'timestamp' => wfTimestampNow(),
+		] );
 	}
 
 	/** @inheritDoc */
