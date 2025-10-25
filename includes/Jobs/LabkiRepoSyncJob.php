@@ -92,7 +92,7 @@ final class LabkiRepoSyncJob extends Job {
 				$operationRegistry->completeOperation(
 					$operationId,
 					"Repository synced successfully ({$syncedCount} refs)",
-					$resultData
+					json_encode( $resultData )
 				);
 
 				wfDebugLog( 'labkipack', "LabkiRepoSyncJob: synced {$syncedCount} refs for {$url}" );
@@ -148,13 +148,13 @@ final class LabkiRepoSyncJob extends Job {
 					$operationRegistry->completeOperation(
 						$operationId,
 						"All refs synced successfully ({$successRefs}/{$totalRefs})",
-						$resultData
+						json_encode( $resultData )
 					);
 				} elseif ( $successRefs > 0 ) {
 					$operationRegistry->completeOperation(
 						$operationId,
 						"Partial success: {$successRefs}/{$totalRefs} refs synced",
-						$resultData
+						json_encode( $resultData )
 					);
 				} else {
 					throw new \RuntimeException( "Failed to sync any refs" );

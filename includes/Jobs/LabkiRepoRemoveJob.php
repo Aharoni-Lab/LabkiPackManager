@@ -88,7 +88,7 @@ final class LabkiRepoRemoveJob extends Job {
 				$operationRegistry->completeOperation(
 					$operationId,
 					"Repository successfully removed ({$removedRefs} refs)",
-					$resultData
+					json_encode( $resultData )
 				);
 
 				wfDebugLog( 'labkipack', "LabkiRepoRemoveJob: removed repo {$url} ({$removedRefs} refs)" );
@@ -147,13 +147,13 @@ final class LabkiRepoRemoveJob extends Job {
 					$operationRegistry->completeOperation(
 						$operationId,
 						$summary,
-						$resultData
+						json_encode( $resultData )
 					);
 				} elseif ( count( $removedRefs ) > 0 ) {
 					$operationRegistry->completeOperation(
 						$operationId,
 						"Partial success: {$summary}",
-						$resultData
+						json_encode( $resultData )
 					);
 				} else {
 					throw new \RuntimeException( "Failed to remove any refs" );
