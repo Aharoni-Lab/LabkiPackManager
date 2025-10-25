@@ -66,6 +66,9 @@
     "labkiReposAdd": "LabkiPackManager\\API\\Repos\\ApiLabkiReposAdd",
     "labkiOperationsStatus": "LabkiPackManager\\API\\Operations\\ApiLabkiOperationsStatus"
   },
+  "JobClasses": {
+    "labkiRepoAdd": "LabkiPackManager\\Jobs\\LabkiRepoAddJob"
+  },
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
     "BeforePageDisplay": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onBeforePageDisplay",

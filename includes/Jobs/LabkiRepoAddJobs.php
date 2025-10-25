@@ -15,13 +15,20 @@ use LabkiPackManager\Services\LabkiOperationRegistry;
 /**
  * LabkiRepoAddJob
  *
- * Background job to initialize a new Labki content repository.
+ * Background job to initialize or update a Labki content repository.
  * This job is queued by ApiLabkiReposAdd to perform the following tasks asynchronously:
  *
- * 1. Create or update a bare Git repository mirror
+ * ## For New Repositories:
+ * 1. Clone bare Git repository mirror
  * 2. Register the repository in the database
  * 3. Create worktrees for each specified ref
  * 4. Register each ref in the database
+ *
+ * ## For Existing Repositories:
+ * 1. Update bare repository with git fetch
+ * 2. Create worktrees for any new refs
+ * 3. Register new refs in the database
+ * 4. Update existing ref entries if needed
  *
  * Designed to mirror InitializeContentRepos.php but without console output.
  *
@@ -68,13 +75,26 @@ final class LabkiRepoAddJob extends Job {
 			return false;
 		}
 
+		// Check if repository already exists
+		$repoId = $repoRegistry->getRepoIdByUrl( $url );
+		$isExistingRepo = $repoId !== null;
+		
+		if ( $isExistingRepo ) {
+			wfDebugLog( 'labkipack', "LabkiRepoAddJob: repo exists (ID={$repoId}), will update and add new refs" );
+		} else {
+			wfDebugLog( 'labkipack', "LabkiRepoAddJob: repo does not exist, will create new" );
+		}
+
 		// Mark operation as started
-		$operationRegistry->startOperation( $operationId, 'Starting repository initialization' );
+		$message = $isExistingRepo ? 'Updating repository and adding refs' : 'Starting repository initialization';
+		$operationRegistry->startOperation( $operationId, $message );
 
 		try {
 			// Step 1: Ensure bare repository mirror (0-30% progress)
+			// This will clone if new, or fetch if existing
 			wfDebugLog( 'labkipack', "LabkiRepoAddJob: ensuring bare repo for {$url}" );
-			$operationRegistry->setProgress( $operationId, 10, 'Cloning bare repository' );
+			$progressMessage = $isExistingRepo ? 'Updating bare repository' : 'Cloning bare repository';
+			$operationRegistry->setProgress( $operationId, 10, $progressMessage );
 			
 			$barePath = $contentManager->ensureBareRepo( $url );
 			wfDebugLog( 'labkipack', "LabkiRepoAddJob: bare repo ready at {$barePath}" );
@@ -90,20 +110,33 @@ final class LabkiRepoAddJob extends Job {
 			// Step 3: Initialize worktrees for refs (40-90% progress)
 			$totalRefs = count( $refs );
 			$successRefs = 0;
+			$newRefs = 0;
+			$existingRefs = 0;
 			$progressPerRef = $totalRefs > 0 ? 50 / $totalRefs : 0; // 50% of total progress for all refs
 			
 			foreach ( $refs as $index => $ref ) {
 				try {
-					wfDebugLog( 'labkipack', "LabkiRepoAddJob: ensuring worktree for {$url}@{$ref}" );
+					// Check if ref already exists
+					$existingRefId = $refRegistry->getRefIdByRepoAndRef( $repoId, $ref );
+					$isNewRef = $existingRefId === null;
+					
+					if ( $isNewRef ) {
+						wfDebugLog( 'labkipack', "LabkiRepoAddJob: creating new ref {$url}@{$ref}" );
+						$newRefs++;
+					} else {
+						wfDebugLog( 'labkipack', "LabkiRepoAddJob: updating existing ref {$url}@{$ref}" );
+						$existingRefs++;
+					}
+					
 					$currentProgress = 40 + (int)( $progressPerRef * $index );
 					$operationRegistry->setProgress(
 						$operationId,
 						$currentProgress,
-						"Initializing ref {$ref} (" . ($index + 1) . "/{$totalRefs})"
+						"Processing ref {$ref} (" . ($index + 1) . "/{$totalRefs})"
 					);
 					
 					$worktreePath = $contentManager->ensureWorktree( $url, $ref );
-					$refRegistry->createRef( $repoId, $ref );
+					$refRegistry->ensureRefEntry( $repoId, $ref );
 					wfDebugLog( 'labkipack', "LabkiRepoAddJob: worktree ready at {$worktreePath}" );
 					$successRefs++;
 				} catch ( \Throwable $e ) {
@@ -117,12 +150,23 @@ final class LabkiRepoAddJob extends Job {
 			// Step 4: Complete operation (90-100% progress)
 			$operationRegistry->setProgress( $operationId, 95, 'Finalizing repository setup' );
 			
-			$summary = "{$successRefs}/{$totalRefs} refs initialized successfully for {$url}";
+			$summary = "{$successRefs}/{$totalRefs} refs processed successfully for {$url}";
+			if ( $newRefs > 0 && $existingRefs > 0 ) {
+				$summary .= " ({$newRefs} new, {$existingRefs} updated)";
+			} elseif ( $newRefs > 0 ) {
+				$summary .= " ({$newRefs} new)";
+			} elseif ( $existingRefs > 0 ) {
+				$summary .= " ({$existingRefs} updated)";
+			}
+			
 			$resultData = json_encode( [
 				'url' => $url,
 				'repo_id' => $repoId,
+				'is_existing_repo' => $isExistingRepo,
 				'total_refs' => $totalRefs,
 				'successful_refs' => $successRefs,
+				'new_refs' => $newRefs,
+				'updated_refs' => $existingRefs,
 				'refs' => $refs,
 			] );
 

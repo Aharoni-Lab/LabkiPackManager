@@ -31,6 +31,7 @@ final class LabkiOperationRegistry {
 
     // Common operation types
     public const TYPE_REPO_ADD = 'repo_add';
+    public const TYPE_REF_ADD = 'ref_add';
     public const TYPE_REPO_SYNC = 'repo_sync';
     public const TYPE_PACK_INSTALL = 'pack_install';
     public const TYPE_PACK_UPDATE = 'pack_update';

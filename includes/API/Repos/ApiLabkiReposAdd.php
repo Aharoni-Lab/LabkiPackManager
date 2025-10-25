@@ -8,6 +8,7 @@ use Wikimedia\ParamValidator\ParamValidator;
 use MediaWiki\MediaWikiServices;
 use LabkiPackManager\Jobs\LabkiRepoAddJob;
 use LabkiPackManager\Services\LabkiRepoRegistry;
+use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 
 /**
@@ -107,14 +108,50 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			$this->dieWithError( 'labkipackmanager-error-missing-refs', 'missing_refs' );
 		}
 
-		// Check for duplicates
-		if ( $this->getRepoRegistry()->getRepo( $normalizedUrl ) !== null ) {
-			$this->dieWithError( 'labkipackmanager-error-repo-exists', 'repo_exists' );
-		}
-
 		// Verify accessibility (basic reachability check)
 		if ( !$this->verifyGitUrlAccessible( $normalizedUrl ) ) {
 			$this->dieWithError( 'labkipackmanager-error-unreachable-repo', 'unreachable_repo' );
+		}
+
+		// Check if repo exists and if any refs are missing
+		$repoRegistry = $this->getRepoRegistry();
+		$existingRepo = $repoRegistry->getRepo( $normalizedUrl );
+		$needsWork = false;
+		
+		if ( $existingRepo === null ) {
+			// Repo doesn't exist - needs full initialization
+			$needsWork = true;
+			wfDebugLog( 'labkipack', "ApiLabkiReposAdd: repo does not exist, needs initialization" );
+		} else {
+			// Repo exists - check if any refs are missing
+			$refRegistry = new LabkiRefRegistry();
+			$repoId = $repoRegistry->getRepoIdByUrl( $normalizedUrl );
+			
+			foreach ( $refs as $ref ) {
+				$existingRefId = $refRegistry->getRefIdByRepoAndRef( $repoId, $ref );
+				if ( $existingRefId === null ) {
+					$needsWork = true;
+					wfDebugLog( 'labkipack', "ApiLabkiReposAdd: ref {$ref} is missing, needs work" );
+					break;
+				}
+			}
+			
+			if ( !$needsWork ) {
+				wfDebugLog( 'labkipack', "ApiLabkiReposAdd: all refs already exist, nothing to do" );
+			}
+		}
+		
+		// If no work needed, return success immediately
+		if ( !$needsWork ) {
+			$result = $this->getResult();
+			$result->addValue( null, 'success', true );
+			$result->addValue( null, 'message', 'Repository and all specified refs already exist' );
+			$result->addValue( null, 'refs', $refs );
+			$result->addValue( null, '_meta', [
+				'schemaVersion' => 1,
+				'timestamp' => wfTimestampNow(),
+			] );
+			return;
 		}
 
 		// Generate operation ID
