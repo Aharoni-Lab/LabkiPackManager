@@ -61,7 +61,7 @@
     "labkiQuery": "LabkiPackManager\\API\\ApiLabkiQuery",
     "labkiUpdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
     "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest",
-    "labkiPageExists": "LabkiPackManager\\API\\ApiLabkiPageExists",
+    "labkiPagesExists": "LabkiPackManager\\API\\Pages\\ApiLabkiPagesExists",
     "labkiReposList": "LabkiPackManager\\API\\Repos\\ApiLabkiReposList",
     "labkiReposAdd": "LabkiPackManager\\API\\Repos\\ApiLabkiReposAdd",
     "labkiReposSync": "LabkiPackManager\\API\\Repos\\ApiLabkiReposSync",

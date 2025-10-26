@@ -185,6 +185,27 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 
 		$operationIdStr = 'test_op_' . uniqid();
 		$operationId = new OperationId( $operationIdStr );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 		$this->operationRegistry->createOperation(
 			$operationId,
 			LabkiOperationRegistry::TYPE_REPO_ADD
@@ -209,6 +230,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		
 		$this->assertCount(
 			1,
+		
 			$matchingRepos,
 			'Should only have one repository with this URL'
 		);
