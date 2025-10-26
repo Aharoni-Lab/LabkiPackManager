@@ -17,7 +17,7 @@ use WikitextContent;
  * - Single and multiple title queries
  * - Existing and non-existing pages
  * - Missing titles validation
- * - Invalid titles skipped
+ * - Invalid titles return error info
  * - Response meta presence
  * - Read-only and public properties
  *
@@ -97,7 +97,7 @@ final class ApiLabkiPagesExistsTest extends ApiTestCase {
 		$this->doApiRequest([ 'action' => 'labkiPagesExists' ]);
 	}
 
-	public function testInvalidTitleNames_AreSkipped(): void {
+	public function testInvalidTitleNames_ReturnError(): void {
 		$valid = $this->createTestPage('ValidPage');
 		$invalid = 'Invalid[Title]'; // definitely invalid in MW
 
@@ -109,9 +109,17 @@ final class ApiLabkiPagesExistsTest extends ApiTestCase {
 		$data = $result[0];
 		$results = $data['results'];
 
+		// Valid page should work normally
 		$this->assertArrayHasKey($valid->getPrefixedText(), $results);
 		$this->assertTrue($results[$valid->getPrefixedText()]['exists']);
-		$this->assertArrayNotHasKey($invalid, $results);
+
+		// Invalid title should be returned with error info
+		$this->assertArrayHasKey($invalid, $results);
+		$invalidResult = $results[$invalid];
+		$this->assertFalse($invalidResult['exists']);
+		$this->assertFalse($invalidResult['valid']);
+		$this->assertArrayHasKey('error', $invalidResult);
+		$this->assertSame('Invalid title format', $invalidResult['error']);
 	}
 
 	public function testResponse_IncludesMeta(): void {

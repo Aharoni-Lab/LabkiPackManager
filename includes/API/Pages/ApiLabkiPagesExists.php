@@ -43,6 +43,11 @@ use Wikimedia\ParamValidator\ParamValidator;
  *     },
  *     "Equipment_List": {
  *       "exists": false
+ *     },
+ *     "Invalid<>Title": {
+ *       "exists": false,
+ *       "valid": false,
+ *       "error": "Invalid title format"
  *     }
  *   },
  *   "meta": {
@@ -54,7 +59,7 @@ use Wikimedia\ParamValidator\ParamValidator;
  *
  * ## Implementation Notes
  * - Uses {@see WikiPageLookup::getInfo()} to fetch canonical title and existence.
- * - Skips invalid titles rather than failing the entire request.
+ * - Invalid titles are returned with `valid: false` and an error message.
  * - Returns compact boolean or detailed object per title.
  *
  * @ingroup API
@@ -96,7 +101,12 @@ final class ApiLabkiPagesExists extends ApiBase {
 
 			$info = $lookup->getInfo($title);
 			if ($info === null) {
-				// Invalid or malformed title
+				// Invalid or malformed title - return error instead of skipping
+				$results[$title] = [
+					'exists' => false,
+					'valid' => false,
+					'error' => 'Invalid title format',
+				];
 				continue;
 			}
 
