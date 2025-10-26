@@ -11,7 +11,7 @@ use ApiBase;
 use ApiMain;
 
 /**
- * ApiLabkiOperationStatus
+ * ApiLabkiOperationsStatus
  *
  * API endpoint to query the status and progress of Labki background operations.
  * Supports both single operation lookup and listing multiple operations.
@@ -47,7 +47,7 @@ use ApiMain;
  *   "created_at": "20251024115900",
  *   "started_at": "20251024120000",
  *   "updated_at": "20251024122300",
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024122305"
  *   }
@@ -70,7 +70,7 @@ use ApiMain;
  *     { "operation_id": "...", "status": "running", ... }
  *   ],
  *   "count": 2,
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024122305"
  *   }
@@ -85,11 +85,11 @@ use ApiMain;
  *
  * ## Permissions
  * - Users can view their own operations
- * - Users with 'labkipack-manage' permission can view all operations
+ * - Users with 'labkipackmanager-manage' permission can view all operations
  *
  * @ingroup API
  */
-final class ApiLabkiOperationStatus extends ApiBase {
+final class ApiLabkiOperationsStatus extends ApiBase {
 
 	public function __construct( ApiMain $main, string $name ) {
 		parent::__construct( $main, $name );
@@ -100,11 +100,16 @@ final class ApiLabkiOperationStatus extends ApiBase {
 		$params = $this->extractRequestParams();
 		$operationId = isset( $params['operation_id'] ) ? trim( (string)$params['operation_id'] ) : null;
 		$limit = $params['limit'] ?? 50;
+		
+		// Validate limit range
+		if ( $limit < 1 || $limit > 500 ) {
+			$this->dieWithError( [ 'apierror-integer-outofrange', 'limit', 1, 500 ], 'badvalue' );
+		}
 
 		$registry = new LabkiOperationRegistry();
 		$currentUser = $this->getUser();
 		$currentUserId = $currentUser->getId();
-		$canManage = $currentUser->isAllowed( 'labkipack-manage' );
+		$canManage = $currentUser->isAllowed( 'labkipackmanager-manage' );
 
 		// Single operation mode
 		if ( $operationId !== null && $operationId !== '' ) {
@@ -138,6 +143,7 @@ final class ApiLabkiOperationStatus extends ApiBase {
 
 		// Permission check: users can only see their own operations unless they have manage permission
 		$operationUserId = $operation->userId() ?? 0;
+		// Deny access if: user is NOT a manager AND operation doesn't belong to current user AND operation is not system-owned
 		if ( !$canManage && $operationUserId !== $currentUserId && $operationUserId !== 0 ) {
 			$this->dieWithError( 'apierror-permissiondenied-generic', 'permission_denied' );
 		}
@@ -145,26 +151,22 @@ final class ApiLabkiOperationStatus extends ApiBase {
 		// Parse result_data if it's valid JSON
 		$resultData = $this->parseResultData( $operation->resultData() );
 
-		// Normalize and build response
-		$response = [
-			'operation_id' => $operation->id()->toString(),
-			'operation_type' => $operation->type(),
-			'status' => $operation->status(),
-			'progress' => $operation->progress() ?? 0,
-			'message' => $operation->message() ?? '',
-			'result_data' => $resultData,
-			'user_id' => $operationUserId,
-			'created_at' => $operation->createdAt(),
-			'started_at' => $operation->startedAt(),
-			'updated_at' => $operation->updatedAt(),
-			'_meta' => [
-				'schemaVersion' => 1,
-				'timestamp' => wfTimestampNow(),
-			],
-		];
-
+		// Build response
 		$result = $this->getResult();
-		$result->addValue( null, null, $response );
+		$result->addValue( null, 'operation_id', $operation->id()->toString() );
+		$result->addValue( null, 'operation_type', $operation->type() );
+		$result->addValue( null, 'status', $operation->status() );
+		$result->addValue( null, 'progress', $operation->progress() ?? 0 );
+		$result->addValue( null, 'message', $operation->message() ?? '' );
+		$result->addValue( null, 'result_data', $resultData );
+		$result->addValue( null, 'user_id', $operationUserId );
+		$result->addValue( null, 'created_at', $operation->createdAt() );
+		$result->addValue( null, 'started_at', $operation->startedAt() );
+		$result->addValue( null, 'updated_at', $operation->updatedAt() );
+		$result->addValue( null, 'meta', [
+			'schemaVersion' => 1,
+			'timestamp' => wfTimestampNow(),
+		] );
 	}
 
 	/**
@@ -205,17 +207,13 @@ final class ApiLabkiOperationStatus extends ApiBase {
 			];
 		}
 
-		$response = [
-			'operations' => $formattedOps,
-			'count' => count( $formattedOps ),
-			'_meta' => [
-				'schemaVersion' => 1,
-				'timestamp' => wfTimestampNow(),
-			],
-		];
-
 		$result = $this->getResult();
-		$result->addValue( null, null, $response );
+		$result->addValue( null, 'operations', $formattedOps );
+		$result->addValue( null, 'count', count( $formattedOps ) );
+		$result->addValue( null, 'meta', [
+			'schemaVersion' => 1,
+			'timestamp' => wfTimestampNow(),
+		] );
 	}
 
 	/**
@@ -250,8 +248,6 @@ final class ApiLabkiOperationStatus extends ApiBase {
 				ParamValidator::PARAM_TYPE => 'integer',
 				ParamValidator::PARAM_REQUIRED => false,
 				ParamValidator::PARAM_DEFAULT => 50,
-				ParamValidator::PARAM_MIN => 1,
-				ParamValidator::PARAM_MAX => 500,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-operations-status-param-limit',
 			],
 		];
@@ -260,10 +256,10 @@ final class ApiLabkiOperationStatus extends ApiBase {
 	/** Example messages for auto-generated API docs. */
 	protected function getExamplesMessages(): array {
 		return [
-			'action=labkiOperationStatus&operation_id=repo_add_abc123'
-				=> 'apihelp-labkioperationstatus-example-single',
-			'action=labkiOperationStatus&limit=10'
-				=> 'apihelp-labkioperationstatus-example-list',
+			'action=labkiOperationsStatus&operation_id=repo_add_abc123'
+				=> 'apihelp-labkioperationsstatus-example-single',
+			'action=labkiOperationsStatus&limit=10'
+				=> 'apihelp-labkioperationsstatus-example-list',
 		];
 	}
 
