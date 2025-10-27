@@ -56,7 +56,7 @@ use Wikimedia\ParamValidator\ParamValidator;
  *     "nodes": [...],
  *     "edges": [...]
  *   },
- *   "_meta": {
+ *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251024120000",
  *     "from_cache": true
@@ -73,48 +73,48 @@ use Wikimedia\ParamValidator\ParamValidator;
  */
 final class ApiLabkiManifestGet extends LabkiApiBase {
 
-	/**
-	 * Constructor.
-	 *
-	 * @param ApiMain $main Main API object.
-	 * @param string $name Module name.
-	 */
-	public function __construct(ApiMain $main, string $name) {
+	private LabkiRepoRegistry $repoRegistry;
+	private ?ManifestStore $manifestStore;
+
+	public function __construct(
+		ApiMain $main,
+		string $name,
+		?LabkiRepoRegistry $repoRegistry = null,
+		?ManifestStore $manifestStore = null
+	) {
 		parent::__construct($main, $name);
+		$this->repoRegistry = $repoRegistry ?? new LabkiRepoRegistry();
+		// Defer creation of ManifestStore until execute(), when repo/ref are known.
+		$this->manifestStore = $manifestStore;
 	}
 
 	/**
 	 * Execute API request.
-	 *
-	 * Extracts repository URL and ref, retrieves manifest data using ManifestStore,
-	 * and returns structured JSON response.
 	 */
 	public function execute(): void {
 		$params = $this->extractRequestParams();
-		$repoUrl = (string)($params['repo_url'] ?? '');
+		$repoUrl = trim((string)($params['repo_url'] ?? ''));
 
 		if ($repoUrl === '') {
 			$this->dieWithError(['apierror-missingparam', 'repo_url'], 'missing_repo_url');
 		}
 
-		// Validate and normalize the repository URL
+		// Normalize and validate repository URL
 		$repoUrl = $this->validateAndNormalizeUrl($repoUrl);
 
-		// Validate repository exists in registry
-		$repoRegistry = new LabkiRepoRegistry();
-		$repo = $repoRegistry->getRepo($repoUrl);
+		// Verify that repository exists
+		$repo = $this->repoRegistry->getRepo($repoUrl);
 		if ($repo === null) {
 			$this->dieWithError('labkipackmanager-error-repo-not-found', 'repo_not_found');
 		}
 
-		// Use default ref if not provided
+		// Determine ref and refresh behavior
 		$ref = (string)($params['ref'] ?? $repo->defaultRef() ?? 'main');
 		$refresh = (bool)($params['refresh'] ?? false);
 
-		
+		// Create ManifestStore only now (with full repo/ref)
+		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
 
-		// Retrieve manifest (cached or refreshed)
-		$store = new ManifestStore($repoUrl, $ref);
 		$status = $store->get($refresh);
 		if (!$status->isOK()) {
 			$this->dieWithError('labkipackmanager-error-fetch', 'fetch_error');
@@ -125,33 +125,29 @@ final class ApiLabkiManifestGet extends LabkiApiBase {
 			$this->dieWithError('labkipackmanager-error-invalid-manifest', 'invalid_manifest');
 		}
 
-		// Filter out backend-only data (pages) before sending to frontend
+		// Remove backend-only keys
 		unset($result['manifest']['pages']);
 
-		// Ensure content_repo_url is present at the root for the frontend
+		// Ensure repo_url is included
 		if (!isset($result['content_repo_url'])) {
 			$result['content_repo_url'] = $repoUrl;
 		}
 
-		$resultObj = $this->getResult();
-		$resultObj->addValue(null, 'repo_url', $repoUrl);
-		$resultObj->addValue(null, 'ref', $ref);
-		$resultObj->addValue(null, 'hash', $result['hash'] ?? '');
-		$resultObj->addValue(null, 'manifest', $result['manifest']);
-		$resultObj->addValue(null, 'hierarchy', $result['hierarchy'] ?? []);
-		$resultObj->addValue(null, 'graph', $result['graph'] ?? []);
-		$resultObj->addValue(null, '_meta', [
+		// Build API result
+		$out = $this->getResult();
+		$out->addValue(null, 'repo_url', $repoUrl);
+		$out->addValue(null, 'ref', $ref);
+		$out->addValue(null, 'hash', $result['hash'] ?? '');
+		$out->addValue(null, 'manifest', $result['manifest']);
+		$out->addValue(null, 'hierarchy', $result['hierarchy'] ?? []);
+		$out->addValue(null, 'graph', $result['graph'] ?? []);
+		$out->addValue(null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 			'from_cache' => $result['from_cache'] ?? false,
 		]);
 	}
 
-	/**
-	 * Define allowed API parameters.
-	 *
-	 * @return array
-	 */
 	public function getAllowedParams(): array {
 		return [
 			'repo_url' => [
@@ -161,7 +157,6 @@ final class ApiLabkiManifestGet extends LabkiApiBase {
 			],
 			'ref' => [
 				ParamValidator::PARAM_TYPE => 'string',
-				ParamValidator::PARAM_REQUIRED => false,
 				ParamValidator::PARAM_DEFAULT => 'main',
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-manifest-get-param-ref',
 			],
@@ -173,11 +168,6 @@ final class ApiLabkiManifestGet extends LabkiApiBase {
 		];
 	}
 
-	/**
-	 * Example requests for auto-generated API documentation.
-	 *
-	 * @return array
-	 */
 	protected function getExamplesMessages(): array {
 		return [
 			'action=labkiManifestGet&repo_url=https://github.com/Aharoni-Lab/labki-packs&ref=main'
@@ -187,23 +177,11 @@ final class ApiLabkiManifestGet extends LabkiApiBase {
 		];
 	}
 
-	/**
-	 * This API is read-only and can be called via GET.
-	 *
-	 * @return bool
-	 */
 	public function isWriteMode(): bool {
 		return false;
 	}
 
-	/**
-	 * Indicates whether the module is internal.
-	 * Here it's exposed publicly for automation and tooling.
-	 *
-	 * @return bool
-	 */
 	public function isInternal(): bool {
 		return false;
 	}
 }
-
