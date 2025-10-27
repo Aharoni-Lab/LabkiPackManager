@@ -32,7 +32,7 @@ use LabkiPackManager\Services\LabkiRepoRegistry;
  *   'graph' => array,              // Dependency graph
  * ]
  */
-abstract class ManifestStore {
+class ManifestStore {
 
     private string $repoUrl;
     private string $ref;
