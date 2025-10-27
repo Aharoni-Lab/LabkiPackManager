@@ -60,7 +60,7 @@
   "APIModules": {
     "labkiQuery": "LabkiPackManager\\API\\ApiLabkiQuery",
     "labkiUpdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
-    "labkiManifest": "LabkiPackManager\\API\\ApiLabkiManifest",
+    "labkiManifestGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiManifestGet",
     "labkiPagesExists": "LabkiPackManager\\API\\Pages\\ApiLabkiPagesExists",
     "labkiReposList": "LabkiPackManager\\API\\Repos\\ApiLabkiReposList",
     "labkiReposAdd": "LabkiPackManager\\API\\Repos\\ApiLabkiReposAdd",
