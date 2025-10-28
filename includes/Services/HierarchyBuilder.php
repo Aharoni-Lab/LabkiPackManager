@@ -5,57 +5,53 @@ declare(strict_types=1);
 namespace LabkiPackManager\Services;
 
 /**
- * HierarchyBuilder (Memory-Optimized)
+ * HierarchyBuilder
  *
- * Builds a hierarchical view model of packs and pages from normalized manifest data.
- * Identical logical structure to the full version but stores only ID references
- * inside each pack’s `children` list to minimize memory and JSON output size.
- *
- * Complexity: O(N + E)
+ * Builds a UI-ready hierarchy structure of packs and pages from a manifest.
+ * Supports both associative and numeric-keyed pack definitions.
  */
 final class HierarchyBuilder {
 
     /**
-     * Build a hierarchical view model from normalized pack definitions.
+     * Build a hierarchical tree of packs and pages.
      *
-     * @param array<int,array<string,mixed>> $packs
-     * @return array<string,mixed>
+     * @param array<string,mixed> $manifest Parsed manifest.yml data
+     * @return array<string,mixed> UI-ready hierarchy structure
      */
-    public function buildViewModel(array $packs): array {
-        // ----------------------------------------------------------
-        // 1. Normalize packs by ID
-        // ----------------------------------------------------------
+    public function build(array $manifest): array {
+        $packs = $manifest['packs'] ?? [];
+        $pages = $manifest['pages'] ?? [];
+
+        // --- Normalize pack definitions ---
         $byId = [];
-        foreach ($packs as $p) {
-            $id = (string)($p['id'] ?? '');
-            if ($id === '') {
+        foreach ($packs as $key => $packDef) {
+            // Handle both keyed and numeric arrays
+            $packId = is_string($key) ? $key : (string)($packDef['id'] ?? '');
+            if ($packId === '') {
                 continue;
             }
-            $byId[$id] = $p + [
-                'depends_on'  => [],
-                'pages'       => [],
-                'description' => '',
-                'version'     => '',
+
+            $byId[$packId] = [
+                'id' => $packId,
+                'label' => $packId,
+                'description' => (string)($packDef['description'] ?? ''),
+                'version' => (string)($packDef['version'] ?? ''),
+                'pages' => array_values((array)($packDef['pages'] ?? [])),
+                'depends_on' => array_values((array)($packDef['depends_on'] ?? []))
             ];
         }
 
-        // ----------------------------------------------------------
-        // 2. Build reverse dependency map
-        // ----------------------------------------------------------
+        // --- Reverse dependency map ---
         $dependedBy = [];
-        foreach ($packs as $p) {
-            $pid = (string)($p['id'] ?? '');
-            foreach (($p['depends_on'] ?? []) as $dep) {
-                if ($dep === '' || !isset($byId[$dep])) {
-                    continue;
+        foreach ($byId as $pid => $pack) {
+            foreach ($pack['depends_on'] as $dep) {
+                if (isset($byId[$dep])) {
+                    $dependedBy[$dep][] = $pid;
                 }
-                $dependedBy[$dep][] = $pid;
             }
         }
 
-        // ----------------------------------------------------------
-        // 3. Identify roots
-        // ----------------------------------------------------------
+        // --- Identify roots (no one depends on them) ---
         $roots = [];
         foreach ($byId as $id => $_) {
             if (!isset($dependedBy[$id])) {
@@ -63,133 +59,101 @@ final class HierarchyBuilder {
             }
         }
 
-        // ----------------------------------------------------------
-        // 4. Initialize accumulators
-        // ----------------------------------------------------------
-        $nodes = [];
-        $seenPages = [];
+        // --- Recursive builder ---
         $visited = [];
         $cache = [];
+        $pageCount = 0;
 
-        /**
-         * Recursively build a pack node and cache it.
-         *
-         * @param string $packId
-         * @param string|null $parentId
-         * @return array<string,mixed>
-         */
-        $buildNode = function (string $packId, ?string $parentId = null)
-            use (&$buildNode, &$cache, &$byId, &$nodes, &$seenPages, &$visited, &$dependedBy): array
-        {
+        $buildNode = function (string $packId) use (&$buildNode, &$visited, &$cache, &$byId, &$pageCount): array {
             if (isset($visited[$packId])) {
-                // cycle stub
+                // Prevent infinite recursion
                 return [
+                    'id' => "pack:$packId",
+                    'label' => $packId,
                     'type' => 'pack',
-                    'id' => $packId,
-                    'children' => [],
-                    'packsBeneath' => 0,
-                    'pagesBeneath' => 0
+                    'description' => '(cyclic reference)',
+                    'children' => []
                 ];
             }
 
             if (isset($cache[$packId])) {
-                // shallow clone with new parent reference
-                $cached = $cache[$packId];
-                $cached['parent'] = $parentId;
-                return $cached;
+                return $cache[$packId];
             }
 
             $visited[$packId] = true;
-            $pack = $byId[$packId] ?? null;
-            if (!$pack) {
-                unset($visited[$packId]);
-                return [];
-            }
+            $pack = $byId[$packId];
+            $children = [];
 
-            // --- Build dependency references only (no deep copies) ---
-            $packsBeneath = 0;
-            $pagesBeneath = 0;
-            $childRefs = [];
-
-            foreach (($pack['depends_on'] ?? []) as $depId) {
-                if (!isset($byId[$depId])) {
+            // Build dependency subtrees
+            foreach ($pack['depends_on'] as $dep) {
+                if (!isset($byId[$dep])) {
                     continue;
                 }
-                $childVm = $buildNode($depId, $packId);
-                $childRefs[] = ['type' => 'pack', 'id' => $depId];
-                $packsBeneath += 1 + ($childVm['packsBeneath'] ?? 0);
-                $pagesBeneath += $childVm['pagesBeneath'] ?? 0;
+                $children[] = $buildNode($dep);
             }
 
-            // --- Add page refs ---
-            foreach (($pack['pages'] ?? []) as $pg) {
-                $childRefs[] = ['type' => 'page', 'id' => (string)$pg];
-                $seenPages[$pg] = true;
-                $pagesBeneath++;
-            }
-
-            // --- Pack node (hierarchical reference only) ---
-            $node = [
-                'type'         => 'pack',
-                'id'           => $packId,
-                'description'  => (string)$pack['description'],
-                'version'      => (string)$pack['version'],
-                'depends_on'   => array_values($pack['depends_on'] ?? []),
-                'depended_by'  => array_values($dependedBy[$packId] ?? []),
-                'parent'       => $parentId,
-                'packsBeneath' => $packsBeneath,
-                'pagesBeneath' => $pagesBeneath,
-                'children'     => $childRefs     // <-- only {type,id} entries
-            ];
-
-            // --- Flat registry for pack ---
-            $nodes['pack:' . $packId] = [
-                'type'         => 'pack',
-                'id'           => 'pack:' . $packId,
-                'description'  => (string)$pack['description'],
-                'version'      => (string)$pack['version'],
-                'depends_on'   => array_values($pack['depends_on'] ?? []),
-                'depended_by'  => array_values($dependedBy[$packId] ?? []),
-                'pages'        => array_values($pack['pages'] ?? []),
-                'parent'       => $parentId,
-                'packsBeneath' => $packsBeneath,
-                'pagesBeneath' => $pagesBeneath
-            ];
-
-            // --- Flat registry entries for pages ---
-            foreach (($pack['pages'] ?? []) as $pg) {
-                $nodes['page:' . $pg] = [
-                    'type'   => 'page',
-                    'id'     => 'page:' . $pg,
-                    'parent' => 'pack:' . $packId
+            // Add pages under this pack
+            foreach ($pack['pages'] as $pageId) {
+                $children[] = [
+                    'id' => "page:$pageId",
+                    'label' => $pageId,
+                    'type' => 'page'
                 ];
+                $pageCount++;
             }
+
+            $node = [
+                'id' => "pack:$packId",
+                'label' => $packId,
+                'type' => 'pack',
+                'description' => $pack['description'],
+                'version' => $pack['version'],
+                'depends_on' => $pack['depends_on'],
+                'children' => $children,
+                'stats' => [
+                    'packs_beneath' => $this->countDescendantsOfType($children, 'pack'),
+                    'pages_beneath' => $this->countDescendantsOfType($children, 'page')
+                ]
+            ];
 
             $cache[$packId] = $node;
             unset($visited[$packId]);
             return $node;
         };
 
-        // ----------------------------------------------------------
-        // 5. Build hierarchy from roots
-        // ----------------------------------------------------------
+        // --- Build tree from roots ---
         $tree = [];
-        foreach ($roots as $rid) {
-            $vm = $buildNode($rid, null);
-            if ($vm) {
-                $tree[] = $vm;
-            }
+        foreach ($roots as $rootId) {
+            $tree[] = $buildNode($rootId);
         }
 
-        // ----------------------------------------------------------
-        // 6. Return assembled structure
-        // ----------------------------------------------------------
         return [
-            'tree'       => $tree,
-            'nodes'      => $nodes,
-            'roots'      => array_map(static fn($r) => 'pack:' . $r, $roots),
-            'packCount'  => count($byId),
-            'pageCount'  => count($seenPages)
+            'root_nodes' => $tree,
+            'meta' => [
+                'pack_count' => count($byId),
+                'page_count' => $pageCount,
+                'timestamp' => wfTimestampNow()
+            ]
         ];
+    }
+
+    /**
+     * Recursively count descendants of a given type.
+     *
+     * @param array<int,array<string,mixed>> $children
+     * @param string $type
+     * @return int
+     */
+    private function countDescendantsOfType(array $children, string $type): int {
+        $count = 0;
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') === $type) {
+                $count++;
+            }
+            if (!empty($child['children'])) {
+                $count += $this->countDescendantsOfType($child['children'], $type);
+            }
+        }
+        return $count;
     }
 }

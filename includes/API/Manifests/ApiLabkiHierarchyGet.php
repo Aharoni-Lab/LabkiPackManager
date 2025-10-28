@@ -10,19 +10,20 @@ use LabkiPackManager\Services\ManifestStore;
 use Wikimedia\ParamValidator\ParamValidator;
 
 /**
- * API endpoint to retrieve only the parsed manifest data
+ * API endpoint to retrieve the computed hierarchy tree
  * for a given repository and reference (branch/tag/commit).
  *
  * ## Action
- * `labkiManifestGet`
+ * `labkiHierarchyGet`
  *
  * ## Purpose
- * Returns the parsed manifest.yml content stored in ManifestStore.
- * Does not include derived hierarchy or graph data.
+ * Returns a fully resolved, UI-ready hierarchy structure
+ * derived from the manifest.yml packs and dependencies.
+ * Does not include raw manifest or graph data.
  *
  * ## Example
  * ```
- * api.php?action=labkiManifestGet
+ * api.php?action=labkiHierarchyGet
  *   &repo_url=https://github.com/Aharoni-Lab/labki-packs
  *   &ref=main
  *   &format=json
@@ -34,13 +35,7 @@ use Wikimedia\ParamValidator\ParamValidator;
  *   "repo_url": "https://github.com/Aharoni-Lab/labki-packs",
  *   "ref": "main",
  *   "hash": "19aba05e8751431c92890b569d4d2a5ef75a4194",
- *   "manifest": {
- *     "schema_version": "1.0.0",
- *     "last_updated": "2025-09-22T00:00:01Z",
- *     "name": "Labki Packs",
- *     "packs": {...},
- *     "pages": {...}
- *   },
+ *   "hierarchy": { ... },
  *   "meta": {
  *     "schemaVersion": 1,
  *     "timestamp": "20251027T213442",
@@ -51,9 +46,9 @@ use Wikimedia\ParamValidator\ParamValidator;
  *
  * @ingroup API
  */
-final class ApiLabkiManifestGet extends ManifestApiBase {
+final class ApiLabkiHierarchyGet extends ManifestApiBase {
 
-	private ?ManifestStore $manifestStore = null;
+	private ?ManifestStore $manifestStore;
 
 	public function __construct(
 		ApiMain $main,
@@ -79,23 +74,23 @@ final class ApiLabkiManifestGet extends ManifestApiBase {
 		$ref = $this->resolveRef($params, $repo);
 		$refresh = (bool)($params['refresh'] ?? false);
 
-		// 3. Retrieve manifest and metadata from store
-		$store = new ManifestStore($repoUrl, $ref);
-		$result = $store->getManifest($refresh);
+		// 3. Get hierarchy and metadata from store (single call)
+		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
+		$result = $store->getHierarchy($refresh);
 
 		if ($result === null) {
 			$this->dieWithError('labkipackmanager-error-fetch', 'fetch_error');
 		}
 
 		$meta = $result['meta'] ?? [];
-		$manifest = $result['manifest'] ?? [];
+		$hierarchy = $result['hierarchy'] ?? [];
 
-		// 4. Output structured response
+		// 4. Output response
 		$out = $this->getResult();
 		$out->addValue(null, 'repo_url', $meta['repo_url'] ?? $repoUrl);
 		$out->addValue(null, 'ref', $meta['ref'] ?? $ref);
 		$out->addValue(null, 'hash', $meta['hash'] ?? '');
-		$out->addValue(null, 'manifest', $manifest);
+		$out->addValue(null, 'hierarchy', $hierarchy);
 		$out->addValue(null, 'meta', [
 			'schemaVersion' => $meta['schema_version'] ?? 1,
 			'timestamp' => wfTimestampNow(),
@@ -111,27 +106,27 @@ final class ApiLabkiManifestGet extends ManifestApiBase {
 			'repo_url' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => true,
-				self::PARAM_HELP_MSG => 'labkipackmanager-api-manifest-get-param-repo-url',
+				self::PARAM_HELP_MSG => 'labkipackmanager-api-hierarchy-get-param-repo-url',
 			],
 			'ref' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_DEFAULT => 'main',
-				self::PARAM_HELP_MSG => 'labkipackmanager-api-manifest-get-param-ref',
+				self::PARAM_HELP_MSG => 'labkipackmanager-api-hierarchy-get-param-ref',
 			],
 			'refresh' => [
 				ParamValidator::PARAM_TYPE => 'boolean',
 				ParamValidator::PARAM_DEFAULT => false,
-				self::PARAM_HELP_MSG => 'labkipackmanager-api-manifest-get-param-refresh',
+				self::PARAM_HELP_MSG => 'labkipackmanager-api-hierarchy-get-param-refresh',
 			],
 		];
 	}
 
 	protected function getExamplesMessages(): array {
 		return [
-			'action=labkiManifestGet&repo_url=https://github.com/Aharoni-Lab/labki-packs&ref=main'
-				=> 'apihelp-labkimanifestget-example-basic',
-			'action=labkiManifestGet&repo_url=https://github.com/Aharoni-Lab/labki-packs&ref=main&refresh=1'
-				=> 'apihelp-labkimanifestget-example-refresh',
+			'action=labkiHierarchyGet&repo_url=https://github.com/Aharoni-Lab/labki-packs&ref=main'
+				=> 'apihelp-labkihierarchyget-example-basic',
+			'action=labkiHierarchyGet&repo_url=https://github.com/Aharoni-Lab/labki-packs&ref=main&refresh=1'
+				=> 'apihelp-labkihierarchyget-example-refresh',
 		];
 	}
 

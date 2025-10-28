@@ -10,87 +10,65 @@ use InvalidArgumentException;
 /**
  * ManifestParser
  *
- * Parses a Labki manifest YAML file into a normalized associative array.
+ * Converts a Labki manifest.yml into a consistent associative array used by
+ * the ManifestStore, HierarchyBuilder, and GraphBuilder.
  *
- * Input example:
- *  schema_version: "1.0.0"
- *  last_updated: "2025-09-22T00:00:00Z"
- *  name: "Test Manifest"
- *  description: "A demonstration manifest for Labki content packs."
- *  author: "Aharoni Lab"
- *  pages:
- *    MainPage:
- *      file: "pages/MainPage.wiki"
- *      last_updated: "2025-09-22T00:00:00Z"
- *    SubPage:
- *      file: "pages/SubPage.wiki"
- *      last_updated: "2025-09-22T00:00:00Z"
- *  packs:
- *    onboarding:
- *      version: "0.3.1"
- *      description: "Example onboarding pack"
- *      pages: [ "MainPage", "SubPage" ]
- *      depends_on: [ "base-pack" ]
- *      tags: [ "core", "example" ]
+ * The parser enforces a predictable structure:
  *
- * Output structure:
+ * Output schema:
  * [
- *   'schema_version' => '1.0.0',
- *   'last_updated'   => '2025-09-22T00:00:00Z',
- *   'name'           => 'Test Manifest',
- *   'description'    => 'A demonstration manifest...',
- *   'author'         => 'Aharoni Lab',
+ *   'schema_version' => string,
+ *   'last_updated'   => string,
+ *   'name'           => string,
+ *   'description'    => string,
+ *   'author'         => string,
  *   'pages' => [
- *     'MainPage' => [
- *       'name' => 'MainPage',
- *       'file' => 'pages/MainPage.wiki',
- *       'last_updated' => '2025-09-22T00:00:00Z'
- *     ],
- *     'SubPage' => [
- *       'name' => 'SubPage',
- *       'file' => 'pages/SubPage.wiki',
- *       'last_updated' => '2025-09-22T00:00:00Z'
- *     ]
+ *      'PageName' => [
+ *          'name'         => 'PageName',
+ *          'file'         => 'pages/PageName.wiki',
+ *          'last_updated' => '2025-09-22T00:00:00Z'
+ *      ],
+ *      ...
  *   ],
  *   'packs' => [
- *     [
- *       'id'          => 'onboarding',
- *       'version'     => '0.3.1',
- *       'description' => 'Example onboarding pack',
- *       'pages'       => [ 'MainPage', 'SubPage' ],
- *       'page_count'  => 2,
- *       'depends_on'  => [ 'base-pack' ],
- *       'tags'        => [ 'core', 'example' ]
- *     ]
+ *      'pack_id' => [
+ *          'id'          => 'pack_id',
+ *          'version'     => '1.0.0',
+ *          'description' => 'Description...',
+ *          'pages'       => ['Page1', 'Page2'],
+ *          'depends_on'  => ['other_pack'],
+ *          'tags'        => ['example', 'core'],
+ *          'page_count'  => 2
+ *      ],
+ *      ...
  *   ]
  * ]
  */
-final class ManifestParser
-{
+final class ManifestParser {
+
     /**
-     * Parse YAML into structured manifest array.
+     * Parse YAML text into a structured manifest array.
      *
-     * @param string $yaml Raw YAML text.
-     * @return array Normalized manifest structure.
-     * @throws InvalidArgumentException if YAML or schema invalid.
+     * @param string $yaml Raw YAML text from manifest.yml
+     * @return array Normalized manifest data
+     * @throws InvalidArgumentException if YAML or schema is invalid
      */
-    public function parse(string $yaml): array
-    {
+    public function parse(string $yaml): array {
         $data = $this->parseYaml($yaml);
 
-        // --- Top-level metadata normalization ---
+        // --- Normalize top-level metadata ---
         $schemaVersion = (string)($data['schema_version'] ?? '');
         $lastUpdated   = (string)($data['last_updated'] ?? '');
         $name          = (string)($data['name'] ?? '');
         $description   = (string)($data['description'] ?? '');
         $author        = (string)($data['author'] ?? '');
 
-        // --- Parse pages section (optional) ---
+        // --- Normalize page entries ---
         $pages = $this->parsePages($data['pages'] ?? []);
 
-        // --- Validate packs section ---
-        if (!isset($data['packs']) || !is_array($data['packs']) || empty($data['packs'])) {
-            throw new InvalidArgumentException('Invalid schema: missing or empty "packs" section.');
+        // --- Validate and normalize packs ---
+        if (!isset($data['packs']) || !is_array($data['packs']) || $data['packs'] === []) {
+            throw new InvalidArgumentException('Invalid manifest: missing or empty "packs" section.');
         }
 
         $packs = $this->parsePacks($data['packs']);
@@ -107,66 +85,73 @@ final class ManifestParser
     }
 
     /**
-     * Parse the pages section into normalized array of page definitions.
+     * Parse and normalize the "pages" section.
      *
-     * @param array $pagesRaw
-     * @return array
+     * @param array $pagesRaw Raw page definitions
+     * @return array<string,array<string,string>>
      */
-    private function parsePages(array $pagesRaw): array
-    {
+    private function parsePages(array $pagesRaw): array {
         $pages = [];
 
-        foreach ($pagesRaw as $name => $meta) {
-            if (!is_string($name) || !is_array($meta)) {
+        foreach ($pagesRaw as $pageId => $meta) {
+            if (!is_string($pageId) || !is_array($meta)) {
                 continue; // skip invalid entries
             }
 
             $file = (string)($meta['file'] ?? '');
             $lastUpdated = (string)($meta['last_updated'] ?? '');
 
-            if ($file !== '') {
-                $pages[$name] = [
-                    'name' => $name,
-                    'file' => $file,
-                    'last_updated' => $lastUpdated,
-                ];
+            if ($file === '') {
+                continue;
             }
+
+            $pages[$pageId] = [
+                'name' => $pageId,
+                'file' => $file,
+                'last_updated' => $lastUpdated,
+            ];
         }
 
         return $pages;
     }
 
     /**
-     * Parse the packs section into normalized array of packs.
+     * Parse and normalize the "packs" section.
+     *
+     * Always returns an associative array keyed by pack ID.
      *
      * @param array $packsRaw
-     * @return array
+     * @return array<string,array<string,mixed>>
      */
-    private function parsePacks(array $packsRaw): array
-    {
+    private function parsePacks(array $packsRaw): array {
         $packs = [];
 
         foreach ($packsRaw as $id => $meta) {
-            if (!is_string($id) || !is_array($meta)) {
-                continue; // skip invalid entries
+            // Handle both associative and numeric-style pack entries
+            if (!is_string($id)) {
+                $id = (string)($meta['id'] ?? '');
+            }
+
+            if ($id === '' || !is_array($meta)) {
+                continue;
             }
 
             $pages = $this->normalizeStringArray($meta['pages'] ?? []);
             $depends = $this->normalizeStringArray($meta['depends_on'] ?? []);
             $tags = $this->normalizeStringArray($meta['tags'] ?? []);
 
-            $packs[] = [
+            $packs[$id] = [
                 'id'          => $id,
                 'version'     => (string)($meta['version'] ?? ''),
                 'description' => (string)($meta['description'] ?? ''),
                 'pages'       => $pages,
                 'page_count'  => count($pages),
                 'depends_on'  => $depends,
-                'tags'        => $tags,
+                'tags'        => $tags
             ];
         }
 
-        if (empty($packs)) {
+        if ($packs === []) {
             throw new InvalidArgumentException('Invalid manifest: "packs" section contained no valid entries.');
         }
 
@@ -180,15 +165,14 @@ final class ManifestParser
      * @return array
      * @throws InvalidArgumentException
      */
-    private function parseYaml(string $yaml): array
-    {
+    private function parseYaml(string $yaml): array {
         $trimmed = trim($yaml);
 
-        // Strip UTF-8 BOM if present – avoids keys being prefixed (e.g., \uFEFFschema_version)
-        // this was needed to fix the schema_version key being prefixed with \uFEFF
+        // Strip UTF-8 BOM if present (common in Windows-saved YAML files)
         if (strncmp($trimmed, "\xEF\xBB\xBF", 3) === 0) {
             $trimmed = substr($trimmed, 3);
         }
+
         if ($trimmed === '') {
             throw new InvalidArgumentException('Empty YAML manifest.');
         }
@@ -207,13 +191,12 @@ final class ManifestParser
     }
 
     /**
-     * Normalize any array-like value to a clean list of strings.
+     * Normalize any array-like value to a list of non-empty trimmed strings.
      *
      * @param mixed $value
      * @return array<string>
      */
-    private function normalizeStringArray(mixed $value): array
-    {
+    private function normalizeStringArray(mixed $value): array {
         if (!is_array($value)) {
             return [];
         }
