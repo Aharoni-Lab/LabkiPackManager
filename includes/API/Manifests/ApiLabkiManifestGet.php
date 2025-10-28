@@ -70,36 +70,36 @@ final class ApiLabkiManifestGet extends ManifestApiBase {
 	 */
 	public function execute(): void {
 		$params = $this->extractRequestParams();
-
-		// 1. Resolve and validate repository
+	
 		$repoUrl = $this->resolveAndValidateRepo($params);
 		$repo = $this->repoRegistry->getRepo($repoUrl);
-
-		// 2. Resolve ref and refresh flag
 		$ref = $this->resolveRef($params, $repo);
 		$refresh = (bool)($params['refresh'] ?? false);
-
-		// 3. Retrieve manifest and metadata from store
-		$store = new ManifestStore($repoUrl, $ref);
-		$result = $store->getManifest($refresh);
-
-		if ($result === null) {
+	
+		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
+		$status = $store->get($refresh);
+	
+		if (!$status->isOK()) {
 			$this->dieWithError('labkipackmanager-error-fetch', 'fetch_error');
 		}
-
-		$meta = $result['meta'] ?? [];
-		$manifest = $result['manifest'] ?? [];
-
-		// 4. Output structured response
+	
+		$data = $status->getValue();
+		if (!isset($data['manifest']) || !is_array($data['manifest'])) {
+			$this->dieWithError('labkipackmanager-error-invalid-manifest', 'invalid_manifest');
+		}
+	
+		$meta = $data['meta'] ?? [];
+		$manifest = $data['manifest'];
+	
 		$out = $this->getResult();
 		$out->addValue(null, 'repo_url', $meta['repo_url'] ?? $repoUrl);
 		$out->addValue(null, 'ref', $meta['ref'] ?? $ref);
-		$out->addValue(null, 'hash', $meta['hash'] ?? '');
+		$out->addValue(null, 'hash', $meta['hash'] ?? ($data['hash'] ?? ''));
 		$out->addValue(null, 'manifest', $manifest);
 		$out->addValue(null, 'meta', [
 			'schemaVersion' => $meta['schema_version'] ?? 1,
 			'timestamp' => wfTimestampNow(),
-			'from_cache' => $result['from_cache'] ?? false,
+			'from_cache' => $data['from_cache'] ?? false,
 		]);
 	}
 

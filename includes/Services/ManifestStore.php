@@ -42,7 +42,7 @@ use LabkiPackManager\Services\ManifestFetcher;
  *   ]
  * ]
  */
-final class ManifestStore {
+class ManifestStore {
 
 	private const STORE_SCHEMA_VERSION = 1;
 

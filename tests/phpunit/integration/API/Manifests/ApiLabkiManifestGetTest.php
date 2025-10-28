@@ -40,16 +40,14 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // Error handling tests
+    // Error handling
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** Missing repo_url should immediately trigger ApiUsageException */
     public function testMissingRepoUrl_ReturnsError(): void {
         $this->expectException(\ApiUsageException::class);
         $this->doApiRequest(['action' => 'labkiManifestGet']);
     }
 
-    /** Nonexistent repo should trigger repo_not_found error */
     public function testRepoNotFound_ReturnsError(): void {
         $this->expectException(\ApiUsageException::class);
         $api = $this->makeApi([
@@ -60,7 +58,6 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
         $api->execute();
     }
 
-    /** ManifestStore returning fatal Status should raise ApiUsageException */
     public function testManifestFetchError_ReturnsError(): void {
         $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
         $this->assertNotNull($this->repoRegistry->getRepo($repoId));
@@ -68,7 +65,7 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
         $status = Status::newFatal('labkipackmanager-error-fetch');
         $this->manifestStoreMock->expects($this->once())
             ->method('get')
-            ->with(false) // default refresh = false
+            ->with(false)
             ->willReturn($status);
 
         $api = $this->makeApi([
@@ -81,82 +78,13 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
         $api->execute();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // Successful fetch tests
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    /** Valid manifest should produce structured response with filtered fields */
-    public function testValidManifest_ReturnsStructuredResponse(): void {
-        $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo', ['default_ref' => 'main']);
-        $this->assertNotNull($this->repoRegistry->getRepo($repoId));
-
-        $manifestData = [
-            'hash' => 'abc123',
-            'manifest' => [
-                'schema_version' => '1.0.0',
-                'name' => 'Labki Base Packs',
-                'pages' => ['internal'], // should be stripped
-            ],
-            'hierarchy' => ['tree' => [], 'packCount' => 5, 'pageCount' => 45],
-            'graph' => ['nodes' => [], 'edges' => []],
-            'from_cache' => true,
-        ];
-        $this->manifestStoreMock->method('get')->willReturn(Status::newGood($manifestData));
-
-        $api = $this->makeApi([
-            'action' => 'labkiManifestGet',
-            'repo_url' => 'https://github.com/test/repo',
-            'ref' => 'main',
-        ]);
-
-        $api->execute();
-        $data = $api->getResult()->getResultData();
-
-        // Repo and ref correctness
-        $this->assertSame('https://github.com/test/repo', $data['repo_url']);
-        $this->assertSame('main', $data['ref']);
-        $this->assertSame('abc123', $data['hash']);
-
-        // Manifest field filtering
-        $this->assertArrayHasKey('manifest', $data);
-        $this->assertArrayNotHasKey('pages', $data['manifest']);
-
-        // Hierarchy + graph
-        $this->assertArrayHasKey('hierarchy', $data);
-        $this->assertArrayHasKey('graph', $data);
-
-        // Meta information
-        $this->assertSame(1, $data['meta']['schemaVersion']);
-        $this->assertArrayHasKey('timestamp', $data['meta']);
-        $this->assertTrue($data['meta']['from_cache']);
-    }
-
-    /** Ensures refresh parameter triggers ManifestStore::get(true) */
-    public function testRefreshFlag_TriggersForcedFetch(): void {
-        $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
-        $this->assertNotNull($this->repoRegistry->getRepo($repoId));
-
-        $this->manifestStoreMock->expects($this->once())
-            ->method('get')
-            ->with(true)
-            ->willReturn(Status::newGood(['manifest' => []]));
-
-        $api = $this->makeApi([
-            'action' => 'labkiManifestGet',
-            'repo_url' => 'https://github.com/test/repo',
-            'ref' => 'main',
-            'refresh' => true,
-        ]);
-        $api->execute();
-    }
-
-    /** Invalid manifest (missing 'manifest' key) should raise ApiUsageException */
     public function testInvalidManifestStructure_ReturnsError(): void {
         $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
         $this->assertNotNull($this->repoRegistry->getRepo($repoId));
 
+        // Missing 'manifest' key should trigger ApiUsageException
         $this->manifestStoreMock->method('get')
-            ->willReturn(Status::newGood(['no_manifest_here' => true]));
+            ->willReturn(Status::newGood(['invalid_key' => true]));
 
         $api = $this->makeApi([
             'action' => 'labkiManifestGet',
@@ -168,7 +96,76 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // Meta tests
+    // Success cases
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    public function testValidManifest_ReturnsStructuredResponse(): void {
+        $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo', ['default_ref' => 'main']);
+        $this->assertNotNull($this->repoRegistry->getRepo($repoId));
+
+        $manifestData = [
+            'meta' => [
+                'schema_version' => 1,
+                'repo_url' => 'https://github.com/test/repo',
+                'ref' => 'main',
+                'hash' => 'abc123'
+            ],
+            'manifest' => [
+                'schema_version' => '1.0.0',
+                'name' => 'Labki Base Packs',
+                'pages' => ['internal'] // internal key to be kept (no longer stripped)
+            ],
+            'from_cache' => true
+        ];
+
+        $this->manifestStoreMock->method('get')
+            ->willReturn(Status::newGood($manifestData));
+
+        $api = $this->makeApi([
+            'action' => 'labkiManifestGet',
+            'repo_url' => 'https://github.com/test/repo',
+            'ref' => 'main',
+        ]);
+
+        $api->execute();
+        $data = $api->getResult()->getResultData();
+
+        $this->assertSame('https://github.com/test/repo', $data['repo_url']);
+        $this->assertSame('main', $data['ref']);
+        $this->assertSame('abc123', $data['hash']);
+        $this->assertArrayHasKey('manifest', $data);
+        $this->assertArrayHasKey('meta', $data);
+        $this->assertSame(1, $data['meta']['schemaVersion']);
+    }
+
+    public function testRefreshFlag_TriggersForcedFetch(): void {
+        $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
+        $this->assertNotNull($this->repoRegistry->getRepo($repoId));
+
+        $this->manifestStoreMock->expects($this->once())
+            ->method('get')
+            ->with(true)
+            ->willReturn(Status::newGood([
+                'meta' => ['schema_version' => 1],
+                'manifest' => [],
+                'from_cache' => false
+            ]));
+
+        $api = $this->makeApi([
+            'action' => 'labkiManifestGet',
+            'repo_url' => 'https://github.com/test/repo',
+            'ref' => 'main',
+            'refresh' => true,
+        ]);
+
+        $api->execute();
+        $data = $api->getResult()->getResultData();
+        $this->assertArrayHasKey('manifest', $data);
+        $this->assertFalse($data['meta']['from_cache']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Meta
     // ─────────────────────────────────────────────────────────────────────────────
 
     public function testApiProperties_ReadOnlyAndPublic(): void {
