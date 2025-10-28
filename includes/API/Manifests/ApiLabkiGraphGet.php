@@ -80,7 +80,7 @@ final class ApiLabkiGraphGet extends ManifestApiBase {
 		$refresh = (bool)($params['refresh'] ?? false);
 
 		// 3. Retrieve graph and metadata from store
-		$store = new ManifestStore($repoUrl, $ref);
+		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
 		$result = $store->getGraph($refresh);
 
 		if ($result === null) {
