@@ -234,6 +234,319 @@ class LabkiPackManager {
 	}
 
 	/**
+	 * Validate that all specified packs are installed.
+	 *
+	 * @param ContentRefId $refId Content ref ID
+	 * @param array $packNames Array of pack names to check
+	 * @return array Array of pack names that are NOT installed (empty if all are installed)
+	 */
+	public function validatePacksInstalled( ContentRefId $refId, array $packNames ): array {
+		wfDebugLog( 'labkipack', "LabkiPackManager::validatePacksInstalled() called for refId={$refId->toInt()}" );
+
+		$installedPacks = $this->packRegistry->listPacksByRef( $refId );
+		$installedPackNames = array_map( fn( $pack ) => $pack->name(), $installedPacks );
+
+		$notInstalled = [];
+		foreach ( $packNames as $packName ) {
+			if ( !in_array( $packName, $installedPackNames, true ) ) {
+				$notInstalled[] = $packName;
+				wfDebugLog( 'labkipack', "Pack not installed: {$packName}" );
+			}
+		}
+
+		return $notInstalled;
+	}
+
+	/**
+	 * Validate version compatibility for pack updates.
+	 * Ensures major version does not change (e.g., 1.x.x → 2.0.0 is blocked).
+	 *
+	 * @param ContentRefId $refId Content ref ID
+	 * @param array $packs Array of pack definitions with name and optional target_version
+	 * @return array Map of pack name => error message (empty if all versions compatible)
+	 */
+	public function validatePackVersions( ContentRefId $refId, array $packs ): array {
+		wfDebugLog( 'labkipack', "LabkiPackManager::validatePackVersions() called for refId={$refId->toInt()}" );
+
+		// Get ref to access worktree for target versions
+		$ref = $this->refRegistry->getRefById( $refId );
+		if ( !$ref ) {
+			wfDebugLog( 'labkipack', "Ref not found: {$refId->toInt()}" );
+			return [];
+		}
+
+		$worktreePath = $ref->worktreePath();
+		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
+			wfDebugLog( 'labkipack', "Worktree not found: {$worktreePath}" );
+			return [];
+		}
+
+		// Get manifest to extract target versions
+		$manifestPath = $worktreePath . '/manifest.yml';
+		if ( !file_exists( $manifestPath ) ) {
+			wfDebugLog( 'labkipack', "Manifest not found: {$manifestPath}" );
+			return [];
+		}
+
+		$manifestContent = file_get_contents( $manifestPath );
+		if ( $manifestContent === false ) {
+			wfDebugLog( 'labkipack', "Failed to read manifest: {$manifestPath}" );
+			return [];
+		}
+
+		try {
+			$manifest = \Symfony\Component\Yaml\Yaml::parse( $manifestContent );
+			if ( !is_array( $manifest ) ) {
+				return [];
+			}
+		} catch ( \Exception $e ) {
+			wfDebugLog( 'labkipack', "Failed to parse manifest: " . $e->getMessage() );
+			return [];
+		}
+
+		$manifestPacks = $manifest['packs'] ?? [];
+
+		$versionErrors = [];
+
+		foreach ( $packs as $packDef ) {
+			$packName = $packDef['name'];
+			
+			// Get currently installed version
+			$packId = $this->packRegistry->getPackIdByName( $refId, $packName );
+			if ( $packId === null ) {
+				continue; // Pack not installed (should be caught by validatePacksInstalled)
+			}
+
+			$installedPack = $this->packRegistry->getPack( $packId );
+			if ( !$installedPack ) {
+				continue;
+			}
+
+			$currentVersion = $installedPack->version();
+			
+			// Get target version from manifest or pack definition
+			$targetVersion = $packDef['target_version'] ?? null;
+			if ( $targetVersion === null && isset( $manifestPacks[$packName]['version'] ) ) {
+				$targetVersion = $manifestPacks[$packName]['version'];
+			}
+
+			// If no target version specified, skip validation (will use manifest version)
+			if ( $targetVersion === null || $currentVersion === null ) {
+				continue;
+			}
+
+			// Parse versions to check major version
+			$currentParts = $this->parseVersion( $currentVersion );
+			$targetParts = $this->parseVersion( $targetVersion );
+
+			if ( $currentParts === null || $targetParts === null ) {
+				wfDebugLog( 'labkipack', "Invalid version format for {$packName}: current={$currentVersion}, target={$targetVersion}" );
+				$versionErrors[$packName] = "Invalid version format (current: {$currentVersion}, target: {$targetVersion})";
+				continue;
+			}
+
+			// Check if major version changed
+			if ( $currentParts['major'] !== $targetParts['major'] ) {
+				wfDebugLog( 'labkipack', "Major version change detected for {$packName}: {$currentVersion} → {$targetVersion}" );
+				$versionErrors[$packName] = "Major version cannot change ({$currentVersion} → {$targetVersion})";
+			}
+		}
+
+		return $versionErrors;
+	}
+
+	/**
+	 * Validate dependency compatibility for pack updates.
+	 * Ensures that updating the specified packs won't break dependency relationships.
+	 *
+	 * @param ContentRefId $refId Content ref ID
+	 * @param array $packNames Array of pack names being updated
+	 * @return array Array of error messages (empty if dependencies are compatible)
+	 */
+	public function validatePackUpdateDependencies( ContentRefId $refId, array $packNames ): array {
+		wfDebugLog( 'labkipack', "LabkiPackManager::validatePackUpdateDependencies() called for refId={$refId->toInt()}" );
+
+		$errors = [];
+
+		// Get all installed packs for this ref
+		$installedPacks = $this->packRegistry->listPacksByRef( $refId );
+		$installedPackMap = [];
+		foreach ( $installedPacks as $pack ) {
+			$installedPackMap[$pack->name()] = $pack;
+		}
+
+		// For each pack being updated, check if any OTHER installed packs depend on it
+		foreach ( $packNames as $packName ) {
+			if ( !isset( $installedPackMap[$packName] ) ) {
+				continue; // Not installed
+			}
+
+			$pack = $installedPackMap[$packName];
+			$dependents = $this->packRegistry->getPacksDependingOn( $refId, $pack->id() );
+
+			foreach ( $dependents as $dependent ) {
+				// If the dependent is also being updated, that's fine
+				if ( in_array( $dependent->name(), $packNames, true ) ) {
+					continue;
+				}
+
+				// Otherwise, this is a potential issue
+				// Note: We're being conservative here - in reality, the update might still be compatible
+				// A more sophisticated check would compare dependency constraints
+				wfDebugLog( 'labkipack', "Pack {$packName} is being updated but {$dependent->name()} depends on it and is NOT being updated" );
+				$errors[] = "Pack '{$packName}' has dependent '{$dependent->name()}' which is not being updated";
+			}
+		}
+
+		return $errors;
+	}
+
+	/**
+	 * Parse semantic version string into major, minor, patch components.
+	 *
+	 * @param string $version Version string (e.g., "1.2.3")
+	 * @return array{major:int,minor:int,patch:int}|null Parsed version or null if invalid
+	 */
+	private function parseVersion( string $version ): ?array {
+		// Support semantic versioning (major.minor.patch)
+		if ( preg_match( '/^(\d+)\.(\d+)\.(\d+)/', $version, $matches ) ) {
+			return [
+				'major' => (int)$matches[1],
+				'minor' => (int)$matches[2],
+				'patch' => (int)$matches[3],
+			];
+		}
+
+		// Support major.minor format
+		if ( preg_match( '/^(\d+)\.(\d+)/', $version, $matches ) ) {
+			return [
+				'major' => (int)$matches[1],
+				'minor' => (int)$matches[2],
+				'patch' => 0,
+			];
+		}
+
+		// Support major only
+		if ( preg_match( '/^(\d+)$/', $version, $matches ) ) {
+			return [
+				'major' => (int)$matches[1],
+				'minor' => 0,
+				'patch' => 0,
+			];
+		}
+
+		return null;
+	}
+
+	/**
+	 * Update a pack by name (wrapper around updatePack that resolves name to PackId).
+	 *
+	 * @param ContentRefId $refId Content ref ID
+	 * @param string $packName Pack name
+	 * @param string|null $targetVersion Optional target version
+	 * @param int $userId User ID performing the update
+	 * @return array Update result
+	 */
+	public function updatePackByName( ContentRefId $refId, string $packName, ?string $targetVersion, int $userId ): array {
+		wfDebugLog( 'labkipack', "LabkiPackManager::updatePackByName() called for pack={$packName}, refId={$refId->toInt()}" );
+
+		// Resolve pack name to pack ID
+		$packId = $this->packRegistry->getPackIdByName( $refId, $packName );
+		if ( $packId === null ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Pack not found: {$packName}",
+			];
+		}
+
+		// Get ref to access worktree
+		$ref = $this->refRegistry->getRefById( $refId );
+		if ( !$ref ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Ref not found: {$refId->toInt()}",
+			];
+		}
+
+		$worktreePath = $ref->worktreePath();
+		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Worktree not found: {$worktreePath}",
+			];
+		}
+
+		// Get manifest to build pack definition
+		$manifestPath = $worktreePath . '/manifest.yml';
+		if ( !file_exists( $manifestPath ) ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Manifest not found: {$manifestPath}",
+			];
+		}
+
+		$manifestContent = file_get_contents( $manifestPath );
+		if ( $manifestContent === false ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Failed to read manifest: {$manifestPath}",
+			];
+		}
+
+		try {
+			$manifest = \Symfony\Component\Yaml\Yaml::parse( $manifestContent );
+			if ( !is_array( $manifest ) ) {
+				return [
+					'success' => false,
+					'pack' => $packName,
+					'error' => 'Invalid manifest format',
+				];
+			}
+		} catch ( \Exception $e ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Failed to parse manifest: " . $e->getMessage(),
+			];
+		}
+
+		$manifestPacks = $manifest['packs'] ?? [];
+		$manifestPages = $manifest['pages'] ?? [];
+
+		if ( !isset( $manifestPacks[$packName] ) ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => "Pack not found in manifest: {$packName}",
+			];
+		}
+
+		$packDef = $manifestPacks[$packName];
+		$packDef['version'] = $targetVersion ?? ( $packDef['version'] ?? null );
+		
+		// Build pages array for this pack
+		$pageList = $packDef['pages'] ?? [];
+		$pages = [];
+		foreach ( $pageList as $pageName ) {
+			if ( isset( $manifestPages[$pageName] ) ) {
+				$pages[] = [
+					'name' => $pageName,
+					'file' => $manifestPages[$pageName]['file'] ?? null,
+				];
+			}
+		}
+		$packDef['pages'] = $pages;
+
+		// Call the existing updatePack method
+		return $this->updatePack( $packId, $refId, $packDef, $userId );
+	}
+
+	/**
 	 * Install one or more packs.
 	 *
 	 * @param ContentRefId $refId Content ref ID (repo + branch/tag)

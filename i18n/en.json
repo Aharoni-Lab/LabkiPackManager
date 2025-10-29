@@ -116,10 +116,22 @@
 	"apihelp-labkipacksremove-description": "Queues a background job to remove packs from a repository ref. Returns an operation ID for tracking progress.",
 	"apihelp-labkipacksremove-example-basic": "Remove packs from repository ref",
 
+	"labkipackmanager-api-packs-update-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
+	"labkipackmanager-api-packs-update-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
+	"labkipackmanager-api-packs-update-param-refid": "Ref ID. Mutually exclusive with ref.",
+	"labkipackmanager-api-packs-update-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
+	"labkipackmanager-api-packs-update-param-packs": "JSON-encoded array of pack definitions. Each pack must have 'name' and optionally 'target_version'.",
+	"apihelp-labkipacksupdate-summary": "Update one or more installed content packs.",
+	"apihelp-labkipacksupdate-description": "Queues a background job to update installed packs to newer versions. Validates version compatibility and dependencies. Returns an operation ID for tracking progress.",
+	"apihelp-labkipacksupdate-example-basic": "Update packs to newer versions",
+
 	"labkipackmanager-error-invalid-pack-ids": "Invalid or empty pack_ids parameter. Must be a JSON-encoded array.",
 	"labkipackmanager-error-invalid-pack-id-format": "Pack ID format is invalid. Each pack_id must be a positive integer.",
 	"labkipackmanager-error-pack-not-found-id": "Pack with ID $1 not found.",
 	"labkipackmanager-error-pack-wrong-ref": "Pack '$1' does not belong to the specified ref.",
-	"labkipackmanager-error-pack-has-dependents": "Cannot remove packs: other installed packs depend on them: $1"
+	"labkipackmanager-error-pack-has-dependents": "Cannot remove packs: other installed packs depend on them: $1",
+	"labkipackmanager-error-packs-not-installed": "Cannot update packs: the following packs are not installed: $1",
+	"labkipackmanager-error-version-incompatible": "Cannot update packs: version compatibility errors: $1",
+	"labkipackmanager-error-update-dependency-conflict": "Cannot update packs: dependency conflicts detected: $1"
 }
 

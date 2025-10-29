@@ -764,5 +764,296 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertContains( 'Dependent1', $blockingDeps['Pack1'] );
 		$this->assertContains( 'Dependent2', $blockingDeps['Pack2'] );
 	}
+
+	// ========================================
+	// validatePacksInstalled() Tests
+	// ========================================
+
+	/**
+	 * @covers ::validatePacksInstalled
+	 */
+	public function testValidatePacksInstalled_AllInstalled_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+
+		// Install packs
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+
+		$notInstalled = $this->packManager->validatePacksInstalled( $refId, [ 'Pack1', 'Pack2' ] );
+
+		$this->assertEmpty( $notInstalled, 'Should return empty when all packs are installed' );
+	}
+
+	/**
+	 * @covers ::validatePacksInstalled
+	 */
+	public function testValidatePacksInstalled_SomeNotInstalled_ReturnsNotInstalled(): void {
+		$refId = $this->createTestRef();
+
+		// Install only Pack1
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+
+		$notInstalled = $this->packManager->validatePacksInstalled( $refId, [ 'Pack1', 'Pack2', 'Pack3' ] );
+
+		$this->assertCount( 2, $notInstalled );
+		$this->assertContains( 'Pack2', $notInstalled );
+		$this->assertContains( 'Pack3', $notInstalled );
+		$this->assertNotContains( 'Pack1', $notInstalled );
+	}
+
+	/**
+	 * @covers ::validatePacksInstalled
+	 */
+	public function testValidatePacksInstalled_NoneInstalled_ReturnsAll(): void {
+		$refId = $this->createTestRef();
+
+		// Don't install any packs
+		$notInstalled = $this->packManager->validatePacksInstalled( $refId, [ 'Pack1', 'Pack2' ] );
+
+		$this->assertCount( 2, $notInstalled );
+		$this->assertContains( 'Pack1', $notInstalled );
+		$this->assertContains( 'Pack2', $notInstalled );
+	}
+
+	// ========================================
+	// validatePackVersions() Tests
+	// ========================================
+
+	/**
+	 * @covers ::validatePackVersions
+	 */
+	public function testValidatePackVersions_MinorUpdate_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+
+		// Create manifest with updated version
+		$this->createTestManifest(
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'depends_on' => [] ] ],
+			[]
+		);
+
+		// Install pack with older version
+		$this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
+
+		$errors = $this->packManager->validatePackVersions( $refId, [
+			[ 'name' => 'TestPack', 'target_version' => '1.5.0' ],
+		] );
+
+		$this->assertEmpty( $errors, 'Minor version update should be allowed' );
+	}
+
+	/**
+	 * @covers ::validatePackVersions
+	 */
+	public function testValidatePackVersions_PatchUpdate_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+
+		$this->createTestManifest(
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.5', 'depends_on' => [] ] ],
+			[]
+		);
+
+		$this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
+
+		$errors = $this->packManager->validatePackVersions( $refId, [
+			[ 'name' => 'TestPack', 'target_version' => '1.0.5' ],
+		] );
+
+		$this->assertEmpty( $errors, 'Patch version update should be allowed' );
+	}
+
+	/**
+	 * @covers ::validatePackVersions
+	 */
+	public function testValidatePackVersions_MajorVersionChange_ReturnsError(): void {
+		$refId = $this->createTestRef();
+
+		$this->createTestManifest(
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '2.0.0', 'depends_on' => [] ] ],
+			[]
+		);
+
+		$this->packRegistry->registerPack( $refId, 'TestPack', '1.5.0', 1 );
+
+		$errors = $this->packManager->validatePackVersions( $refId, [
+			[ 'name' => 'TestPack', 'target_version' => '2.0.0' ],
+		] );
+
+		$this->assertNotEmpty( $errors );
+		$this->assertArrayHasKey( 'TestPack', $errors );
+		$this->assertStringContainsString( 'Major version cannot change', $errors['TestPack'] );
+	}
+
+	/**
+	 * @covers ::validatePackVersions
+	 */
+	public function testValidatePackVersions_WithoutTargetVersion_UsesManifest(): void {
+		$refId = $this->createTestRef();
+
+		$this->createTestManifest(
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'depends_on' => [] ] ],
+			[]
+		);
+
+		$this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
+
+		$errors = $this->packManager->validatePackVersions( $refId, [
+			[ 'name' => 'TestPack' ], // No target_version specified
+		] );
+
+		$this->assertEmpty( $errors, 'Should use version from manifest when not specified' );
+	}
+
+	/**
+	 * @covers ::validatePackVersions
+	 */
+	public function testValidatePackVersions_InvalidVersionFormat_ReturnsError(): void {
+		$refId = $this->createTestRef();
+
+		$this->createTestManifest(
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => 'invalid', 'depends_on' => [] ] ],
+			[]
+		);
+
+		$this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
+
+		$errors = $this->packManager->validatePackVersions( $refId, [
+			[ 'name' => 'TestPack', 'target_version' => 'invalid' ],
+		] );
+
+		$this->assertNotEmpty( $errors );
+		$this->assertArrayHasKey( 'TestPack', $errors );
+		$this->assertStringContainsString( 'Invalid version format', $errors['TestPack'] );
+	}
+
+	/**
+	 * @covers ::validatePackVersions
+	 */
+	public function testValidatePackVersions_MultiplePacksMixedResults_ReturnsOnlyErrors(): void {
+		$refId = $this->createTestRef();
+
+		$this->createTestManifest(
+			[
+				'Pack1' => [ 'name' => 'Pack1', 'version' => '1.5.0', 'depends_on' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'version' => '3.0.0', 'depends_on' => [] ],
+			],
+			[]
+		);
+
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Pack2', '2.5.0', 1 );
+
+		$errors = $this->packManager->validatePackVersions( $refId, [
+			[ 'name' => 'Pack1', 'target_version' => '1.5.0' ], // OK: 1.x → 1.x
+			[ 'name' => 'Pack2', 'target_version' => '3.0.0' ], // ERROR: 2.x → 3.x
+		] );
+
+		$this->assertCount( 1, $errors, 'Should only return errors for Pack2' );
+		$this->assertArrayHasKey( 'Pack2', $errors );
+		$this->assertArrayNotHasKey( 'Pack1', $errors );
+	}
+
+	// ========================================
+	// validatePackUpdateDependencies() Tests
+	// ========================================
+
+	/**
+	 * @covers ::validatePackUpdateDependencies
+	 */
+	public function testValidatePackUpdateDependencies_NoDependents_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+
+		// Install pack without any dependents
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+
+		$errors = $this->packManager->validatePackUpdateDependencies( $refId, [ 'Pack1' ] );
+
+		$this->assertEmpty( $errors, 'Should return empty when pack has no dependents' );
+	}
+
+	/**
+	 * @covers ::validatePackUpdateDependencies
+	 */
+	public function testValidatePackUpdateDependencies_DependentNotBeingUpdated_ReturnsError(): void {
+		$refId = $this->createTestRef();
+
+		// Install base pack and dependent pack
+		$basePackId = $this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
+		$depPackId = $this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		// Store dependency
+		$this->packRegistry->storeDependencies( $depPackId, [ $basePackId ] );
+
+		// Try to update BasePackage alone
+		$errors = $this->packManager->validatePackUpdateDependencies( $refId, [ 'BasePackage' ] );
+
+		$this->assertNotEmpty( $errors );
+		$this->assertCount( 1, $errors );
+		$this->assertStringContainsString( 'BasePackage', $errors[0] );
+		$this->assertStringContainsString( 'DependentPackage', $errors[0] );
+	}
+
+	/**
+	 * @covers ::validatePackUpdateDependencies
+	 */
+	public function testValidatePackUpdateDependencies_BothBeingUpdated_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+
+		$basePackId = $this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
+		$depPackId = $this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		$this->packRegistry->storeDependencies( $depPackId, [ $basePackId ] );
+
+		// Update both together
+		$errors = $this->packManager->validatePackUpdateDependencies( $refId, [ 'BasePackage', 'DependentPackage' ] );
+
+		$this->assertEmpty( $errors, 'Should allow update when both base and dependent are being updated' );
+	}
+
+	/**
+	 * @covers ::validatePackUpdateDependencies
+	 */
+	public function testValidatePackUpdateDependencies_ChainedDependencies_ValidatesAll(): void {
+		$refId = $this->createTestRef();
+
+		// Create chain: Pack1 ← Pack2 ← Pack3
+		$pack1Id = $this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$pack2Id = $this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+		$pack3Id = $this->packRegistry->registerPack( $refId, 'Pack3', '1.0.0', 1 );
+
+		$this->packRegistry->storeDependencies( $pack2Id, [ $pack1Id ] );
+		$this->packRegistry->storeDependencies( $pack3Id, [ $pack2Id ] );
+
+		// Try to update Pack1 alone (Pack2 depends on it)
+		$errors = $this->packManager->validatePackUpdateDependencies( $refId, [ 'Pack1' ] );
+
+		$this->assertNotEmpty( $errors );
+		$this->assertStringContainsString( 'Pack1', $errors[0] );
+		$this->assertStringContainsString( 'Pack2', $errors[0] );
+	}
+
+	/**
+	 * @covers ::validatePackUpdateDependencies
+	 */
+	public function testValidatePackUpdateDependencies_MultipleDependents_ReturnsAllErrors(): void {
+		$refId = $this->createTestRef();
+
+		// Create: CorePackage ← Dependent1, Dependent2, Dependent3
+		$corePackId = $this->packRegistry->registerPack( $refId, 'CorePackage', '1.0.0', 1 );
+		$dep1Id = $this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
+		$dep2Id = $this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
+		$dep3Id = $this->packRegistry->registerPack( $refId, 'Dependent3', '1.0.0', 1 );
+
+		$this->packRegistry->storeDependencies( $dep1Id, [ $corePackId ] );
+		$this->packRegistry->storeDependencies( $dep2Id, [ $corePackId ] );
+		$this->packRegistry->storeDependencies( $dep3Id, [ $corePackId ] );
+
+		// Try to update CorePackage alone
+		$errors = $this->packManager->validatePackUpdateDependencies( $refId, [ 'CorePackage' ] );
+
+		$this->assertCount( 3, $errors, 'Should return error for each dependent' );
+		foreach ( $errors as $error ) {
+			$this->assertStringContainsString( 'CorePackage', $error );
+		}
+	}
 }
 
