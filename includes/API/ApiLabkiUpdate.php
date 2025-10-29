@@ -18,6 +18,9 @@ use MediaWiki\Title\Title;
 use MediaWiki\CommentStore\CommentStoreComment;
 use MediaWiki\Revision\SlotRecord;
 
+
+//TODO: To be removed.
+
 final class ApiLabkiUpdate extends ApiBase {
 
     public function __construct( ApiMain $main, string $name ) {

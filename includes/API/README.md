@@ -146,18 +146,53 @@ GET api.php?action=labkiPacksList&pack_id=10&include_pages=true&format=json
 }
 ```
 
+#### `labkiPacksInstall` (POST)
+Install one or more packs from a repository ref. Returns `operation_id` for tracking progress.
+
+```http
+POST api.php?action=labkiPacksInstall&repo_id=1&ref=main&packs=[...]&format=json
+```
+
+**Parameters:**
+- `repo_id` (int, optional): Repository ID. Mutually exclusive with `repo_url`.
+- `repo_url` (string, optional): Repository URL. Mutually exclusive with `repo_id`.
+- `ref_id` (int, optional): Ref ID. Mutually exclusive with `ref`.
+- `ref` (string, optional): Ref name (branch/tag). Mutually exclusive with `ref_id`.
+- `packs` (JSON string, required): Array of pack definitions. Each pack must have:
+  - `name` (string): Pack name
+  - `version` (string, optional): Pack version
+  - `pages` (array): Array of page definitions with:
+    - `name` (string): Page source name
+    - `original` (string): Original page name (for rewriting)
+    - `finalTitle` (string): Final MediaWiki page title
+
+**Response:**
+```json
+{
+  "success": true,
+  "operation_id": "pack_install_abc123",
+  "status": "queued",
+  "message": "Pack installation queued",
+  "packs": ["MyPack"],
+  "meta": {
+    "schemaVersion": 1,
+    "timestamp": "20251024120000"
+  }
+}
+```
+
+**Process:**
+1. Validates parameters and resolves identifiers
+2. Verifies ref has worktree (must sync repo first)
+3. Queues background job for async installation
+4. Returns immediately with operation ID
+5. Track progress with `labkiOperationsStatus` API
+
 #### `labkiPacksPreview` (POST)
 Preview install/update/remove operation. Detects naming conflicts before committing changes.
 
 ```http
 POST api.php?action=labkiPacksPreview&operation=install&repo_id=1&ref=main&format=json
-```
-
-#### `labkiPacksInstall` (POST)
-Install packs with resolved page titles. Returns `operation_id` for tracking.
-
-```http
-POST api.php?action=labkiPacksInstall&repo_id=1&ref=main&packs=...&format=json
 ```
 
 #### `labkiPacksUpdate` (POST)
@@ -259,8 +294,8 @@ POST api.php?action=labkiReposAdd&token=YOUR_TOKEN&...
 | `labkiReposRemove` | Repos | POST | Remove repository | `API/Repos/ApiLabkiReposRemove.php` |
 | `labkiManifestGet` | Manifests | GET | Get manifest for repo@ref | `API/Manifests/ApiLabkiManifestGet.php` |
 | `labkiPacksList` | Packs | GET | List installed packs | `API/Packs/ApiLabkiPacksList.php` |
+| `labkiPacksInstall` | Packs | POST | Install packs (async) | `API/Packs/ApiLabkiPacksInstall.php` |
 | `labkiPacksPreview` | Packs | POST | Preview operation | `API/Packs/ApiLabkiPacksPreview.php` |
-| `labkiPacksInstall` | Packs | POST | Install packs | `API/Packs/ApiLabkiPacksInstall.php` |
 | `labkiPacksUpdate` | Packs | POST | Update pack | `API/Packs/ApiLabkiPacksUpdate.php` |
 | `labkiPacksRemove` | Packs | POST | Remove pack | `API/Packs/ApiLabkiPacksRemove.php` |
 | `labkiPagesValidate` | Pages | POST | Validate titles | `API/Pages/ApiLabkiPagesValidate.php` |

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace LabkiPackManager\API\Packs;
 
 use Wikimedia\ParamValidator\ParamValidator;
+//TODO: Consider only requiring single id if providing id.. these will directly access a row in the database.
+//For example, we don't need to know the repo url and ref if we directly know the pack id.
+
 
 /**
  * API endpoint to list and query installed packs.
