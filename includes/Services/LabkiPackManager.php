@@ -177,6 +177,7 @@ class LabkiPackManager {
 	 * Validate pack removal dependencies.
 	 *
 	 * Checks if any other installed packs depend on the packs being removed.
+	 * Uses database-stored dependencies (as installed) rather than current manifest.
 	 * Returns a map of pack names to their dependent pack names.
 	 *
 	 * @param ContentRefId $refId Content ref ID
@@ -186,85 +187,40 @@ class LabkiPackManager {
 	public function validatePackRemoval( ContentRefId $refId, array $packsToRemove ): array {
 		wfDebugLog( 'labkipack', "LabkiPackManager::validatePackRemoval() called for refId={$refId->toInt()}" );
 
-		// Get ref to access worktree
-		$ref = $this->refRegistry->getRefById( $refId );
-		if ( !$ref ) {
-			wfDebugLog( 'labkipack', "Ref not found: {$refId->toInt()}" );
-			return [];
-		}
-
-		$worktreePath = $ref->worktreePath();
-		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-			wfDebugLog( 'labkipack', "Worktree not found: {$worktreePath}" );
-			return [];
-		}
-
-		// Get manifest to extract depends_on for all packs
-		$manifestPath = $worktreePath . '/manifest.yml';
-
-		if ( !file_exists( $manifestPath ) ) {
-			wfDebugLog( 'labkipack', "Manifest not found for dependency validation: {$manifestPath}" );
-			return [];
-		}
-
-		$manifestContent = file_get_contents( $manifestPath );
-		if ( $manifestContent === false ) {
-			wfDebugLog( 'labkipack', "Failed to read manifest: {$manifestPath}" );
-			return [];
-		}
-
-		try {
-			$manifest = Yaml::parse( $manifestContent );
-			if ( !is_array( $manifest ) ) {
-				return [];
-			}
-		} catch ( \Exception $e ) {
-			wfDebugLog( 'labkipack', "Failed to parse manifest: " . $e->getMessage() );
-			return [];
-		}
-
-		$packs = $manifest['packs'] ?? [];
-		if ( !is_array( $packs ) ) {
-			return [];
-		}
-
-		// Get list of installed packs for this ref (excluding ones being removed)
-		$installedPackNames = [];
+		// Get all installed packs for this ref
 		$installedPacks = $this->packRegistry->listPacksByRef( $refId );
+		
+		// Build a map of pack name => pack object for quick lookup
+		$packMap = [];
+		$packsBeingRemoved = [];
 		foreach ( $installedPacks as $pack ) {
-			// Skip packs that are being removed
-			if ( !in_array( $pack->name(), $packsToRemove, true ) ) {
-				$installedPackNames[] = $pack->name();
+			$packMap[$pack->name()] = $pack;
+			if ( in_array( $pack->name(), $packsToRemove, true ) ) {
+				$packsBeingRemoved[$pack->name()] = $pack;
 			}
 		}
 
-		wfDebugLog( 'labkipack', "Installed packs (excluding removal): " . implode( ', ', $installedPackNames ) );
+		wfDebugLog( 'labkipack', "Checking dependencies for " . count( $packsBeingRemoved ) . " pack(s) being removed" );
 
-		// Check if any remaining installed packs depend on the packs being removed
+		// Check if any packs (not being removed) depend on the packs being removed
 		$blockingDependencies = [];
 
-		foreach ( $installedPackNames as $installedPackName ) {
-			if ( !isset( $packs[$installedPackName] ) ) {
-				continue;
-			}
-
-			$packDef = $packs[$installedPackName];
-			$dependsOn = $packDef['depends_on'] ?? [];
-
-			if ( !is_array( $dependsOn ) ) {
-				continue;
-			}
-
-			// Check if this pack depends on any pack being removed
-			foreach ( $dependsOn as $depName ) {
-				if ( in_array( $depName, $packsToRemove, true ) ) {
-					// This pack depends on a pack being removed
-					if ( !isset( $blockingDependencies[$depName] ) ) {
-						$blockingDependencies[$depName] = [];
-					}
-					$blockingDependencies[$depName][] = $installedPackName;
-					wfDebugLog( 'labkipack', "Blocking dependency: {$installedPackName} depends on {$depName}" );
+		foreach ( $packsBeingRemoved as $packName => $pack ) {
+			// Get all packs that depend on this pack
+			$dependentPacks = $this->packRegistry->getPacksDependingOn( $refId, $pack->id() );
+			
+			foreach ( $dependentPacks as $dependentPack ) {
+				// If the dependent pack is also being removed, it's not a blocking dependency
+				if ( in_array( $dependentPack->name(), $packsToRemove, true ) ) {
+					continue;
 				}
+				
+				// This is a blocking dependency
+				if ( !isset( $blockingDependencies[$packName] ) ) {
+					$blockingDependencies[$packName] = [];
+				}
+				$blockingDependencies[$packName][] = $dependentPack->name();
+				wfDebugLog( 'labkipack', "Blocking dependency: {$dependentPack->name()} depends on {$packName}" );
 			}
 		}
 
@@ -440,6 +396,9 @@ class LabkiPackManager {
 			] );
 		}
 
+		// Store pack dependencies as they were at install time
+		$this->storePackDependencies( $refId, $packId, $packName, $worktreePath );
+
 		wfDebugLog( 'labkipack', "Pack {$packName} installed: {$successCount} pages created, {$failedCount} failed" );
 
 		return [
@@ -613,6 +572,9 @@ class LabkiPackManager {
 				'content_hash' => $pageResult['content_hash'] ?? null,
 			] );
 		}
+
+		// Update pack dependencies (they may have changed in the new version)
+		$this->storePackDependencies( $refId, $packId, $existingPack->name(), $worktreePath );
 
 		return [
 			'success' => true,
@@ -925,6 +887,81 @@ class LabkiPackManager {
 
 		wfDebugLog( 'labkipack', "Successfully deleted page: {$titleText}" );
 		return true;
+	}
+
+	/**
+	 * Store pack dependencies as they were at install time.
+	 * Reads the manifest to get the depends_on list and resolves pack names to IDs.
+	 *
+	 * @param ContentRefId $refId Content ref ID
+	 * @param PackId $packId The pack being installed
+	 * @param string $packName Name of the pack being installed
+	 * @param string $worktreePath Path to git worktree
+	 */
+	private function storePackDependencies( ContentRefId $refId, PackId $packId, string $packName, string $worktreePath ): void {
+		wfDebugLog( 'labkipack', "Storing dependencies for pack {$packName}" );
+
+		// First, remove any existing dependencies for this pack (in case of update)
+		$this->packRegistry->removeDependencies( $packId );
+
+		// Read manifest to get depends_on for this pack
+		$manifestPath = $worktreePath . '/manifest.yml';
+		if ( !file_exists( $manifestPath ) ) {
+			wfDebugLog( 'labkipack', "Manifest not found, no dependencies to store: {$manifestPath}" );
+			return;
+		}
+
+		$manifestContent = file_get_contents( $manifestPath );
+		if ( $manifestContent === false ) {
+			wfDebugLog( 'labkipack', "Failed to read manifest: {$manifestPath}" );
+			return;
+		}
+
+		try {
+			$manifest = Yaml::parse( $manifestContent );
+			if ( !is_array( $manifest ) ) {
+				return;
+			}
+		} catch ( \Exception $e ) {
+			wfDebugLog( 'labkipack', "Failed to parse manifest: " . $e->getMessage() );
+			return;
+		}
+
+		$packs = $manifest['packs'] ?? [];
+		if ( !is_array( $packs ) || !isset( $packs[$packName] ) ) {
+			wfDebugLog( 'labkipack', "Pack {$packName} not found in manifest" );
+			return;
+		}
+
+		$packDef = $packs[$packName];
+		$dependsOn = $packDef['depends_on'] ?? [];
+
+		if ( !is_array( $dependsOn ) || empty( $dependsOn ) ) {
+			wfDebugLog( 'labkipack', "Pack {$packName} has no dependencies" );
+			return;
+		}
+
+		wfDebugLog( 'labkipack', "Pack {$packName} depends on: " . implode( ', ', $dependsOn ) );
+
+		// Resolve dependency pack names to pack IDs
+		$dependencyPackIds = [];
+		foreach ( $dependsOn as $depPackName ) {
+			$depPackId = $this->packRegistry->getPackIdByName( $refId, $depPackName );
+			if ( $depPackId === null ) {
+				wfDebugLog( 'labkipack', "Warning: Dependency pack {$depPackName} not found for pack {$packName}" );
+				continue;
+			}
+			$dependencyPackIds[] = $depPackId;
+		}
+
+		if ( empty( $dependencyPackIds ) ) {
+			wfDebugLog( 'labkipack', "No valid dependency pack IDs found for pack {$packName}" );
+			return;
+		}
+
+		// Store dependencies
+		$this->packRegistry->storeDependencies( $packId, $dependencyPackIds );
+		wfDebugLog( 'labkipack', "Stored " . count( $dependencyPackIds ) . " dependencies for pack {$packName}" );
 	}
 }
 

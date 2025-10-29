@@ -192,6 +192,118 @@ class LabkiPackRegistry {
             ->execute();
         wfDebugLog( 'Labki', 'Removed pack ' . $packId );
     }
+
+    // ===========================================================
+    //  Pack Dependency Management
+    // ===========================================================
+
+    /**
+     * Store pack dependencies as they were at install time.
+     * 
+     * @param int|PackId $packId The pack that has dependencies
+     * @param array<int|PackId> $dependsOnPackIds Pack IDs this pack depends on
+     */
+    public function storeDependencies( int|PackId $packId, array $dependsOnPackIds ): void {
+        if ( empty( $dependsOnPackIds ) ) {
+            return; // No dependencies to store
+        }
+
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $now = \wfTimestampNow();
+        $packIdInt = $packId instanceof PackId ? $packId->toInt() : $packId;
+        
+        $rows = [];
+        foreach ( $dependsOnPackIds as $depPackId ) {
+            $rows[] = [
+                'pack_id' => $packIdInt,
+                'depends_on_pack_id' => $depPackId instanceof PackId ? $depPackId->toInt() : $depPackId,
+                'created_at' => $now,
+            ];
+        }
+
+        $dbw->newInsertQueryBuilder()
+            ->insertInto( 'labki_pack_dependency' )
+            ->ignore()  // Skip if dependency already exists
+            ->rows( $rows )
+            ->caller( __METHOD__ )
+            ->execute();
+        
+        wfDebugLog( 'Labki', 'Stored ' . count( $rows ) . ' dependencies for pack ' . $packIdInt );
+    }
+
+    /**
+     * Get pack IDs that a given pack depends on.
+     * 
+     * @param int|PackId $packId
+     * @return array<PackId> Array of pack IDs this pack depends on
+     */
+    public function getDependencies( int|PackId $packId ): array {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        
+        $res = $dbr->newSelectQueryBuilder()
+            ->select( 'depends_on_pack_id' )
+            ->from( 'labki_pack_dependency' )
+            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
+            ->caller( __METHOD__ )
+            ->fetchResultSet();
+        
+        $dependencies = [];
+        foreach ( $res as $row ) {
+            $dependencies[] = new PackId( (int)$row->depends_on_pack_id );
+        }
+        
+        return $dependencies;
+    }
+
+	/**
+	 * Find all packs within a ref that depend on the given pack.
+	 * 
+	 * @param ContentRefId $refId The ref to search within
+	 * @param int|PackId $packId The pack to check dependents for
+	 * @return array<Pack> Array of Pack objects that depend on the given pack
+	 */
+	public function getPacksDependingOn( ContentRefId $refId, int|PackId $packId ): array {
+		$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+		
+		// Qualify Pack::FIELDS with table alias to avoid ambiguity
+		$qualifiedFields = array_map( fn( $field ) => "p.{$field}", Pack::FIELDS );
+		
+		$res = $dbr->newSelectQueryBuilder()
+			->select( $qualifiedFields )
+			->from( 'labki_pack_dependency', 'd' )
+			->join( 'labki_pack', 'p', 'p.pack_id = d.pack_id' )
+			->where( [
+				'd.depends_on_pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
+				'p.content_ref_id' => $refId->toInt(),
+			] )
+			->caller( __METHOD__ )
+			->fetchResultSet();
+		
+		$dependents = [];
+		foreach ( $res as $row ) {
+			$dependents[] = Pack::fromRow( $row );
+		}
+		
+		return $dependents;
+	}
+
+    /**
+     * Remove all dependencies for a pack.
+     * Called when removing or updating a pack.
+     * 
+     * @param int|PackId $packId
+     */
+    public function removeDependencies( int|PackId $packId ): void {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        
+        $dbw->newDeleteQueryBuilder()
+            ->deleteFrom( 'labki_pack_dependency' )
+            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
+            ->caller( __METHOD__ )
+            ->execute();
+        
+        wfDebugLog( 'Labki', 'Removed dependencies for pack ' . $packId );
+    }
 }
 
 

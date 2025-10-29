@@ -424,6 +424,9 @@ class ApiLabkiPacksRemoveTest extends ApiTestCase {
 		$basePackId = $this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
 		$depPackId = $this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
 
+		// Store dependency in database (DependentPackage depends on BasePackage)
+		$this->packRegistry->storeDependencies( $depPackId, [ $basePackId ] );
+
 		$this->expectException( \ApiUsageException::class );
 
 		// Try to remove BasePackage while DependentPackage still exists
@@ -457,6 +460,9 @@ class ApiLabkiPacksRemoveTest extends ApiTestCase {
 		// Install both packs
 		$basePackId = $this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
 		$depPackId = $this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		// Store dependency in database (DependentPackage depends on BasePackage)
+		$this->packRegistry->storeDependencies( $depPackId, [ $basePackId ] );
 
 		// Remove both together (should succeed)
 		$result = $this->doApiRequest( [

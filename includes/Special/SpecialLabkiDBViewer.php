@@ -41,7 +41,7 @@ final class SpecialLabkiDBViewer extends SpecialPage {
         $table = $req->getText('table', 'labki_content_repo');
         $limit = (int)$req->getInt('limit', 50);
 
-        $tables = ['labki_content_repo', 'labki_content_ref', 'labki_pack', 'labki_page', 'labki_operations'];
+        $tables = ['labki_content_repo', 'labki_content_ref', 'labki_pack', 'labki_pack_dependency','labki_page', 'labki_operations'];
         if ( !in_array($table, $tables, true) ) {
             $output->addHTML('<p>Invalid table.</p>');
             return;

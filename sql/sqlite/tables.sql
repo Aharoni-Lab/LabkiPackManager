@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS labki_page (
 );
 
 -- ===========================================================
+--  labki_pack_dependency: track pack dependencies as installed
+-- ===========================================================
+CREATE TABLE IF NOT EXISTS labki_pack_dependency (
+  pack_id INTEGER NOT NULL,              -- The dependent pack
+  depends_on_pack_id INTEGER NOT NULL,   -- The pack it depends on
+  created_at INTEGER NOT NULL,           -- When this dependency was recorded
+  PRIMARY KEY (pack_id, depends_on_pack_id),
+  FOREIGN KEY (pack_id) 
+    REFERENCES labki_pack (pack_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  FOREIGN KEY (depends_on_pack_id) 
+    REFERENCES labki_pack (pack_id)
+    ON DELETE RESTRICT  -- Prevents deletion if other packs depend on it
+    ON UPDATE CASCADE
+);
+
+-- ===========================================================
 --  Helpful indexes
 -- ===========================================================
 
@@ -91,6 +109,7 @@ CREATE INDEX idx_labki_pack_ref            ON labki_pack (content_ref_id);
 CREATE INDEX idx_labki_page_pack           ON labki_page (pack_id);
 CREATE INDEX idx_labki_page_final_title    ON labki_page (final_title);
 CREATE INDEX idx_labki_page_wiki_page_id   ON labki_page (wiki_page_id);
+CREATE INDEX idx_labki_pack_dependency_depends_on ON labki_pack_dependency (depends_on_pack_id);
 
 -- Performance and metadata indexes
 CREATE INDEX idx_labki_repo_url            ON labki_content_repo (content_repo_url);

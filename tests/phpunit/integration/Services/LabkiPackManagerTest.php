@@ -551,8 +551,11 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		);
 
 		// Install both packs
-		$this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+		$basePackId = $this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
+		$depPackId = $this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		// Store dependency in database (DependentPackage depends on BasePackage)
+		$this->packRegistry->storeDependencies( $depPackId, [ $basePackId ] );
 
 		// Try to remove BasePackage (DependentPackage depends on it)
 		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'BasePackage' ] );
@@ -578,8 +581,11 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		);
 
 		// Install both packs
-		$this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+		$basePackId = $this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
+		$depPackId = $this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		// Store dependency in database
+		$this->packRegistry->storeDependencies( $depPackId, [ $basePackId ] );
 
 		// Try to remove both packs together
 		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'BasePackage', 'DependentPackage' ] );
@@ -605,10 +611,15 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		);
 
 		// Install all packs
-		$this->packRegistry->registerPack( $refId, 'CorePackage', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Dependent3', '1.0.0', 1 );
+		$corePackId = $this->packRegistry->registerPack( $refId, 'CorePackage', '1.0.0', 1 );
+		$dep1PackId = $this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
+		$dep2PackId = $this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
+		$dep3PackId = $this->packRegistry->registerPack( $refId, 'Dependent3', '1.0.0', 1 );
+
+		// Store dependencies in database
+		$this->packRegistry->storeDependencies( $dep1PackId, [ $corePackId ] );
+		$this->packRegistry->storeDependencies( $dep2PackId, [ $corePackId ] );
+		$this->packRegistry->storeDependencies( $dep3PackId, [ $corePackId ] );
 
 		// Try to remove CorePackage
 		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'CorePackage' ] );
@@ -638,9 +649,13 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		);
 
 		// Install all packs
-		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Pack3', '1.0.0', 1 );
+		$pack1Id = $this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$pack2Id = $this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+		$pack3Id = $this->packRegistry->registerPack( $refId, 'Pack3', '1.0.0', 1 );
+
+		// Store dependencies in database (Pack3 -> Pack2 -> Pack1)
+		$this->packRegistry->storeDependencies( $pack2Id, [ $pack1Id ] );
+		$this->packRegistry->storeDependencies( $pack3Id, [ $pack2Id ] );
 
 		// Try to remove Pack1 (Pack2 depends on it)
 		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack1' ] );
@@ -730,10 +745,14 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		);
 
 		// Install all packs
-		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
-		$this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
+		$pack1Id = $this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$pack2Id = $this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+		$dep1Id = $this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
+		$dep2Id = $this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
+
+		// Store dependencies in database
+		$this->packRegistry->storeDependencies( $dep1Id, [ $pack1Id ] );
+		$this->packRegistry->storeDependencies( $dep2Id, [ $pack2Id ] );
 
 		// Try to remove both Pack1 and Pack2 (both have dependents)
 		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack1', 'Pack2' ] );
