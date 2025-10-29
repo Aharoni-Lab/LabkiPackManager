@@ -38,6 +38,7 @@ final class Operation {
 	public const TYPE_PACK_INSTALL = 'pack_install';
 	public const TYPE_PACK_UPDATE = 'pack_update';
 	public const TYPE_PACK_REMOVE = 'pack_remove';
+	public const TYPE_PACK_APPLY = 'pack_apply';
 
     private OperationId $id;
     private string $type;

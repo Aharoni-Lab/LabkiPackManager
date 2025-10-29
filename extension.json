@@ -69,18 +69,15 @@
     "labkiReposSync": "LabkiPackManager\\API\\Repos\\ApiLabkiReposSync",
     "labkiReposRemove": "LabkiPackManager\\API\\Repos\\ApiLabkiReposRemove",
 		"labkiPacksList": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksList",
-		"labkiPacksInstall": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksInstall",
-		"labkiPacksUpdate": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksUpdate",
-		"labkiPacksRemove": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksRemove",
+		"labkiPacksPreview": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksPreview",
+		"labkiPacksApply": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksApply",
 		"labkiOperationsStatus": "LabkiPackManager\\API\\Operations\\ApiLabkiOperationsStatus"
   },
 	"JobClasses": {
 		"labkiRepoAdd": "LabkiPackManager\\Jobs\\LabkiRepoAddJob",
 		"labkiRepoSync": "LabkiPackManager\\Jobs\\LabkiRepoSyncJob",
 		"labkiRepoRemove": "LabkiPackManager\\Jobs\\LabkiRepoRemoveJob",
-		"labkiPackInstall": "LabkiPackManager\\Jobs\\LabkiPackInstallJob",
-		"labkiPackUpdate": "LabkiPackManager\\Jobs\\LabkiPackUpdateJob",
-		"labkiPackRemove": "LabkiPackManager\\Jobs\\LabkiPackRemoveJob"
+		"labkiPackApply": "LabkiPackManager\\Jobs\\LabkiPackApplyJob"
 	},
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",

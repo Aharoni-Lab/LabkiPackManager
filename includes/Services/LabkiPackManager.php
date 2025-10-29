@@ -645,24 +645,83 @@ class LabkiPackManager {
 	 * @param ContentRefId $refId Content ref ID
 	 * @param array $packDef Pack definition with name, version, and pages
 	 * @param int $userId User ID performing the installation
-	 * @param string $worktreePath Path to git worktree
-	 * @param array $rewriteMap Link rewrite map
-	 * @param array $manifestPages Map of page name to file path
+	 * @param string|null $worktreePath Path to git worktree (auto-fetched if null)
+	 * @param array|null $rewriteMap Link rewrite map (auto-built if null)
+	 * @param array|null $manifestPages Map of page name to file path (auto-loaded if null)
 	 * @return array Installation result for this pack
 	 */
-	private function installSinglePack(
+	public function installSinglePack(
 		ContentRefId $refId,
 		array $packDef,
 		int $userId,
-		string $worktreePath,
-		array $rewriteMap,
-		array $manifestPages
+		?string $worktreePath = null,
+		?array $rewriteMap = null,
+		?array $manifestPages = null
 	): array {
 		$packName = $packDef['name'];
 		$version = $packDef['version'] ?? null;
 		$pages = $packDef['pages'] ?? [];
 
 		wfDebugLog( 'labkipack', "Installing pack: {$packName} (version: {$version})" );
+
+		// Auto-fetch worktree path if not provided
+		if ( $worktreePath === null ) {
+			$ref = $this->refRegistry->getRefById( $refId );
+			if ( !$ref ) {
+				return [
+					'success' => false,
+					'pack' => $packName,
+					'error' => "Ref not found: {$refId->toInt()}",
+				];
+			}
+			$worktreePath = $ref->worktreePath();
+			if ( !$worktreePath || !is_dir( $worktreePath ) ) {
+				return [
+					'success' => false,
+					'pack' => $packName,
+					'error' => "Worktree not found for ref {$refId->toInt()}",
+				];
+			}
+		}
+
+		// Auto-load manifest pages if not provided
+		if ( $manifestPages === null ) {
+			$manifestPath = $worktreePath . '/manifest.yml';
+			if ( !file_exists( $manifestPath ) ) {
+				return [
+					'success' => false,
+					'pack' => $packName,
+					'error' => "Manifest not found: {$manifestPath}",
+				];
+			}
+
+			$manifestContent = file_get_contents( $manifestPath );
+			if ( $manifestContent === false ) {
+				return [
+					'success' => false,
+					'pack' => $packName,
+					'error' => "Failed to read manifest: {$manifestPath}",
+				];
+			}
+
+			$manifest = Yaml::parse( $manifestContent );
+			$pagesSection = $manifest['pages'] ?? [];
+			
+			// Convert pages section to flat map of name => file path
+			$manifestPages = [];
+			foreach ( $pagesSection as $pageName => $pageDef ) {
+				if ( is_array( $pageDef ) && isset( $pageDef['file'] ) ) {
+					$manifestPages[$pageName] = $pageDef['file'];
+				} elseif ( is_string( $pageDef ) ) {
+					$manifestPages[$pageName] = $pageDef;
+				}
+			}
+		}
+
+		// Auto-build rewrite map if not provided
+		if ( $rewriteMap === null ) {
+			$rewriteMap = [];
+		}
 
 		// Create/update pack pages in MediaWiki
 		$createdPages = $this->importPackPages(
@@ -677,7 +736,8 @@ class LabkiPackManager {
 		$failedCount = count( $createdPages ) - $successCount;
 
 		// Only register pack if at least some pages were created successfully
-		if ( $successCount === 0 ) {
+		// (or if there were no pages to create at all)
+		if ( $successCount === 0 && count( $pages ) > 0 ) {
 			return [
 				'success' => false,
 				'pack' => $packName,

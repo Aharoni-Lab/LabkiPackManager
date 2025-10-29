@@ -37,6 +37,7 @@ final class LabkiOperationRegistry {
 	public const TYPE_PACK_INSTALL = Operation::TYPE_PACK_INSTALL;
 	public const TYPE_PACK_UPDATE = Operation::TYPE_PACK_UPDATE;
 	public const TYPE_PACK_REMOVE = Operation::TYPE_PACK_REMOVE;
+	public const TYPE_PACK_APPLY = Operation::TYPE_PACK_APPLY;
 
     private IDatabase $dbw;
     private IDatabase $dbr;

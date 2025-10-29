@@ -97,34 +97,6 @@
   "apihelp-labkipackslist-example-pack-pages": "Get pages for a specific pack",
   "apihelp-labkipackslist-example-pack-by-id": "Get pages for a pack by pack ID",
 
-  "labkipackmanager-api-packs-install-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
-  "labkipackmanager-api-packs-install-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
-  "labkipackmanager-api-packs-install-param-refid": "Ref ID. Mutually exclusive with ref.",
-  "labkipackmanager-api-packs-install-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
-	"labkipackmanager-api-packs-install-param-packs": "JSON-encoded array of pack definitions. Each pack must have 'name' and 'pages' fields.",
-	"apihelp-labkipacksinstall-summary": "Install one or more content packs.",
-	"apihelp-labkipacksinstall-description": "Queues a background job to install packs from a repository ref. Returns an operation ID for tracking progress.",
-	"apihelp-labkipacksinstall-example-basic": "Install packs from repository ref",
-
-	"labkipackmanager-api-packs-remove-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
-	"labkipackmanager-api-packs-remove-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
-	"labkipackmanager-api-packs-remove-param-refid": "Ref ID. Mutually exclusive with ref.",
-	"labkipackmanager-api-packs-remove-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
-	"labkipackmanager-api-packs-remove-param-packids": "JSON-encoded array of pack IDs to remove.",
-	"labkipackmanager-api-packs-remove-param-deletepages": "If true, deletes the MediaWiki pages associated with the packs. Default is false (registry only).",
-	"apihelp-labkipacksremove-summary": "Remove/uninstall one or more content packs.",
-	"apihelp-labkipacksremove-description": "Queues a background job to remove packs from a repository ref. Returns an operation ID for tracking progress.",
-	"apihelp-labkipacksremove-example-basic": "Remove packs from repository ref",
-
-	"labkipackmanager-api-packs-update-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
-	"labkipackmanager-api-packs-update-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
-	"labkipackmanager-api-packs-update-param-refid": "Ref ID. Mutually exclusive with ref.",
-	"labkipackmanager-api-packs-update-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
-	"labkipackmanager-api-packs-update-param-packs": "JSON-encoded array of pack definitions. Each pack must have 'name' and optionally 'target_version'.",
-	"apihelp-labkipacksupdate-summary": "Update one or more installed content packs.",
-	"apihelp-labkipacksupdate-description": "Queues a background job to update installed packs to newer versions. Validates version compatibility and dependencies. Returns an operation ID for tracking progress.",
-	"apihelp-labkipacksupdate-example-basic": "Update packs to newer versions",
-
 	"labkipackmanager-error-invalid-pack-ids": "Invalid or empty pack_ids parameter. Must be a JSON-encoded array.",
 	"labkipackmanager-error-invalid-pack-id-format": "Pack ID format is invalid. Each pack_id must be a positive integer.",
 	"labkipackmanager-error-pack-not-found-id": "Pack with ID $1 not found.",
@@ -132,6 +104,31 @@
 	"labkipackmanager-error-pack-has-dependents": "Cannot remove packs: other installed packs depend on them: $1",
 	"labkipackmanager-error-packs-not-installed": "Cannot update packs: the following packs are not installed: $1",
 	"labkipackmanager-error-version-incompatible": "Cannot update packs: version compatibility errors: $1",
-	"labkipackmanager-error-update-dependency-conflict": "Cannot update packs: dependency conflicts detected: $1"
+	"labkipackmanager-error-update-dependency-conflict": "Cannot update packs: dependency conflicts detected: $1",
+
+	"labkipackmanager-api-packs-preview-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
+	"labkipackmanager-api-packs-preview-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
+	"labkipackmanager-api-packs-preview-param-refid": "Ref ID. Mutually exclusive with ref.",
+	"labkipackmanager-api-packs-preview-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
+	"labkipackmanager-api-packs-preview-param-operations": "JSON-encoded array of operations. Each must have 'action' (install/update/remove) and 'pack_name' fields.",
+	"apihelp-labkipackspreview-summary": "Preview pack operations before applying them.",
+	"apihelp-labkipackspreview-description": "Returns a detailed preview of what will happen when installing, updating, or removing packs. Includes dependency resolution, conflict detection, and page-level details.",
+	"apihelp-labkipackspreview-example-basic": "Preview installing a pack",
+
+	"labkipackmanager-api-packs-apply-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
+	"labkipackmanager-api-packs-apply-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
+	"labkipackmanager-api-packs-apply-param-refid": "Ref ID. Mutually exclusive with ref.",
+	"labkipackmanager-api-packs-apply-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
+	"labkipackmanager-api-packs-apply-param-operations": "JSON-encoded array of operations to apply. Each must have 'action', pack identifiers, and resolved page mappings.",
+	"apihelp-labkipacksapply-summary": "Apply batch pack operations (install/update/remove).",
+	"apihelp-labkipacksapply-description": "Queues a unified background job to apply pack operations in a single atomic transaction. Returns an operation ID for tracking progress.",
+	"apihelp-labkipacksapply-example-basic": "Apply pack operations",
+
+	"labkipackmanager-error-invalid-operations": "Invalid or empty operations parameter. Must be a JSON-encoded array.",
+	"labkipackmanager-error-invalid-operation-format": "Operation format is invalid. Each operation must have an 'action' field.",
+	"labkipackmanager-error-invalid-operation-action": "Invalid operation action. Must be 'install', 'update', or 'remove'.",
+	"labkipackmanager-error-operation-missing-pack-name": "Operation is missing required 'pack_name' field.",
+	"labkipackmanager-error-operation-missing-pack-id": "Remove operation is missing required 'pack_id' field.",
+	"labkipackmanager-error-pack-not-in-manifest": "Pack '$1' not found in manifest."
 }
 
