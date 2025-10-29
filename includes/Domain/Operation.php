@@ -31,12 +31,13 @@ final class Operation {
     public const STATUS_SUCCESS = 'success';
     public const STATUS_FAILED = 'failed';
 
-    // Common operation types
-    public const TYPE_REPO_ADD = 'repo_add';
-    public const TYPE_REPO_SYNC = 'repo_sync';
-    public const TYPE_REPO_REMOVE = 'repo_remove';
-    public const TYPE_PACK_INSTALL = 'pack_install';
-    public const TYPE_PACK_UPDATE = 'pack_update';
+	// Common operation types
+	public const TYPE_REPO_ADD = 'repo_add';
+	public const TYPE_REPO_SYNC = 'repo_sync';
+	public const TYPE_REPO_REMOVE = 'repo_remove';
+	public const TYPE_PACK_INSTALL = 'pack_install';
+	public const TYPE_PACK_UPDATE = 'pack_update';
+	public const TYPE_PACK_REMOVE = 'pack_remove';
 
     private OperationId $id;
     private string $type;

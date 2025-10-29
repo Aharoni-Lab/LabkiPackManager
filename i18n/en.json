@@ -101,9 +101,25 @@
   "labkipackmanager-api-packs-install-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
   "labkipackmanager-api-packs-install-param-refid": "Ref ID. Mutually exclusive with ref.",
   "labkipackmanager-api-packs-install-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
-  "labkipackmanager-api-packs-install-param-packs": "JSON-encoded array of pack definitions. Each pack must have 'name' and 'pages' fields.",
-  "apihelp-labkipacksinstall-summary": "Install one or more content packs.",
-  "apihelp-labkipacksinstall-description": "Queues a background job to install packs from a repository ref. Returns an operation ID for tracking progress.",
-  "apihelp-labkipacksinstall-example-basic": "Install packs from repository ref"
+	"labkipackmanager-api-packs-install-param-packs": "JSON-encoded array of pack definitions. Each pack must have 'name' and 'pages' fields.",
+	"apihelp-labkipacksinstall-summary": "Install one or more content packs.",
+	"apihelp-labkipacksinstall-description": "Queues a background job to install packs from a repository ref. Returns an operation ID for tracking progress.",
+	"apihelp-labkipacksinstall-example-basic": "Install packs from repository ref",
+
+	"labkipackmanager-api-packs-remove-param-repoid": "Repository ID. Mutually exclusive with repo_url.",
+	"labkipackmanager-api-packs-remove-param-repourl": "Repository URL. Mutually exclusive with repo_id.",
+	"labkipackmanager-api-packs-remove-param-refid": "Ref ID. Mutually exclusive with ref.",
+	"labkipackmanager-api-packs-remove-param-ref": "Ref name (branch/tag). Mutually exclusive with ref_id.",
+	"labkipackmanager-api-packs-remove-param-packids": "JSON-encoded array of pack IDs to remove.",
+	"labkipackmanager-api-packs-remove-param-deletepages": "If true, deletes the MediaWiki pages associated with the packs. Default is false (registry only).",
+	"apihelp-labkipacksremove-summary": "Remove/uninstall one or more content packs.",
+	"apihelp-labkipacksremove-description": "Queues a background job to remove packs from a repository ref. Returns an operation ID for tracking progress.",
+	"apihelp-labkipacksremove-example-basic": "Remove packs from repository ref",
+
+	"labkipackmanager-error-invalid-pack-ids": "Invalid or empty pack_ids parameter. Must be a JSON-encoded array.",
+	"labkipackmanager-error-invalid-pack-id-format": "Pack ID format is invalid. Each pack_id must be a positive integer.",
+	"labkipackmanager-error-pack-not-found-id": "Pack with ID $1 not found.",
+	"labkipackmanager-error-pack-wrong-ref": "Pack '$1' does not belong to the specified ref.",
+	"labkipackmanager-error-pack-has-dependents": "Cannot remove packs: other installed packs depend on them: $1"
 }
 

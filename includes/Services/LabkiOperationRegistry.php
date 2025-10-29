@@ -31,11 +31,12 @@ final class LabkiOperationRegistry {
     public const STATUS_SUCCESS = Operation::STATUS_SUCCESS;
     public const STATUS_FAILED = Operation::STATUS_FAILED;
 
-    public const TYPE_REPO_ADD = Operation::TYPE_REPO_ADD;
-    public const TYPE_REPO_SYNC = Operation::TYPE_REPO_SYNC;
-    public const TYPE_REPO_REMOVE = Operation::TYPE_REPO_REMOVE;
-    public const TYPE_PACK_INSTALL = Operation::TYPE_PACK_INSTALL;
-    public const TYPE_PACK_UPDATE = Operation::TYPE_PACK_UPDATE;
+	public const TYPE_REPO_ADD = Operation::TYPE_REPO_ADD;
+	public const TYPE_REPO_SYNC = Operation::TYPE_REPO_SYNC;
+	public const TYPE_REPO_REMOVE = Operation::TYPE_REPO_REMOVE;
+	public const TYPE_PACK_INSTALL = Operation::TYPE_PACK_INSTALL;
+	public const TYPE_PACK_UPDATE = Operation::TYPE_PACK_UPDATE;
+	public const TYPE_PACK_REMOVE = Operation::TYPE_PACK_REMOVE;
 
     private IDatabase $dbw;
     private IDatabase $dbr;

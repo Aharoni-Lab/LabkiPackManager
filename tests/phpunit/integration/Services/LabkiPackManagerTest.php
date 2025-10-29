@@ -509,5 +509,241 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertFalse( $result['success'] );
 		$this->assertArrayHasKey( 'error', $result );
 	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_NoDependencies_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with independent packs
+		$this->createTestManifest(
+			[
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [] ],
+			],
+			[]
+		);
+
+		// Install both packs
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+
+		// Try to remove Pack1 (no dependencies)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack1' ] );
+
+		$this->assertEmpty( $blockingDeps, 'Should have no blocking dependencies' );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_WithBlockingDependency_ReturnsDependents(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with dependencies
+		$this->createTestManifest(
+			[
+				'BasePackage' => [ 'name' => 'BasePackage', 'depends_on' => [] ],
+				'DependentPackage' => [ 'name' => 'DependentPackage', 'depends_on' => [ 'BasePackage' ] ],
+			],
+			[]
+		);
+
+		// Install both packs
+		$this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		// Try to remove BasePackage (DependentPackage depends on it)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'BasePackage' ] );
+
+		$this->assertNotEmpty( $blockingDeps, 'Should have blocking dependencies' );
+		$this->assertArrayHasKey( 'BasePackage', $blockingDeps );
+		$this->assertContains( 'DependentPackage', $blockingDeps['BasePackage'] );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_RemovingBothDependentAndDependency_ReturnsEmpty(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with dependencies
+		$this->createTestManifest(
+			[
+				'BasePackage' => [ 'name' => 'BasePackage', 'depends_on' => [] ],
+				'DependentPackage' => [ 'name' => 'DependentPackage', 'depends_on' => [ 'BasePackage' ] ],
+			],
+			[]
+		);
+
+		// Install both packs
+		$this->packRegistry->registerPack( $refId, 'BasePackage', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'DependentPackage', '1.0.0', 1 );
+
+		// Try to remove both packs together
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'BasePackage', 'DependentPackage' ] );
+
+		$this->assertEmpty( $blockingDeps, 'Should have no blocking dependencies when removing both' );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_WithMultipleDependents_ReturnsAllDependents(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with multiple dependents
+		$this->createTestManifest(
+			[
+				'CorePackage' => [ 'name' => 'CorePackage', 'depends_on' => [] ],
+				'Dependent1' => [ 'name' => 'Dependent1', 'depends_on' => [ 'CorePackage' ] ],
+				'Dependent2' => [ 'name' => 'Dependent2', 'depends_on' => [ 'CorePackage' ] ],
+				'Dependent3' => [ 'name' => 'Dependent3', 'depends_on' => [ 'CorePackage' ] ],
+			],
+			[]
+		);
+
+		// Install all packs
+		$this->packRegistry->registerPack( $refId, 'CorePackage', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Dependent3', '1.0.0', 1 );
+
+		// Try to remove CorePackage
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'CorePackage' ] );
+
+		$this->assertNotEmpty( $blockingDeps );
+		$this->assertArrayHasKey( 'CorePackage', $blockingDeps );
+		$this->assertCount( 3, $blockingDeps['CorePackage'], 'Should list all three dependents' );
+		$this->assertContains( 'Dependent1', $blockingDeps['CorePackage'] );
+		$this->assertContains( 'Dependent2', $blockingDeps['CorePackage'] );
+		$this->assertContains( 'Dependent3', $blockingDeps['CorePackage'] );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_WithChainedDependencies_ReturnsCorrectDependents(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with chained dependencies: Pack3 -> Pack2 -> Pack1
+		$this->createTestManifest(
+			[
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [ 'Pack1' ] ],
+				'Pack3' => [ 'name' => 'Pack3', 'depends_on' => [ 'Pack2' ] ],
+			],
+			[]
+		);
+
+		// Install all packs
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Pack3', '1.0.0', 1 );
+
+		// Try to remove Pack1 (Pack2 depends on it)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack1' ] );
+
+		$this->assertNotEmpty( $blockingDeps );
+		$this->assertArrayHasKey( 'Pack1', $blockingDeps );
+		$this->assertContains( 'Pack2', $blockingDeps['Pack1'] );
+
+		// Try to remove Pack2 (Pack3 depends on it)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack2' ] );
+
+		$this->assertNotEmpty( $blockingDeps );
+		$this->assertArrayHasKey( 'Pack2', $blockingDeps );
+		$this->assertContains( 'Pack3', $blockingDeps['Pack2'] );
+
+		// Try to remove Pack3 (nothing depends on it)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack3' ] );
+
+		$this->assertEmpty( $blockingDeps, 'Pack3 has no dependents' );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_OnlyChecksInstalledPacks_IgnoresUninstalled(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with dependencies
+		$this->createTestManifest(
+			[
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [ 'Pack1' ] ],
+			],
+			[]
+		);
+
+		// Install only Pack1 (Pack2 is in manifest but not installed)
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+
+		// Try to remove Pack1 (Pack2 is not installed, so no blocking dependency)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack1' ] );
+
+		$this->assertEmpty( $blockingDeps, 'Should ignore uninstalled packs' );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_WithInvalidRef_ReturnsEmpty(): void {
+		$invalidRefId = new ContentRefId( 99999 );
+
+		$blockingDeps = $this->packManager->validatePackRemoval( $invalidRefId, [ 'SomePack' ] );
+
+		$this->assertEmpty( $blockingDeps, 'Should return empty for invalid ref' );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_WithMissingWorktree_ReturnsEmpty(): void {
+		// Create ref without worktree
+		$repoId = $this->repoRegistry->ensureRepoEntry( 'https://example.com/test-repo' );
+		$refId = $this->refRegistry->ensureRefEntry( $repoId, 'main', [
+			'worktree_path' => '/nonexistent/path',
+		] );
+
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'SomePack' ] );
+
+		$this->assertEmpty( $blockingDeps, 'Should return empty when worktree is missing' );
+	}
+
+	/**
+	 * @covers ::validatePackRemoval
+	 */
+	public function testValidatePackRemoval_WithMultiplePacksToRemove_ChecksAll(): void {
+		$refId = $this->createTestRef();
+		
+		// Create manifest with complex dependencies
+		$this->createTestManifest(
+			[
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [] ],
+				'Dependent1' => [ 'name' => 'Dependent1', 'depends_on' => [ 'Pack1' ] ],
+				'Dependent2' => [ 'name' => 'Dependent2', 'depends_on' => [ 'Pack2' ] ],
+			],
+			[]
+		);
+
+		// Install all packs
+		$this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Dependent1', '1.0.0', 1 );
+		$this->packRegistry->registerPack( $refId, 'Dependent2', '1.0.0', 1 );
+
+		// Try to remove both Pack1 and Pack2 (both have dependents)
+		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'Pack1', 'Pack2' ] );
+
+		$this->assertNotEmpty( $blockingDeps );
+		$this->assertCount( 2, $blockingDeps, 'Should have blocking dependencies for both packs' );
+		$this->assertArrayHasKey( 'Pack1', $blockingDeps );
+		$this->assertArrayHasKey( 'Pack2', $blockingDeps );
+		$this->assertContains( 'Dependent1', $blockingDeps['Pack1'] );
+		$this->assertContains( 'Dependent2', $blockingDeps['Pack2'] );
+	}
 }
 
