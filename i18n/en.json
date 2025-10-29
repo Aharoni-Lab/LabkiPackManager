@@ -55,6 +55,11 @@
   "labkipackmanager-error-invalid-url": "The provided URL is not a valid repository URL.",
   "labkipackmanager-error-invalid-protocol": "The URL protocol is not supported. Use https, http, git, or ssh.",
   "labkipackmanager-error-repo-multiple-identifiers": "Cannot specify both repo_id and repo_url. Please provide only one identifier.",
+  "labkipackmanager-error-ref-multiple-identifiers": "Cannot specify both ref_id and ref. Please provide only one identifier.",
+  "labkipackmanager-error-pack-multiple-identifiers": "Cannot specify both pack_id and pack. Please provide only one identifier.",
+  "labkipackmanager-error-ref-requires-repo": "A repository must be specified (repo_id or repo_url) when filtering by ref.",
+  "labkipackmanager-error-pack-requires-ref": "A ref must be specified (ref_id or ref) when filtering by pack name.",
+  "labkipackmanager-error-ref-not-found": "The specified ref could not be found.",
 
   "labkipackmanager-action-install": "Installing pack...",
   "labkipackmanager-action-remove": "Removing pack...",
@@ -67,5 +72,22 @@
   "apihelp-labkireposlist-description": "Returns information about configured content repositories, including their associated refs (branches/tags), sync status, and metadata.",
   "apihelp-labkireposlist-example-all": "List all content repositories with their refs",
   "apihelp-labkireposlist-example-by-id": "Get details for repository with ID 1",
-  "apihelp-labkireposlist-example-by-url": "Get details for repository by URL"
+  "apihelp-labkireposlist-example-by-url": "Get details for repository by URL",
+
+  "labkipackmanager-api-packs-list-param-repoid": "Optional repository ID to filter packs. Mutually exclusive with repo_url.",
+  "labkipackmanager-api-packs-list-param-repourl": "Optional repository URL to filter packs. The URL will be normalized before lookup. Mutually exclusive with repo_id.",
+  "labkipackmanager-api-packs-list-param-refid": "Optional ref ID to filter packs. Mutually exclusive with ref. Requires a repository to be specified.",
+  "labkipackmanager-api-packs-list-param-ref": "Optional ref name (branch/tag) to filter packs. Mutually exclusive with ref_id. Requires a repository to be specified.",
+  "labkipackmanager-api-packs-list-param-packid": "Optional pack ID to filter to a specific pack. Mutually exclusive with pack.",
+  "labkipackmanager-api-packs-list-param-pack": "Optional pack name to filter to a specific pack. Mutually exclusive with pack_id. Requires ref to be specified.",
+  "labkipackmanager-api-packs-list-param-includepages": "If true, includes page data nested within each pack. Default is false (pack metadata only).",
+  "apihelp-labkipackslist-summary": "List and query installed content packs.",
+  "apihelp-labkipackslist-description": "Returns information about installed content packs, including their pages, metadata, and installation status. Can be filtered by repository, ref, or specific pack.",
+  "apihelp-labkipackslist-example-all": "List all installed packs across all repositories and refs",
+  "apihelp-labkipackslist-example-by-repo-id": "Get packs for repository with ID 1",
+  "apihelp-labkipackslist-example-by-repo-url": "Get packs for repository by URL",
+  "apihelp-labkipackslist-example-by-ref": "Get packs for a specific ref (by name)",
+  "apihelp-labkipackslist-example-by-ref-id": "Get packs for a specific ref (by ID)",
+  "apihelp-labkipackslist-example-pack-pages": "Get pages for a specific pack",
+  "apihelp-labkipackslist-example-pack-by-id": "Get pages for a pack by pack ID"
 }

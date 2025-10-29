@@ -84,10 +84,66 @@ GET api.php?action=labkiManifestGet&repo_id=1&ref=main&format=json
 ### Packs
 
 #### `labkiPacksList` (GET)
-List all installed packs with their pages.
+List and query installed packs with optional filtering. Always returns consistent structure with packs array.
 
+**List all packs (metadata only):**
 ```http
 GET api.php?action=labkiPacksList&format=json
+```
+
+**List all packs with page data:**
+```http
+GET api.php?action=labkiPacksList&include_pages=true&format=json
+```
+
+**Get packs for a specific repository:**
+```http
+GET api.php?action=labkiPacksList&repo_id=1&format=json
+GET api.php?action=labkiPacksList&repo_url=https://github.com/user/repo&format=json
+```
+
+**Get packs for a specific ref:**
+```http
+GET api.php?action=labkiPacksList&repo_id=1&ref=main&format=json
+GET api.php?action=labkiPacksList&repo_id=1&ref_id=5&format=json
+```
+
+**Get a specific pack:**
+```http
+GET api.php?action=labkiPacksList&pack_id=10&format=json
+GET api.php?action=labkiPacksList&repo_id=1&ref=main&pack=MyPack&format=json
+```
+
+**Get a specific pack with pages:**
+```http
+GET api.php?action=labkiPacksList&pack_id=10&include_pages=true&format=json
+```
+
+**Parameters:**
+- `repo_id` (int, optional): Repository ID. Mutually exclusive with `repo_url`.
+- `repo_url` (string, optional): Repository URL. Mutually exclusive with `repo_id`.
+- `ref_id` (int, optional): Ref ID. Mutually exclusive with `ref`. Requires `repo_id` or `repo_url`.
+- `ref` (string, optional): Ref name (branch/tag). Mutually exclusive with `ref_id`. Requires `repo_id` or `repo_url`.
+- `pack_id` (int, optional): Pack ID to filter to specific pack. Mutually exclusive with `pack`.
+- `pack` (string, optional): Pack name to filter to specific pack. Mutually exclusive with `pack_id`. Requires `ref` or `ref_id`.
+- `include_pages` (boolean, optional): If true, includes page data nested within each pack. Default is false.
+
+**Response Structure (consistent for all query modes):**
+```json
+{
+  "packs": [
+    {
+      "pack_id": 10,
+      "name": "MyPack",
+      "page_count": 5,
+      "pages": [...]  // Only if include_pages=true
+    }
+  ],
+  "meta": {
+    "schemaVersion": 1,
+    "timestamp": "20251024120000"
+  }
+}
 ```
 
 #### `labkiPacksPreview` (POST)
