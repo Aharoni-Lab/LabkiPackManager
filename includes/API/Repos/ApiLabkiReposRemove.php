@@ -33,13 +33,13 @@ use MediaWiki\Title\Title;
  *
  * Remove entire repository:
  * ```
- * POST api.php?action=labkiReposRemove&url=https://github.com/Aharoni-Lab/labki-packs
+ * POST api.php?action=labkiReposRemove&repo_url=https://github.com/Aharoni-Lab/labki-packs
  * ```
  *
  * Remove specific refs:
  * ```
  * POST api.php?action=labkiReposRemove
- *   &url=https://github.com/Aharoni-Lab/labki-packs
+ *   &repo_url=https://github.com/Aharoni-Lab/labki-packs
  *   &refs=v1.0.0|v2.0.0
  * ```
  *
@@ -75,38 +75,21 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 	/** Execute the API request. */
 	public function execute(): void {
 		$this->requireManagePermission();
+
 		$params = $this->extractRequestParams();
 
-		$url = trim( (string)( $params['url'] ?? '' ) );
+		$repoUrl = trim( (string)( $params['repo_url'] ) );
+		$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
 		$refs = $params['refs'] ?? null;
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposRemove::execute() url={$url}, refs=" . json_encode( $refs ) );
-
-		if ( $url === '' ) {
-			$this->dieWithError( [ 'apierror-missingparam', 'url' ], 'missing_url' );
-		}
-
-		// Normalize and validate
-		$normalizedUrl = $this->validateAndNormalizeUrl( $url );
-
-		// Verify repository exists
-		$repoRegistry = $this->getRepoRegistry();
-		$repo = $repoRegistry->getRepo( $normalizedUrl );
-		if ( $repo === null ) {
+		// Check if repository exists
+		$repoRegistry = new LabkiRepoRegistry();
+		if ( $repoRegistry->getRepo( $repoUrl ) === null ) {
 			$this->dieWithError( 'labkipackmanager-error-repo-not-found', 'repo_not_found' );
 		}
 
-		// Validate refs if provided
-		if ( $refs !== null && !is_array( $refs ) ) {
-			$this->dieWithError( [ 'apierror-badvalue', 'refs' ], 'invalid_refs' );
-		}
-
-		if ( $refs !== null && empty( $refs ) ) {
-			$this->dieWithError( [ 'apierror-missingparam', 'refs' ], 'empty_refs' );
-		}
-
 		// Create operation record
-		$operationIdStr = 'repo_remove_' . substr( md5( $normalizedUrl . microtime() ), 0, 8 );
+		$operationIdStr = 'repo_remove_' . substr( md5( $repoUrl . microtime() ), 0, 8 );
 		$operationId = new OperationId( $operationIdStr );
 		$userId = $this->getUser()->getId();
 
@@ -125,7 +108,7 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 
 		// Queue the removal job
 		$jobParams = [
-			'url' => $normalizedUrl,
+			'repo_url' => $repoUrl,
 			'refs' => $refs,
 			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
@@ -135,22 +118,13 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 		$job = new LabkiRepoRemoveJob( $title, $jobParams );
 		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposRemove: queued removal job with operation_id={$operationIdStr}" );
-
 		// Return response
 		$result = $this->getResult();
 		$result->addValue( null, 'success', true );
 		$result->addValue( null, 'operation_id', $operationIdStr );
 		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
-		$result->addValue( null, 'message', $refs !== null
-			? 'Repository removal queued for ' . count( $refs ) . ' ref(s)'
-			: 'Repository removal queued'
-		);
-		
-		if ( $refs !== null ) {
-			$result->addValue( null, 'refs', $refs );
-		}
-		
+		$result->addValue( null, 'message', $message);		
+		$result->addValue( null, 'refs', $refs );
 		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
@@ -160,7 +134,7 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 	/** @inheritDoc */
 	public function getAllowedParams(): array {
 		return [
-			'url' => [
+			'repourl' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => true,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-repos-remove-param-url',

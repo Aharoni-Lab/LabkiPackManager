@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace LabkiPackManager\API\Repos;
 
 use Wikimedia\ParamValidator\ParamValidator;
+use LabkiPackManager\Services\LabkiRefRegistry;
+use LabkiPackManager\Services\LabkiRepoRegistry;
+use LabkiPackManager\Domain\ContentRepo;
 
 /**
  * API endpoint to list and query content repositories.
@@ -19,17 +22,12 @@ use Wikimedia\ParamValidator\ParamValidator;
  * api.php?action=labkiReposList&format=json
  * ```
  *
- * Get single repository by ID:
- * ```
- * api.php?action=labkiReposList&repo_id=1&format=json
- * ```
- *
  * Get single repository by URL:
  * ```
  * api.php?action=labkiReposList&repo_url=https://github.com/user/repo&format=json
  * ```
  *
- * Note: repo_id and repo_url are mutually exclusive - only provide one.
+ * Note: Only repo_url parameter is supported for single repository queries.
  *
  * ## Response Structure
  *
@@ -82,7 +80,6 @@ class ApiLabkiReposList extends RepoApiBase {
 	 * @param string $name Module name
 	 */
 	public function __construct( \ApiMain $main, string $name ) {
-		wfDebugLog( 'labkipack', "ApiLabkiReposList::__construct() called with name={$name}" );
 		parent::__construct( $main, $name );
 	}
 
@@ -91,42 +88,24 @@ class ApiLabkiReposList extends RepoApiBase {
 	 *
 	 * Main entry point for the API. Handles:
 	 * - Listing all repositories (no parameters)
-	 * - Fetching a single repository by ID (repo_id parameter)
 	 * - Fetching a single repository by URL (repo_url parameter)
-	 *
-	 * Note: repo_id and repo_url are mutually exclusive.
 	 */
-	public function execute(): void {
-		wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() started" );
-		
+	public function execute(): void {		
+		$this->requireManagePermission();
 		// Get parameters
-		$repoId = $this->getParameter( 'repo_id' );
 		$repoUrl = $this->getParameter( 'repo_url' );
 		
-		wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() repoId={$repoId}, repoUrl={$repoUrl}" );
-
-		// Validate: only one identifier should be provided
-		if ( $repoId !== null && $repoUrl !== null ) {
-			$this->dieWithError(
-				'labkipackmanager-error-repo-multiple-identifiers',
-				'multiple_identifiers'
-			);
-		}
+		wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() repoUrl={$repoUrl}" );
 
 		// Fetch repository data
-		if ( $repoId !== null ) {
-			wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() fetching single repo by ID" );
-			$repos = $this->getSingleRepo( $repoId );
-		} elseif ( $repoUrl !== null ) {
-			wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() fetching single repo by URL" );
-			$normalizedUrl = $this->validateAndNormalizeUrl( $repoUrl );
-			$repos = $this->getSingleRepo( $normalizedUrl );
+		if ( $repoUrl !== null ) {
+			// Fetch single repository
+			$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
+			$repos = $this->getSingleRepo( $repoUrl );
 		} else {
-			wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() fetching all repos" );
+			// Fetch all repositories
 			$repos = $this->getAllRepos();
 		}
-
-		wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() found " . count( $repos ) . " repos" );
 
 		// Build response
 		$result = $this->getResult();
@@ -135,8 +114,6 @@ class ApiLabkiReposList extends RepoApiBase {
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		] );
-		
-		wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() completed successfully" );
 	}
 
 	/**
@@ -150,15 +127,15 @@ class ApiLabkiReposList extends RepoApiBase {
 	 * @return array Array of repository data structures
 	 */
 	private function getAllRepos(): array {
-		$repoRegistry = $this->getRepoRegistry();
-		$refRegistry = $this->getRefRegistry();
+		$repoRegistry = new LabkiRepoRegistry();
+		$refRegistry = new LabkiRefRegistry();
 
 		// Get all repositories
 		$repos = $repoRegistry->listRepos();
 		$result = [];
 
 		foreach ( $repos as $repo ) {
-			$repoData = $this->buildRepoData( $repo, $refRegistry );
+			$repoData = $this->buildRepoData( $repo );
 			$result[] = $repoData;
 		}
 
@@ -168,23 +145,26 @@ class ApiLabkiReposList extends RepoApiBase {
 	/**
 	 * Get a single repository by ID or URL.
 	 *
-	 * @param int|string $identifier Repository ID or URL to fetch
+	 * @param string $repoUrl Repository URL to fetch
 	 * @return array Array containing single repository data, or empty array if not found
 	 */
-	private function getSingleRepo( int|string $identifier ): array {
-		$repoRegistry = $this->getRepoRegistry();
-		$refRegistry = $this->getRefRegistry();
+	private function getSingleRepo( string $repoUrl ): array {
+		$repoRegistry = new LabkiRepoRegistry();
+		$refRegistry = new LabkiRefRegistry();
 
-		// Get repository (works with int ID or string URL)
-		$repo = $repoRegistry->getRepo( $identifier );
+		// Get repository
+		$repo = $repoRegistry->getRepo( $repoUrl );
 		if ( $repo === null ) {
-			wfDebugLog( 'labkipack', "Repository with identifier '{$identifier}' not found" );
+			wfDebugLog( 'labkipack', "Repository with identifier '{$repoUrl}' not found" );
 			return [];
 		}
 
-		$repoData = $this->buildRepoData( $repo, $refRegistry );
+		$repoData = $this->buildRepoData( $repo );
 		return [ $repoData ];
 	}
+
+	// TODO: Do this more efficiently by using a single query to get all repos and refs.
+	// I don't know sql well enough to do this, so I'm leaving it for now.
 
 	/**
 	 * Build complete repository data structure.
@@ -194,20 +174,16 @@ class ApiLabkiReposList extends RepoApiBase {
 	 * - All associated refs with their metadata
 	 * - Computed timestamps (last_synced from most recent ref)
 	 *
-	 * @param \LabkiPackManager\Domain\ContentRepo $repo Repository domain object
-	 * @param \LabkiPackManager\Services\LabkiRefRegistry $refRegistry Ref registry for fetching refs
+	 * @param ContentRepo $repo Repository domain object
 	 * @return array Complete repository data structure
 	 */
-	private function buildRepoData(
-		\LabkiPackManager\Domain\ContentRepo $repo,
-		\LabkiPackManager\Services\LabkiRefRegistry $refRegistry
-	): array {
+	private function buildRepoData(ContentRepo $repo): array {
 		$repoId = $repo->id();
-
+		$refRegistry = new LabkiRefRegistry();
+		
 		// Get all refs for this repository
 		$refs = $refRegistry->listRefsForRepo( $repoId );
 		$refsData = [];
-		$mostRecentSync = null;
 
 		foreach ( $refs as $ref ) {
 			$refData = [
@@ -223,26 +199,16 @@ class ApiLabkiReposList extends RepoApiBase {
 			];
 
 			$refsData[] = $refData;
-
-			// Track most recent sync time across all refs
-			if ( $ref->updatedAt() !== null ) {
-				$refTimestamp = \wfTimestamp( TS_UNIX, $ref->updatedAt() );
-				$mostRecentTimestamp = $mostRecentSync !== null ? \wfTimestamp( TS_UNIX, $mostRecentSync ) : null;
-				if ( $mostRecentTimestamp === null || $refTimestamp > $mostRecentTimestamp ) {
-					$mostRecentSync = $ref->updatedAt();
-				}
-			}
 		}
 
 		// Build final repository data structure
 		return [
 			'repo_id' => $repoId->toInt(),
-			'url' => $repo->url(),
+			'repo_url' => $repo->url(),
 			'default_ref' => $repo->defaultRef(),
 			'last_fetched' => $repo->lastFetched(),
 			'refs' => $refsData,
 			'ref_count' => count( $refsData ),
-			'last_synced' => $mostRecentSync ?? $repo->lastFetched(),
 			'created_at' => $repo->createdAt(),
 			'updated_at' => $repo->updatedAt(),
 		];
@@ -261,11 +227,6 @@ class ApiLabkiReposList extends RepoApiBase {
 	 */
 	public function getAllowedParams(): array {
 		return [
-			'repo_id' => [
-				ParamValidator::PARAM_TYPE => 'integer',
-				ParamValidator::PARAM_REQUIRED => false,
-				self::PARAM_HELP_MSG => 'labkipackmanager-api-repos-list-param-repoid',
-			],
 			'repo_url' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => false,
@@ -286,8 +247,6 @@ class ApiLabkiReposList extends RepoApiBase {
 		return [
 			'action=labkiReposList'
 				=> 'apihelp-labkireposlist-example-all',
-			'action=labkiReposList&repo_id=1'
-				=> 'apihelp-labkireposlist-example-by-id',
 			'action=labkiReposList&repo_url=https://github.com/Aharoni-Lab/labki-packs'
 				=> 'apihelp-labkireposlist-example-by-url',
 		];

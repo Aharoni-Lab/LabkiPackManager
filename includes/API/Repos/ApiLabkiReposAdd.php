@@ -65,7 +65,6 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 
 	/** @inheritDoc */
 	public function __construct( \ApiMain $main, string $name ) {
-		wfDebugLog( 'labkipack', "ApiLabkiReposAdd::__construct() called with name={$name}" );
 		parent::__construct( $main, $name );
 	}
 
@@ -77,9 +76,9 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 		$params = $this->extractRequestParams();
 
         // Trim, validate, normalize, and verify accessibility of URL
-		$repo_url = trim( (string)( $params['repo_url'] ?? '' ) );
-		$repo_url = $this->validateAndNormalizeUrl( $repo_url );
-		if ( !$this->verifyGitUrlAccessible( $repo_url ) ) {
+		$repoUrl = trim( (string)( $params['repo_url'] ?? '' ) );
+		$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
+		if ( !$this->verifyGitUrlAccessible( $repoUrl ) ) {
 			$this->dieWithError( 'labkipackmanager-error-unreachable-repo', 'unreachable_repo' );
 		}
 
@@ -98,21 +97,20 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			}
 		}
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposAdd::execute() repo_url={$repo_url}, default_ref={$defaultRef}" );
+		wfDebugLog( 'labkipack', "ApiLabkiReposAdd::execute() repoUrl={$repoUrl}, default_ref={$defaultRef}" );
 
 		// Check if repo exists and if any refs are missing
-		$repoRegistry = $this->getRepoRegistry();
-		$existingRepo = $repoRegistry->getRepo( $repo_url );
-
-        // Determine if any work is needed
+		$repoRegistry = new LabkiRepoRegistry();
 		$needsWork = false;
-		if ( $existingRepo === null ) {
+		
+		// Determine if repo exists and if any refs are missing
+		if ( $repoRegistry->getRepo( $repoUrl ) === null ) {
 			// Repo doesn't exist - needs full initialization
 			$needsWork = true;
 		} else {
 			// Repo exists - check if any refs are missing
 			$refRegistry = new LabkiRefRegistry();
-			$repoId = $repoRegistry->getRepoId( $repo_url );
+			$repoId = $repoRegistry->getRepoId( $repoUrl );
 			
 			foreach ( $refs as $ref ) {
 				$existingRefId = $refRegistry->getRefIdByRepoAndRef( $repoId, $ref );
@@ -138,7 +136,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 		}
 
         // If work is needed, queue the job
-		$operationIdStr = 'repo_add_' . substr( md5( $repo_url . microtime() ), 0, 8 );
+		$operationIdStr = 'repo_add_' . substr( md5( $repoUrl . microtime() ), 0, 8 );
 		$operationId = new OperationId( $operationIdStr );
 		$userId = $this->getUser()->getId();
 
@@ -154,7 +152,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 
 		// Queue background job
 		$jobParams = [
-			'repo_url' => $repo_url,
+			'repo_url' => $repoUrl,
 			'refs' => $refs,
 			'default_ref' => $defaultRef,
 			'operation_id' => $operationIdStr,

@@ -69,7 +69,6 @@ use MediaWiki\Title\Title;
 final class ApiLabkiReposSync extends RepoApiBase {
 
 	public function __construct( \ApiMain $main, string $name ) {
-		wfDebugLog( 'labkipack', "ApiLabkiReposSync::__construct() called with name={$name}" );
 		parent::__construct( $main, $name );
 	}
 
@@ -78,36 +77,18 @@ final class ApiLabkiReposSync extends RepoApiBase {
 		$this->requireManagePermission();
 		$params = $this->extractRequestParams();
 
-		$url = trim( (string)( $params['url'] ?? '' ) );
+		$repoUrl = trim( (string)( $params['repo_url'] ) );
+		$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
 		$refs = $params['refs'] ?? null;
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposSync::execute() url={$url}, refs=" . json_encode( $refs ) );
-
-		if ( $url === '' ) {
-			$this->dieWithError( [ 'apierror-missingparam', 'url' ], 'missing_url' );
-		}
-
-		// Normalize and validate
-		$normalizedUrl = $this->validateAndNormalizeUrl( $url );
-
-		// Verify repository exists
-		$repoRegistry = $this->getRepoRegistry();
-		$repo = $repoRegistry->getRepo( $normalizedUrl );
-		if ( $repo === null ) {
+		// Check if repository exists
+		$repoRegistry = new LabkiRepoRegistry();
+		if ( $repoRegistry->getRepo( $repoUrl ) === null ) {
 			$this->dieWithError( 'labkipackmanager-error-repo-not-found', 'repo_not_found' );
 		}
 
-		// Validate refs if provided
-		if ( $refs !== null && !is_array( $refs ) ) {
-			$this->dieWithError( [ 'apierror-badvalue', 'refs' ], 'invalid_refs' );
-		}
-
-		if ( $refs !== null && empty( $refs ) ) {
-			$this->dieWithError( [ 'apierror-missingparam', 'refs' ], 'empty_refs' );
-		}
-
 		// Create operation record
-		$operationIdStr = 'repo_sync_' . substr( md5( $normalizedUrl . microtime() ), 0, 8 );
+		$operationIdStr = 'repo_sync_' . substr( md5( $repoUrl . microtime() ), 0, 8 );
 		$operationId = new OperationId( $operationIdStr );
 		$userId = $this->getUser()->getId();
 
@@ -126,7 +107,7 @@ final class ApiLabkiReposSync extends RepoApiBase {
 
 		// Queue the sync job
 		$jobParams = [
-			'url' => $normalizedUrl,
+			'repo_url' => $repoUrl,
 			'refs' => $refs,
 			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
@@ -136,22 +117,13 @@ final class ApiLabkiReposSync extends RepoApiBase {
 		$job = new LabkiRepoSyncJob( $title, $jobParams );
 		MediaWikiServices::getInstance()->getJobQueueGroup()->push( $job );
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposSync: queued sync job with operation_id={$operationIdStr}" );
-
 		// Return response
 		$result = $this->getResult();
 		$result->addValue( null, 'success', true );
 		$result->addValue( null, 'operation_id', $operationIdStr );
 		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
-		$result->addValue( null, 'message', $refs !== null
-			? 'Repository sync queued for ' . count( $refs ) . ' ref(s)'
-			: 'Repository sync queued for all refs'
-		);
-		
-		if ( $refs !== null ) {
-			$result->addValue( null, 'refs', $refs );
-		}
-		
+		$result->addValue( null, 'message', $message);
+		$result->addValue( null, 'refs', $refs );
 		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
@@ -161,10 +133,10 @@ final class ApiLabkiReposSync extends RepoApiBase {
 	/** @inheritDoc */
 	public function getAllowedParams(): array {
 		return [
-			'url' => [
+			'repo_url' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => true,
-				self::PARAM_HELP_MSG => 'labkipackmanager-api-repos-sync-param-url',
+				self::PARAM_HELP_MSG => 'labkipackmanager-api-repos-sync-param-repo_url',
 			],
 			'refs' => [
 				ParamValidator::PARAM_TYPE => 'string',
@@ -178,9 +150,9 @@ final class ApiLabkiReposSync extends RepoApiBase {
 	/** @inheritDoc */
 	protected function getExamplesMessages(): array {
 		return [
-			'action=labkiReposSync&url=https://github.com/example/repo'
+			'action=labkiReposSync&repo_url=https://github.com/example/repo'
 				=> 'apihelp-labkireposync-example-sync-repo',
-			'action=labkiReposSync&url=https://github.com/example/repo&refs=main|v2.0.0'
+			'action=labkiReposSync&repo_url=https://github.com/example/repo&refs=main|v2.0.0'
 				=> 'apihelp-labkireposync-example-sync-refs',
 		];
 	}
