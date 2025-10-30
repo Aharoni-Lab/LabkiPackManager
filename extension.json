@@ -63,7 +63,6 @@
     "labkiManifestGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiManifestGet",
     "labkiHierarchyGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiHierarchyGet",
     "labkiGraphGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiGraphGet",
-    "labkiPagesExists": "LabkiPackManager\\API\\Pages\\ApiLabkiPagesExists",
     "labkiReposList": "LabkiPackManager\\API\\Repos\\ApiLabkiReposList",
     "labkiReposAdd": "LabkiPackManager\\API\\Repos\\ApiLabkiReposAdd",
     "labkiReposSync": "LabkiPackManager\\API\\Repos\\ApiLabkiReposSync",

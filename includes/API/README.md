@@ -220,13 +220,6 @@ Validate multiple page titles for MediaWiki compatibility.
 POST api.php?action=labkiPagesValidate&titles=Page1|Page2&format=json
 ```
 
-#### `labkiPagesExists` (POST)
-Check if pages exist in the wiki (bulk check).
-
-```http
-POST api.php?action=labkiPagesExists&titles=Page1|Page2&format=json
-```
-
 ---
 
 ### Operations
@@ -299,7 +292,6 @@ POST api.php?action=labkiReposAdd&token=YOUR_TOKEN&...
 | `labkiPacksUpdate` | Packs | POST | Update pack | `API/Packs/ApiLabkiPacksUpdate.php` |
 | `labkiPacksRemove` | Packs | POST | Remove pack | `API/Packs/ApiLabkiPacksRemove.php` |
 | `labkiPagesValidate` | Pages | POST | Validate titles | `API/Pages/ApiLabkiPagesValidate.php` |
-| `labkiPagesExists` | Pages | POST | Check existence | `API/Pages/ApiLabkiPagesExists.php` |
 | `labkiOperationsStatus` | Operations | GET | Track operation progress | `API/Operations/ApiLabkiOperationsStatus.php` |
 
 ---
