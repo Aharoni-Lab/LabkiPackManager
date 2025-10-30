@@ -16,14 +16,36 @@ use LabkiPackManager\Services\LabkiPackManager;
  * LabkiPackApplyJob
  *
  * Unified background job to apply batch pack operations (install, update, remove).
- * This job is queued by ApiLabkiPacksApply to perform operations asynchronously
- * in a single atomic transaction.
+ * This job is queued by ApiLabkiPacksState (command=apply) to perform operations
+ * asynchronously in a single atomic transaction.
  *
  * ## Operation Order
  * Operations are processed in dependency-safe order:
  * 1. REMOVE operations (clean up first)
  * 2. INSTALL operations (install dependencies before dependents)
  * 3. UPDATE operations (update after installs are complete)
+ *
+ * ## Expected Operation Format
+ * Install/Update operations:
+ * ```php
+ * [
+ *   'action' => 'install',
+ *   'pack_name' => 'MyPack',
+ *   'pages' => [
+ *     ['name' => 'page1', 'final_title' => 'Custom/Title1'],
+ *     ['name' => 'page2', 'final_title' => 'Custom/Title2']
+ *   ]
+ * ]
+ * ```
+ *
+ * Remove operations:
+ * ```php
+ * [
+ *   'action' => 'remove',
+ *   'pack_id' => 123,
+ *   'delete_pages' => true
+ * ]
+ * ```
  *
  * ## Error Handling
  * - If any operation fails, the entire batch is marked as failed

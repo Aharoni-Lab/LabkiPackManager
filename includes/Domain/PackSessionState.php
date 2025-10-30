@@ -243,11 +243,12 @@ final class PackSessionState {
 
 			// Recompute default titles for all pages
 			foreach ( $this->packs[$packName]['pages'] as $pageName => &$pageState ) {
+				$oldDefaultTitle = $pageState['default_title'] ?? '';
 				$defaultTitle = $prefix ? "{$prefix}/{$pageName}" : $pageName;
 				$pageState['default_title'] = $defaultTitle;
 
 				// Update final_title if it was using the old default
-				if ( $pageState['final_title'] === ( $pageState['default_title'] ?? '' ) ) {
+				if ( $pageState['final_title'] === $oldDefaultTitle ) {
 					$pageState['final_title'] = $defaultTitle;
 				}
 			}
