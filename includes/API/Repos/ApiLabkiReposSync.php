@@ -74,18 +74,13 @@ final class ApiLabkiReposSync extends RepoApiBase {
 
 	/** Execute the API request. */
 	public function execute(): void {
+		// Require manage permission
 		$this->requireManagePermission();
+		// Extract parameters
 		$params = $this->extractRequestParams();
-
-		$repoUrl = trim( (string)( $params['repo_url'] ) );
-		$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
+		// Resolve and validate repository URL and verify it exists
+		$repoUrl = $this->resolveRepoUrl( $params['repo_url'], true );
 		$refs = $params['refs'] ?? null;
-
-		// Check if repository exists
-		$repoRegistry = new LabkiRepoRegistry();
-		if ( $repoRegistry->getRepo( $repoUrl ) === null ) {
-			$this->dieWithError( 'labkipackmanager-error-repo-not-found', 'repo_not_found' );
-		}
 
 		// Create operation record
 		$operationIdStr = 'repo_sync_' . substr( md5( $repoUrl . microtime() ), 0, 8 );

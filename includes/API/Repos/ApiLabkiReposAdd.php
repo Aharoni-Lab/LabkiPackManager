@@ -76,8 +76,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 		$params = $this->extractRequestParams();
 
         // Trim, validate, normalize, and verify accessibility of URL
-		$repoUrl = trim( (string)( $params['repo_url'] ?? '' ) );
-		$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
+		$repoUrl = $this->resolveRepoUrl( $params['repo_url'] );
 		if ( !$this->verifyGitUrlAccessible( $repoUrl ) ) {
 			$this->dieWithError( 'labkipackmanager-error-unreachable-repo', 'unreachable_repo' );
 		}

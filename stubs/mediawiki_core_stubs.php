@@ -17,6 +17,9 @@ class ApiBase {
     protected function getParameter(string $name): string {
         return '';
     }
+    protected function getAuthority(): User {
+        return new User();
+    }
 }
 class ApiMain {}
 function wfDebugLog(string $channel, string $message): void {}

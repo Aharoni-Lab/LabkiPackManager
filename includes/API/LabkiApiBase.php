@@ -6,12 +6,14 @@ namespace LabkiPackManager\API;
 
 use ApiBase;
 use LabkiPackManager\Util\UrlResolver;
+use LabkiPackManager\Services\LabkiRepoRegistry;
 
 /**
  * Base class for Labki Pack Manager API modules.
  *
  * Provides shared functionality for all Labki API endpoints:
  * - URL validation and normalization
+ * - Repository validation and normalization
  * - Permission checking
  * - Common helper methods
  *
@@ -22,60 +24,56 @@ use LabkiPackManager\Util\UrlResolver;
 abstract class LabkiApiBase extends ApiBase {
 
 	/**
-	 * Validate a Git repository URL.
+	 * Resolve and validate a repository URL.
 	 *
-	 * Accepts https/http/git/ssh protocols and SCP-style (e.g., git@github.com:user/repo.git).
-	 * Dies with error if URL is invalid.
+	 * Validates the URL format, normalizes it to a canonical form using UrlResolver,
+	 * and optionally verifies that the repository exists in the registry.
 	 *
-	 * @param string $url Repository URL to validate
-	 * @return void
+	 * Dies with error if validation fails, normalization fails, or repository is not found
+	 * (when $requireExists is true).
+	 *
+	 * @param string $repoUrl Repository URL to resolve and validate
+	 * @param bool $requireExists If true, ensures the repository exists in the registry (default: false)
+	 * @return string Normalized repository URL
 	 */
-	protected function validateRepoUrl(string $url): void {
-		$url = trim($url);
+	protected function resolveRepoUrl(string $repoUrl, bool $requireExists = false): string {
+		$repoUrl = trim($repoUrl);
 
-		if ($url === '') {
-			$this->dieWithError(['apierror-missingparam', 'url'], 'missing_url');
+		// Validate basic URL format
+		if ($repoUrl === '') {
+			$this->dieWithError(['apierror-missingparam', 'repo_url'], 'missing_repo_url');
 		}
 
-		$isHttpLike = (bool)filter_var($url, FILTER_VALIDATE_URL);
-		$isSchemeGitSsh = (bool)preg_match('/^(git|ssh):\/\/.+/i', $url);
-		$isScpStyle = (bool)preg_match('/^[\w.-]+@[\w.-]+:.+$/', $url);
+		$isHttpLike = (bool)filter_var($repoUrl, FILTER_VALIDATE_URL);
+		$isSchemeGitSsh = (bool)preg_match('/^(git|ssh):\/\/.+/i', $repoUrl);
+		$isScpStyle = (bool)preg_match('/^[\w.-]+@[\w.-]+:.+$/', $repoUrl);
 
 		if (!$isHttpLike && !$isSchemeGitSsh && !$isScpStyle) {
-			$this->dieWithError('labkipackmanager-error-invalid-url', 'invalid_url');
+			$this->dieWithError('labkipackmanager-error-invalid-repo_url', 'invalid_repo_url');
 		}
 
-		// If a scheme exists, ensure it is allowed
-		$scheme = parse_url($url, PHP_URL_SCHEME);
+		// Validate scheme if present
+		$scheme = parse_url($repoUrl, PHP_URL_SCHEME);
 		if ($scheme !== null) {
 			$allowed = ['https', 'http', 'git', 'ssh'];
 			if (!in_array(strtolower($scheme), $allowed, true)) {
 				$this->dieWithError('labkipackmanager-error-invalid-protocol', 'invalid_protocol');
 			}
 		}
-	}
 
-	/**
-	 * Validate then normalize to canonical content repo URL.
-	 *
-	 * Validates and normalizes a repository URL using UrlResolver.
-	 * Dies with error if validation fails or URL cannot be normalized.
-	 *
-	 * @param string $url Repository URL to validate and normalize
-	 * @return string Normalized canonical base URL
-	 */
-	protected function validateAndNormalizeUrl(string $url): string {
-		$this->validateRepoUrl($url);
-
+		// Normalize to canonical URL
 		try {
-			$normalized = UrlResolver::resolveContentRepoUrl($url);
+			$normalized = UrlResolver::resolveContentRepoUrl($repoUrl);
 		} catch (\Throwable $e) {
 			$this->dieWithError('labkipackmanager-error-invalid-url', 'invalid_url');
 		}
 
-		$normalized = trim($normalized);
-		if ($normalized === '') {
-			$this->dieWithError('labkipackmanager-error-invalid-url', 'invalid_url');
+		// Optionally verify repository exists in registry
+		if ($requireExists) {
+			$repoRegistry = new LabkiRepoRegistry();
+			if ($repoRegistry->getRepo($normalized) === null) {
+				$this->dieWithError('labkipackmanager-error-repo-not-found', 'repo_not_found');
+			}
 		}
 
 		return $normalized;

@@ -90,17 +90,17 @@ class ApiLabkiReposList extends RepoApiBase {
 	 * - Listing all repositories (no parameters)
 	 * - Fetching a single repository by URL (repo_url parameter)
 	 */
-	public function execute(): void {		
+	public function execute(): void {	
+		// Require manage permission
 		$this->requireManagePermission();
 		// Get parameters
-		$repoUrl = $this->getParameter( 'repo_url' );
-		
-		wfDebugLog( 'labkipack', "ApiLabkiReposList::execute() repoUrl={$repoUrl}" );
+		$params = $this->extractRequestParams();
+		$repoUrl = $params['repo_url'] ?? null;
 
 		// Fetch repository data
 		if ( $repoUrl !== null ) {
 			// Fetch single repository
-			$repoUrl = $this->validateAndNormalizeUrl( $repoUrl );
+			$repoUrl = $this->resolveRepoUrl( $repoUrl, true );
 			$repos = $this->getSingleRepo( $repoUrl );
 		} else {
 			// Fetch all repositories
