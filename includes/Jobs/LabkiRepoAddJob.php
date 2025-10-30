@@ -79,7 +79,7 @@ final class LabkiRepoAddJob extends Job {
 		}
 
 		// Check if repository already exists
-		$repoId = $repoRegistry->getRepoIdByUrl( $url );
+		$repoId = $repoRegistry->getRepoId( $url );
 		$isExistingRepo = $repoId !== null;
 		
 		if ( $isExistingRepo ) {
@@ -104,7 +104,7 @@ final class LabkiRepoAddJob extends Job {
 			$operationRegistry->setProgress( $operationId, 30, 'Bare repository ready' );
 
 			// Step 2: Verify repository registration (30-40% progress)
-			$repoId = $repoRegistry->getRepoIdByUrl( $url );
+			$repoId = $repoRegistry->getRepoId( $url );
 			if ( $repoId === null ) {
 				throw new \RuntimeException( "Repository not found in DB after ensureBareRepo" );
 			}

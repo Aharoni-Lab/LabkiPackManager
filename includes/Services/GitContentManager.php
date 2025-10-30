@@ -76,7 +76,7 @@ final class GitContentManager {
         }
     
         // Check if the repository is registered
-        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        $repoId = $this->repoRegistry->getRepoId($repoUrl);
     
         if ($repoId === null) {
             // Register new repository
@@ -300,7 +300,7 @@ final class GitContentManager {
         wfDebugLog('labkipack', "GitContentManager::syncRef() syncing {$repoUrl}@{$ref}");
 
         // Get repository ID
-        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        $repoId = $this->repoRegistry->getRepoId($repoUrl);
         if ($repoId === null) {
             throw new RuntimeException("Repository not found: {$repoUrl}");
         }
@@ -338,7 +338,7 @@ final class GitContentManager {
         wfDebugLog('labkipack', "GitContentManager::syncRepo() syncing {$repoUrl}");
 
         // Get repository ID
-        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        $repoId = $this->repoRegistry->getRepoId($repoUrl);
         if ($repoId === null) {
             throw new RuntimeException("Repository not found: {$repoUrl}");
         }
@@ -390,7 +390,7 @@ final class GitContentManager {
         wfDebugLog('labkipack', "GitContentManager::removeRef() removing {$repoUrl}@{$ref}");
 
         // Get repository ID
-        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        $repoId = $this->repoRegistry->getRepoId($repoUrl);
         if ($repoId === null) {
             throw new RuntimeException("Repository not found: {$repoUrl}");
         }
@@ -458,7 +458,7 @@ final class GitContentManager {
         wfDebugLog('labkipack', "GitContentManager::removeRepo() removing {$repoUrl}");
 
         // Get repository ID
-        $repoId = $this->repoRegistry->getRepoIdByUrl($repoUrl);
+        $repoId = $this->repoRegistry->getRepoId($repoUrl);
         if ($repoId === null) {
             throw new RuntimeException("Repository not found: {$repoUrl}");
         }

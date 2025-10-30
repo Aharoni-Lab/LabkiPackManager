@@ -71,79 +71,61 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 
 	/** Execute the API request. */
 	public function execute(): void {
+        // Require manage permission
 		$this->requireManagePermission();
+        // Extract parameters
 		$params = $this->extractRequestParams();
 
-		$url = trim( (string)( $params['url'] ?? '' ) );
+        // Trim, validate, normalize, and verify accessibility of URL
+		$repo_url = trim( (string)( $params['repo_url'] ?? '' ) );
+		$repo_url = $this->validateAndNormalizeUrl( $repo_url );
+		if ( !$this->verifyGitUrlAccessible( $repo_url ) ) {
+			$this->dieWithError( 'labkipackmanager-error-unreachable-repo', 'unreachable_repo' );
+		}
 
-		// Handle refs and defaultRef parameters with various fallbacks
+		// Handle refs and defaultRef parameters with fallback
 		$refs = $params['refs'] ?? null;
-		$defaultRef = isset( $params['default_ref'] ) ? trim( (string)$params['default_ref'] ) : null;
-
-		if ( $refs === null && $defaultRef === null ) {
-			// Neither provided - use 'main' for both
-			$refs = ['main'];
-			$defaultRef = 'main';
-		} elseif ( $refs === null && $defaultRef !== null ) {
-			// Only defaultRef provided - use it for refs
-			$refs = [$defaultRef];
-		} elseif ( $refs !== null && $defaultRef === null ) {
-			// Only refs provided - use first ref as default
-			$defaultRef = $refs[0];
+		if ( $refs === null ) {
+			// If refs not set, use defaultRef if present, otherwise 'main'
+			$defaultRef = $defaultRef ?? 'main';
+			$refs = [ $defaultRef ];
 		} else {
-			// Both provided - ensure defaultRef is in refs
-            // Might want some other sort of operation here to handle 
-            // the case where the default ref is not in the refs array
+			// If defaultRef is missing, use first item from $refs.
+			$defaultRef = $defaultRef ?? $refs[0];
+			// Ensure defaultRef is in refs
 			if ( !in_array( $defaultRef, $refs ) ) {
 				$refs[] = $defaultRef;
 			}
 		}
 
-		wfDebugLog( 'labkipack', "ApiLabkiReposAdd::execute() url={$url}, default_ref={$defaultRef}" );
-
-		// Validate URL
-		$normalizedUrl = $this->validateAndNormalizeUrl( $url );
-
-		// Validate refs
-		if ( !is_array( $refs ) || empty( $refs ) ) {
-			$this->dieWithError( 'labkipackmanager-error-missing-refs', 'missing_refs' );
-		}
-
-		// Verify accessibility (basic reachability check)
-		if ( !$this->verifyGitUrlAccessible( $normalizedUrl ) ) {
-			$this->dieWithError( 'labkipackmanager-error-unreachable-repo', 'unreachable_repo' );
-		}
+		wfDebugLog( 'labkipack', "ApiLabkiReposAdd::execute() repo_url={$repo_url}, default_ref={$defaultRef}" );
 
 		// Check if repo exists and if any refs are missing
 		$repoRegistry = $this->getRepoRegistry();
-		$existingRepo = $repoRegistry->getRepo( $normalizedUrl );
+		$existingRepo = $repoRegistry->getRepo( $repo_url );
+
+        // Determine if any work is needed
 		$needsWork = false;
-		
 		if ( $existingRepo === null ) {
 			// Repo doesn't exist - needs full initialization
 			$needsWork = true;
-			wfDebugLog( 'labkipack', "ApiLabkiReposAdd: repo does not exist, needs initialization" );
 		} else {
 			// Repo exists - check if any refs are missing
 			$refRegistry = new LabkiRefRegistry();
-			$repoId = $repoRegistry->getRepoIdByUrl( $normalizedUrl );
+			$repoId = $repoRegistry->getRepoId( $repo_url );
 			
 			foreach ( $refs as $ref ) {
 				$existingRefId = $refRegistry->getRefIdByRepoAndRef( $repoId, $ref );
 				if ( $existingRefId === null ) {
 					$needsWork = true;
-					wfDebugLog( 'labkipack', "ApiLabkiReposAdd: ref {$ref} is missing, needs work" );
-					break;
+					break; // No need to check other refs if one is missing
 				}
-			}
-			
-			if ( !$needsWork ) {
-				wfDebugLog( 'labkipack', "ApiLabkiReposAdd: all refs already exist, nothing to do" );
 			}
 		}
 		
 		// If no work needed, return success immediately
 		if ( !$needsWork ) {
+            wfDebugLog( 'labkipack', "ApiLabkiReposAdd: all refs already exist, nothing to do" );
 			$result = $this->getResult();
 			$result->addValue( null, 'success', true );
 			$result->addValue( null, 'message', 'Repository and all specified refs already exist' );
@@ -155,8 +137,8 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			return;
 		}
 
-		// Generate operation ID
-		$operationIdStr = 'repo_add_' . substr( md5( $normalizedUrl . microtime() ), 0, 8 );
+        // If work is needed, queue the job
+		$operationIdStr = 'repo_add_' . substr( md5( $repo_url . microtime() ), 0, 8 );
 		$operationId = new OperationId( $operationIdStr );
 		$userId = $this->getUser()->getId();
 
@@ -172,7 +154,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 
 		// Queue background job
 		$jobParams = [
-			'url' => $normalizedUrl,
+			'repo_url' => $repo_url,
 			'refs' => $refs,
 			'default_ref' => $defaultRef,
 			'operation_id' => $operationIdStr,
@@ -224,7 +206,7 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 	/** @inheritDoc */
 	public function getAllowedParams(): array {
 		return [
-			'url' => [
+			'repo_url' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => true,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-repos-add-param-url',

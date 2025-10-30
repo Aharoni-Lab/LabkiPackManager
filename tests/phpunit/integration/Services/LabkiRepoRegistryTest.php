@@ -22,7 +22,7 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
 
     /**
      * @covers ::addRepoEntry
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      * @covers ::getRepo
      */
     public function testAddRepoEntry_CreatesNewRepo(): void {
@@ -37,7 +37,7 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
 
     /**
      * @covers ::addRepoEntry
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      * @covers ::getRepo
      */
     public function testAddRepoEntry_CanBeRetrievedByUrl(): void {
@@ -45,7 +45,7 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
         $url = 'https://example.com/repo';
 
         $id = $registry->addRepoEntry($url);
-        $fetchedId = $registry->getRepoIdByUrl($url);
+        $fetchedId = $registry->getRepoId($url);
         
         $this->assertNotNull($fetchedId);
         $this->assertSame($id->toInt(), $fetchedId->toInt());
@@ -86,7 +86,7 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
     /**
      * @covers ::addRepoEntry
      * @covers ::getRepo
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      */
     public function testGetRepo_WithUrlString_ReturnsCompleteRepoObject(): void {
         $registry = $this->newRegistry();
@@ -103,7 +103,7 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
 
     /**
      * @covers ::ensureRepoEntry
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      */
     public function testEnsureRepoEntry_WhenNew_CreatesRepo(): void {
         $registry = $this->newRegistry();
@@ -112,12 +112,12 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
         $id = $registry->ensureRepoEntry($url);
         
         $this->assertInstanceOf(ContentRepoId::class, $id);
-        $this->assertNotNull($registry->getRepoIdByUrl($url));
+        $this->assertNotNull($registry->getRepoId($url));
     }
 
     /**
      * @covers ::ensureRepoEntry
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      */
     public function testEnsureRepoEntry_WhenExists_ReturnsExistingId(): void {
         $registry = $this->newRegistry();
@@ -224,27 +224,27 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
 
     /**
      * @covers ::deleteRepo
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      */
     public function testDeleteRepo_RemovesFromUrlLookup(): void {
         $registry = $this->newRegistry();
         $url = 'https://example.com/delete-url';
         
         $id = $registry->ensureRepoEntry($url);
-        $this->assertNotNull($registry->getRepoIdByUrl($url));
+        $this->assertNotNull($registry->getRepoId($url));
 
         $registry->deleteRepo($id);
         
-        $this->assertNull($registry->getRepoIdByUrl($url));
+        $this->assertNull($registry->getRepoId($url));
     }
 
     /**
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      */
-    public function testGetRepoIdByUrl_WhenNotExists_ReturnsNull(): void {
+    public function testGetRepoId_WhenNotExists_ReturnsNull(): void {
         $registry = $this->newRegistry();
         
-        $result = $registry->getRepoIdByUrl('https://example.com/nonexistent');
+        $result = $registry->getRepoId('https://example.com/nonexistent');
         
         $this->assertNull($result);
     }
@@ -273,7 +273,7 @@ final class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
 
     /**
      * @covers ::getRepo
-     * @covers ::getRepoIdByUrl
+     * @covers ::getRepoId
      */
     public function testGetRepo_WithUrlString_WhenNotExists_ReturnsNull(): void {
         $registry = $this->newRegistry();

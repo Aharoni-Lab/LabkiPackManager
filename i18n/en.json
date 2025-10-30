@@ -33,7 +33,7 @@
   "labkipackmanager-status-using-cache": "Showing cached manifest.",
   "labkipackmanager-status-fetched": "Manifest fetched successfully.",
   "labkipackmanager-status-missing": "No cached manifest found. Click 'Grab Manifest' to fetch.",
-  "labkipackmanager-status-loaded-from": "Loaded packs from ‘$1’.",
+  "labkipackmanager-status-loaded-from": "Loaded packs from '$1'.",
   "labkipackmanager-load-success": "Manifest loaded.",
   "labkipackmanager-refresh-success": "Manifest refreshed.",
 
@@ -71,6 +71,10 @@
   "labkipackmanager-action-remove": "Removing pack...",
   "labkipackmanager-action-update": "Updating pack...",
   "labkipackmanager-action-complete": "Operation complete.",
+
+  "apihelp-labkireposadd-summary": "Add a new content repository from a Git URL.",
+  "apihelp-labkireposadd-description": "Adds a new Git-based content repository to the Labki registry, validates the URL, and schedules background setup operations. Returns an operation ID for tracking progress.",
+  "apihelp-labkireposadd-example-basic": "Add a new repository from GitHub",
 
   "labkipackmanager-api-repos-list-param-repoid": "Optional repository ID to fetch a single repository. Mutually exclusive with repo_url.",
   "labkipackmanager-api-repos-list-param-repourl": "Optional repository URL to fetch a single repository. The URL will be normalized before lookup. Mutually exclusive with repo_id.",

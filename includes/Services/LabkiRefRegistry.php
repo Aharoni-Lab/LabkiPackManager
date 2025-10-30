@@ -280,7 +280,7 @@ class LabkiRefRegistry {
             $identifier instanceof ContentRepo => $identifier->id()->toInt(),
             $identifier instanceof ContentRepoId => $identifier->toInt(),
             is_int($identifier) => $identifier,
-            is_string($identifier) => $this->repoRegistry->getRepoIdByUrl($identifier)->toInt(),
+            is_string($identifier) => $this->repoRegistry->getRepoId($identifier)->toInt(),
         };
         if ($repoId === null) {
             throw new \RuntimeException("Repository not found for identifier: {$identifier}");

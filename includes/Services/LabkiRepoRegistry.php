@@ -57,7 +57,7 @@ class LabkiRepoRegistry {
         wfDebugLog('labkipack', "ensureRepoEntry() called for {$contentRepoUrl}");
 
         // Check if repo already exists
-        $existingId = $this->getRepoIdByUrl($contentRepoUrl);
+        $existingId = $this->getRepoId($contentRepoUrl);
         if ($existingId !== null) {
             wfDebugLog('labkipack', "ensureRepoEntry(): found existing repo (ID={$existingId->toInt()}) → updating");
             $this->updateRepoEntry($existingId, $extraFields);
@@ -161,7 +161,7 @@ class LabkiRepoRegistry {
      * @param string $contentRepoUrl Repository URL to look up
      * @return ContentRepoId|null Repository ID if found, null otherwise
      */
-    public function getRepoIdByUrl(string $contentRepoUrl): ?ContentRepoId {
+    public function getRepoId(string $contentRepoUrl): ?ContentRepoId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
 
         $row = $dbr->newSelectQueryBuilder()
@@ -195,7 +195,7 @@ class LabkiRepoRegistry {
     public function getRepo(int|ContentRepoId|string $identifier): ?ContentRepo {
         // Handle string (URL) - look up ID first
         if (is_string($identifier)) {
-            $repoId = $this->getRepoIdByUrl($identifier);
+            $repoId = $this->getRepoId($identifier);
             if ($repoId === null) {
                 return null;
             }
