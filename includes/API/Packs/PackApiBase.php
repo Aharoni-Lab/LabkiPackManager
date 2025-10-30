@@ -78,7 +78,7 @@ abstract class PackApiBase extends LabkiApiBase {
 		}
 
 		// String - treat as URL
-		$normalizedUrl = $this->validateAndNormalizeUrl( $identifier );
+		$normalizedUrl = $this->resolveRepoUrl( $identifier );
 		$repo = $repoRegistry->getRepo( $normalizedUrl );
 		return $repo ? $repo->id() : null;
 	}

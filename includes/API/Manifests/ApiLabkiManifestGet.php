@@ -71,35 +71,33 @@ final class ApiLabkiManifestGet extends ManifestApiBase {
 	public function execute(): void {
 		$params = $this->extractRequestParams();
 	
-		$repoUrl = $this->resolveAndValidateRepo($params);
+		$repoUrl = $this->resolveRepoUrl($params['repo_url'], true);
 		$repo = $this->repoRegistry->getRepo($repoUrl);
-		$ref = $this->resolveRef($params, $repo);
-		$refresh = (bool)($params['refresh'] ?? false);
+		
+		// Use default ref if not specified
+		$ref = $params['ref'] ?? $repo->defaultRef();
+		$refresh = $params['refresh'];
 	
+		// This is currently how it is due to issues with setting up testing
+		// TODO: Figure out how to improve this
 		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
-		$status = $store->get($refresh);
-	
-		if (!$status->isOK()) {
-			$this->dieWithError('labkipackmanager-error-fetch', 'fetch_error');
-		}
-	
-		$data = $status->getValue();
-		if (!isset($data['manifest']) || !is_array($data['manifest'])) {
-			$this->dieWithError('labkipackmanager-error-invalid-manifest', 'invalid_manifest');
-		}
-	
-		$meta = $data['meta'] ?? [];
-		$manifest = $data['manifest'];
+
+		// Get manifest from store
+		$status = $store->getManifest($refresh);	
+		$result = $this->unwrapStatus($status);
+
+		$meta = $result['meta'];
+		$manifest = $result['manifest'];
 	
 		$out = $this->getResult();
-		$out->addValue(null, 'repo_url', $meta['repo_url'] ?? $repoUrl);
-		$out->addValue(null, 'ref', $meta['ref'] ?? $ref);
-		$out->addValue(null, 'hash', $meta['hash'] ?? ($data['hash'] ?? ''));
+		$out->addValue(null, 'repo_url', $meta['repo_url']);
+		$out->addValue(null, 'ref', $meta['ref']);
+		$out->addValue(null, 'hash', $meta['hash']);
 		$out->addValue(null, 'manifest', $manifest);
 		$out->addValue(null, 'meta', [
-			'schemaVersion' => $meta['schema_version'] ?? 1,
+			'schemaVersion' => $meta['schema_version'],
 			'timestamp' => wfTimestampNow(),
-			'from_cache' => $data['from_cache'] ?? false,
+			'from_cache' => $result['from_cache'],
 		]);
 	}
 
@@ -115,7 +113,7 @@ final class ApiLabkiManifestGet extends ManifestApiBase {
 			],
 			'ref' => [
 				ParamValidator::PARAM_TYPE => 'string',
-				ParamValidator::PARAM_DEFAULT => 'main',
+				ParamValidator::PARAM_REQUIRED => false,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-manifest-get-param-ref',
 			],
 			'refresh' => [

@@ -22,5 +22,8 @@ class ApiBase {
     }
 }
 class ApiMain {}
+class WANObjectCache {
+    public const TTL_INDEFINITE = 0;
+}
 function wfDebugLog(string $channel, string $message): void {}
 function wfMessage(string $key): string { return ''; }

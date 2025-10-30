@@ -134,66 +134,57 @@ class ManifestStore {
 	 * Get manifest data + meta.
 	 *
 	 * @param bool $refresh If true, rebuild before returning
-	 * @return array{
-	 *   meta: array,
-	 *   manifest: array
-	 * }|null
+	 * @return Status Manifest data or fatal error
 	 */
-	public function getManifest(bool $refresh = false): ?array {
+	public function getManifest(bool $refresh = false): Status {
 		$status = $this->get($refresh);
 		if (!$status->isOK()) {
-			return null;
+			return $status;
 		}
 		$data = $status->getValue();
-		return [
-			'meta' => $data['meta'] ?? [],
-			'manifest' => $data['manifest'] ?? [],
-			'from_cache' => $data['from_cache'] ?? false
-		];
+		return Status::newGood([
+			'meta' => $data['meta'],
+			'manifest' => $data['manifest'],
+			'from_cache' => $data['from_cache']
+		]);
 	}
 
 	/**
 	 * Get hierarchy data + meta.
 	 *
 	 * @param bool $refresh If true, rebuild before returning
-	 * @return array{
-	 *   meta: array,
-	 *   hierarchy: array
-	 * }|null
+	 * @return Status Hierarchy data or fatal error
 	 */
-	public function getHierarchy(bool $refresh = false): ?array {
+	public function getHierarchy(bool $refresh = false): Status {
 		$status = $this->get($refresh);
 		if (!$status->isOK()) {
-			return null;
+			return $status;
 		}
 		$data = $status->getValue();
-		return [
-			'meta' => $data['meta'] ?? [],
-			'hierarchy' => $data['derived']['hierarchy'] ?? [],
-			'from_cache' => $data['from_cache'] ?? false
-		];
+		return Status::newGood([
+			'meta' => $data['meta'],
+			'hierarchy' => $data['derived']['hierarchy'],
+			'from_cache' => $data['from_cache']
+		]);
 	}
 
 	/**
 	 * Get graph data + meta.
 	 *
 	 * @param bool $refresh If true, rebuild before returning
-	 * @return array{
-	 *   meta: array,
-	 *   graph: array
-	 * }|null
+	 * @return Status Graph data or fatal error
 	 */
-	public function getGraph(bool $refresh = false): ?array {
+	public function getGraph(bool $refresh = false): Status {
 		$status = $this->get($refresh);
 		if (!$status->isOK()) {
-			return null;
+			return $status;
 		}
 		$data = $status->getValue();
-		return [
-			'meta' => $data['meta'] ?? [],
-			'graph' => $data['derived']['graph'] ?? [],
-			'from_cache' => $data['from_cache'] ?? false
-		];
+		return Status::newGood([
+			'meta' => $data['meta'],
+			'graph' => $data['derived']['graph'],
+			'from_cache' => $data['from_cache']
+		]);
 	}
 
 	/**

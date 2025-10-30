@@ -66,24 +66,23 @@ final class ApiLabkiHierarchyGet extends ManifestApiBase {
 	public function execute(): void {
 		$params = $this->extractRequestParams();
 
-		// 1. Resolve and validate repository
-		$repoUrl = $this->resolveAndValidateRepo($params);
+		$repoUrl = $this->resolveRepoUrl($params['repo_url'], true);
 		$repo = $this->repoRegistry->getRepo($repoUrl);
 
-		// 2. Resolve ref and refresh flag
-		$ref = $this->resolveRef($params, $repo);
-		$refresh = (bool)($params['refresh'] ?? false);
+		// Use default ref if not specified
+		$ref = $params['ref'] ?? $repo->defaultRef();
+		$refresh = $params['refresh'];
 
-		// 3. Get hierarchy and metadata from store (single call)
+		// This is currently how it is due to issues with setting up testing
+		// TODO: Figure out how to improve this
 		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
-		$result = $store->getHierarchy($refresh);
 
-		if ($result === null) {
-			$this->dieWithError('labkipackmanager-error-fetch', 'fetch_error');
-		}
+		// Get hierarchy from store
+		$status = $store->getHierarchy($refresh);
+		$result = $this->unwrapStatus($status);
 
-		$meta = $result['meta'] ?? [];
-		$hierarchy = $result['hierarchy'] ?? [];
+		$meta = $result['meta'];
+		$hierarchy = $result['hierarchy'];
 
 		// 4. Output response
 		$out = $this->getResult();
@@ -110,7 +109,7 @@ final class ApiLabkiHierarchyGet extends ManifestApiBase {
 			],
 			'ref' => [
 				ParamValidator::PARAM_TYPE => 'string',
-				ParamValidator::PARAM_DEFAULT => 'main',
+				ParamValidator::PARAM_REQUIRED => false,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-hierarchy-get-param-ref',
 			],
 			'refresh' => [

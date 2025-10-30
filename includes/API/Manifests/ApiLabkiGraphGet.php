@@ -72,29 +72,28 @@ final class ApiLabkiGraphGet extends ManifestApiBase {
 		$params = $this->extractRequestParams();
 
 		// 1. Resolve and validate repository
-		$repoUrl = $this->resolveAndValidateRepo($params);
+		$repoUrl = $this->resolveRepoUrl($params['repo_url'], true);
 		$repo = $this->repoRegistry->getRepo($repoUrl);
 
 		// 2. Resolve ref and refresh flag
-		$ref = $this->resolveRef($params, $repo);
-		$refresh = (bool)($params['refresh'] ?? false);
+		$ref = $params['ref'] ?? $repo->defaultRef();
+		$refresh = $params['refresh'];
 
-		// 3. Retrieve graph and metadata from store
+		// This is currently how it is due to issues with setting up testing
+		// TODO: Figure out how to improve this
 		$store = $this->manifestStore ?? new ManifestStore($repoUrl, $ref);
-		$result = $store->getGraph($refresh);
 
-		if ($result === null) {
-			$this->dieWithError('labkipackmanager-error-fetch', 'fetch_error');
-		}
+		// Get graph from store
+		$status = $store->getGraph($refresh);
+		$result = $this->unwrapStatus($status);
 
-		$meta = $result['meta'] ?? [];
-		$graph = $result['graph'] ?? [];
+		$meta = $result['meta'];
+		$graph = $result['graph'];
 
-		// 4. Output structured response
 		$out = $this->getResult();
-		$out->addValue(null, 'repo_url', $meta['repo_url'] ?? $repoUrl);
-		$out->addValue(null, 'ref', $meta['ref'] ?? $ref);
-		$out->addValue(null, 'hash', $meta['hash'] ?? '');
+		$out->addValue(null, 'repo_url', $meta['repo_url']);
+		$out->addValue(null, 'ref', $meta['ref']);
+		$out->addValue(null, 'hash', $meta['hash']);
 		$out->addValue(null, 'graph', $graph);
 		$out->addValue(null, 'meta', [
 			'schemaVersion' => $meta['schema_version'] ?? 1,
@@ -115,7 +114,7 @@ final class ApiLabkiGraphGet extends ManifestApiBase {
 			],
 			'ref' => [
 				ParamValidator::PARAM_TYPE => 'string',
-				ParamValidator::PARAM_DEFAULT => 'main',
+				ParamValidator::PARAM_REQUIRED => false,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-graph-get-param-ref',
 			],
 			'refresh' => [
