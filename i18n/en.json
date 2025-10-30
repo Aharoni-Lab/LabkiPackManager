@@ -129,6 +129,28 @@
 	"labkipackmanager-error-invalid-operation-action": "Invalid operation action. Must be 'install', 'update', or 'remove'.",
 	"labkipackmanager-error-operation-missing-pack-name": "Operation is missing required 'pack_name' field.",
 	"labkipackmanager-error-operation-missing-pack-id": "Remove operation is missing required 'pack_id' field.",
-	"labkipackmanager-error-pack-not-in-manifest": "Pack '$1' not found in manifest."
+	"labkipackmanager-error-pack-not-in-manifest": "Pack '$1' not found in manifest.",
+
+	"labkipackmanager-error-state-outdated": "Session state is outdated. Please refresh and try again.",
+	"labkipackmanager-error-unknown-command": "Unknown command. Valid commands are: init, select, deselect, refresh, clear, apply.",
+	"labkipackmanager-error-invalid-state": "No active session state found. Please initialize a session first.",
+	"labkipackmanager-error-cascade-deselect-required": "Cannot deselect pack: other selected packs depend on it. Set cascade=true to deselect dependents.",
+	"labkipackmanager-error-invalid-pack-name": "Invalid or missing pack_name in payload.",
+	"labkipackmanager-error-invalid-payload": "Invalid JSON payload.",
+	"labkipackmanager-error-no-operations": "No operations to apply. All selected packs are already up to date.",
+	"labkipackmanager-error-manifest-not-found": "Manifest not found for the specified repository and ref.",
+
+	"labkipackmanager-api-packs-state-param-command": "Command to execute: init, select, deselect, refresh, clear, or apply.",
+	"labkipackmanager-api-packs-state-param-repoid": "Repository ID. Required for init command. Mutually exclusive with repo_url.",
+	"labkipackmanager-api-packs-state-param-repourl": "Repository URL. Required for init command. Mutually exclusive with repo_id.",
+	"labkipackmanager-api-packs-state-param-refid": "Ref ID. Required for init command. Mutually exclusive with ref.",
+	"labkipackmanager-api-packs-state-param-ref": "Ref name (branch/tag). Required for init command. Mutually exclusive with ref_id.",
+	"labkipackmanager-api-packs-state-param-payload": "JSON-encoded command payload. Contents depend on the command.",
+	"apihelp-labkipacksstate-summary": "Unified stateful API for pack selection and management.",
+	"apihelp-labkipacksstate-description": "Command-based API for managing pack selection sessions. Tracks user selections, auto-resolves dependencies, detects conflicts, and applies operations.",
+	"apihelp-labkipacksstate-example-init": "Initialize a session for a repository and ref",
+	"apihelp-labkipacksstate-example-select": "Select a pack (auto-resolves dependencies)",
+	"apihelp-labkipacksstate-example-setpagetitle": "Customize a page's final title",
+	"apihelp-labkipacksstate-example-apply": "Apply selected operations and queue background job"
 }
 
