@@ -194,8 +194,8 @@ final class ApiLabkiPacksAction extends PackApiBase {
 
 		// Compute diff: if no prior state, return full packs as diff
 		$newPacks = $newState->packs();
-		// For init command, always return full state as diff, ignoring old state
-		$diff = ($command === 'init' || empty( $oldPacks )) ? $newPacks : $this->computePacksDiff( $oldPacks, $newPacks );
+		// For init and clear commands, always return full state as diff, ignoring old state
+		$diff = ($command === 'init' || $command === 'clear' || empty( $oldPacks )) ? $newPacks : $this->computePacksDiff( $oldPacks, $newPacks );
 
 		// Build response
 		$responseData = [

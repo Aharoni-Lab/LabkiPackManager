@@ -45,6 +45,20 @@ final class ApplyHandler extends BasePackHandler {
 		$refId = $context['ref_id'];
 		$services = $context['services'];
 
+		// Verify state hash matches - prevents tampering and ensures sync
+		$frontendStateHash = $data['state_hash'] ?? null;
+		$backendStateHash = $state->hash();
+		if ( $frontendStateHash && $frontendStateHash !== $backendStateHash ) {
+			throw new \RuntimeException( 
+				"ApplyHandler: state hash mismatch. Frontend hash: {$frontendStateHash}, Backend hash: {$backendStateHash}. " .
+				"Please refresh and try again."
+			);
+		}
+
+		// Use packs data from frontend if provided, otherwise use state
+		// Frontend sends current pack state with all user-marked actions
+		$packsData = $data['packs'] ?? $state->packs();
+
 		// Build operations array from state
 		$operations = [];
 		$summary = [
@@ -53,7 +67,7 @@ final class ApplyHandler extends BasePackHandler {
 			'removes'  => 0,
 		];
 
-		foreach ( $state->packs() as $packName => $packState ) {
+		foreach ( $packsData as $packName => $packState ) {
 			$action = $packState['action'] ?? 'unchanged';
 			$isSelected = ( $packState['selected'] ?? false ) || ( $packState['auto_selected'] ?? false );
 

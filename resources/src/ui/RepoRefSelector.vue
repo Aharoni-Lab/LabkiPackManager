@@ -294,8 +294,14 @@ function buildMermaidFromGraph(graph) {
   }
   
   // Add node definitions with labels
+  // Backend now provides prefixed names like "pack:People" and "page:People"
   for (const node of nodes) {
-    lines.push(`  ${escapeNodeName(node)}["${node}"]`);
+    const nodeId = escapeNodeName(node);
+    // Extract the display name and icon from the prefixed node name
+    const [prefix, ...nameParts] = node.split(':');
+    const displayName = nameParts.join(':'); // rejoin in case name has colons
+    const icon = prefix === 'page' ? '📄' : '📦';
+    lines.push(`  ${nodeId}["${icon} ${displayName}"]`);
   }
   
   // Add edges

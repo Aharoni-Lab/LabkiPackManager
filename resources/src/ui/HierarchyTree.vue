@@ -127,6 +127,8 @@ h3 {
 .tree-nodes {
   margin-top: 16px;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 </style>
 

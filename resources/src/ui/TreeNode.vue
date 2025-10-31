@@ -1,5 +1,5 @@
 <template>
-  <div class="tree-node" :class="{ 'is-pack': node.type === 'pack', 'is-page': node.type === 'page' }">
+  <div class="tree-node" :class="{ 'is-pack': node.type === 'pack', 'is-page': node.type === 'page' }" :style="nodeBackgroundStyle">
     <div class="node-header" :style="{ paddingLeft: `${depth * 24}px` }">
       <button
         v-if="node.children && node.children.length > 0"
@@ -63,7 +63,7 @@
     
     <div v-if="expanded && node.children" class="node-children">
       <tree-node
-        v-for="child in node.children"
+        v-for="child in sortedChildren"
         :key="child.id"
         :node="child"
         :depth="depth + 1"
@@ -160,6 +160,33 @@ const removeButtonStyle = computed(() => {
   return {};
 });
 
+// Sort children so pages appear before nested packs
+const sortedChildren = computed(() => {
+  if (!props.node.children) return [];
+  const children = [...props.node.children];
+  return children.sort((a, b) => {
+    // Pages (type 'page') come first, then packs
+    if (a.type === 'page' && b.type !== 'page') return -1;
+    if (a.type !== 'page' && b.type === 'page') return 1;
+    return 0;
+  });
+});
+
+// Background color based on pack action state
+const nodeBackgroundStyle = computed(() => {
+  if (props.node.type !== 'pack' || !packState.value) return {};
+  
+  const action = packState.value.action;
+  if (action === 'install') {
+    return { backgroundColor: '#e8f5e9' }; // Light green
+  } else if (action === 'update') {
+    return { backgroundColor: '#fff3e0' }; // Light orange
+  } else if (action === 'remove') {
+    return { backgroundColor: '#ffebee' }; // Light red
+  }
+  return {};
+});
+
 function toggleExpanded() {
   expanded.value = !expanded.value;
 }
@@ -200,12 +227,16 @@ function $t(key) {
 <style scoped>
 .tree-node {
   margin: 4px 0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .node-header {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  width: 100%;
 }
 
 .expand-button {

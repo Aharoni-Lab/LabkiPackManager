@@ -9,7 +9,7 @@
     </div>
     
     <div v-else-if="mermaidSrc" class="mermaid-wrapper">
-      <pre class="mermaid">{{ mermaidSrc }}</pre>
+      <pre class="mermaid" ref="mermaidPre">{{ mermaidSrc }}</pre>
     </div>
     
     <div v-else class="no-graph-message">
@@ -27,6 +27,7 @@ const props = defineProps({
 });
 
 const hasMermaid = ref(false);
+const mermaidPre = ref(null);
 
 onMounted(() => {
   checkMermaidAvailability();
@@ -59,16 +60,42 @@ function triggerMermaidRender() {
   // Try to access the mermaid global if available
   if (typeof window !== 'undefined' && window.mermaid) {
     try {
-      // Use contentLoaded if available, otherwise use run
-      if (typeof window.mermaid.contentLoaded === 'function') {
-        window.mermaid.contentLoaded();
-      } else if (typeof window.mermaid.run === 'function') {
-        window.mermaid.run();
-      } else {
-        console.warn('[MermaidGraph] No suitable mermaid render method found');
+      // First, try to initialize/reset mermaid state
+      if (typeof window.mermaid.initialize === 'function') {
+        console.log('[MermaidGraph] Calling mermaid.initialize()');
+        window.mermaid.initialize({ 
+          startOnLoad: false,
+          theme: 'forest',
+          securityLevel: 'loose'
+        });
       }
+      
+      // Remove any previously rendered SVG inside the pre element
+      if (mermaidPre.value) {
+        const svgs = mermaidPre.value.querySelectorAll('svg');
+        svgs.forEach(svg => svg.remove());
+        console.log('[MermaidGraph] Removed', svgs.length, 'existing SVG(s)');
+        
+        // Reset the pre element's HTML to just the text (remove any data attributes mermaid added)
+        mermaidPre.value.innerHTML = props.mermaidSrc;
+        mermaidPre.value.removeAttribute('data-processed');
+      }
+      
+      // Add a small delay to ensure DOM has fully updated
+      setTimeout(() => {
+        console.log('[MermaidGraph] Attempting to render mermaid diagrams');
+        
+        // Try different methods to trigger rendering
+        if (typeof window.mermaid.run === 'function') {
+          window.mermaid.run();
+          console.log('[MermaidGraph] Called mermaid.run()');
+        } else if (typeof window.mermaid.contentLoaded === 'function') {
+          window.mermaid.contentLoaded();
+          console.log('[MermaidGraph] Called mermaid.contentLoaded()');
+        }
+      }, 100);
     } catch (e) {
-      console.warn('[MermaidGraph] Failed to trigger mermaid render:', e);
+      console.error('[MermaidGraph] Failed to trigger mermaid render:', e);
     }
   } else {
     console.warn('[MermaidGraph] window.mermaid not available');

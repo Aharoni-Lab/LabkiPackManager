@@ -55,21 +55,25 @@ final class GraphBuilder {
 			if ($id === '') {
 				continue;
 			}
-			$allPackIds[$id] = true;
+			// Prefix pack IDs to ensure they're distinct from page names
+			$packPrefix = 'pack:' . $id;
+			$allPackIds[$packPrefix] = true;
 
-			// "Contains" edges: pack -> page
+			// "Contains" edges: pack -> page (with prefixes)
 			foreach ((array)($pack['pages'] ?? []) as $page) {
 				$page = trim((string)$page);
 				if ($page !== '') {
-					$containsEdges[] = ['from' => $id, 'to' => $page];
+					$pagePrefix = 'page:' . $page;
+					$containsEdges[] = ['from' => $packPrefix, 'to' => $pagePrefix];
 				}
 			}
 
-			// "Depends on" edges: pack -> other pack
+			// "Depends on" edges: pack -> other pack (with prefixes)
 			foreach ((array)($pack['depends_on'] ?? []) as $dep) {
 				$dep = trim((string)$dep);
 				if ($dep !== '' && $dep !== $id) { // ignore self-dependency
-					$dependsEdges[] = ['from' => $id, 'to' => $dep];
+					$depPrefix = 'pack:' . $dep;
+					$dependsEdges[] = ['from' => $packPrefix, 'to' => $depPrefix];
 				}
 			}
 		}

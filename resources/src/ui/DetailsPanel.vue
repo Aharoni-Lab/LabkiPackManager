@@ -148,7 +148,12 @@ async function onApply() {
       command: 'apply',
       repo_url: store.repoUrl,
       ref: store.ref,
-      data: {},
+      data: {
+        // Send current pack state with all the actions user has marked
+        packs: store.packs,
+        // Send state hash so backend can verify states are in sync
+        state_hash: store.stateHash,
+      },
     });
     
     // Merge diff
@@ -209,6 +214,10 @@ async function onClear() {
     store.busy = true;
     operationMessage.value = '';
     errorMessage.value = '';
+    
+    // Reset state before clear - like init, clear returns full initial state
+    store.packs = {};
+    store.warnings = [];
     
     const response = await packsAction({
       command: 'clear',
