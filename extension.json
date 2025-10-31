@@ -68,8 +68,7 @@
     "labkiReposSync": "LabkiPackManager\\API\\Repos\\ApiLabkiReposSync",
     "labkiReposRemove": "LabkiPackManager\\API\\Repos\\ApiLabkiReposRemove",
 		"labkiPacksList": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksList",
-		"labkiPacksPreview": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksPreview",
-		"labkiPacksState": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksState",
+		"labkiPacksAction": "LabkiPackManager\\API\\Packs\\ApiLabkiPacksAction",
 		"labkiOperationsStatus": "LabkiPackManager\\API\\Operations\\ApiLabkiOperationsStatus"
   },
 	"JobClasses": {
