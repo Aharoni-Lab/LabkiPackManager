@@ -68,7 +68,7 @@ final class InitHandler extends BasePackHandler {
 			);
 		}
 
-		wfDebugLog( 'labkipack', "InitHandler: Built " . count( $packs ) . " packs" );
+		wfDebugLog( 'labkipack', "InitHandler: Built " . count( $packs ) . " packs, data: " . json_encode( $packs ) );
 
 		// Create new session state
 		$newState = new PackSessionState( $refId, $userId, $packs );

@@ -217,7 +217,8 @@ async function onClear() {
       data: {},
     });
     
-    // Clear state
+    // For Clear, replace the entire packs state (don't merge)
+    // This ensures all actions are reset to their initial state
     store.packs = response.diff;
     store.stateHash = response.state_hash;
     store.warnings = response.warnings;

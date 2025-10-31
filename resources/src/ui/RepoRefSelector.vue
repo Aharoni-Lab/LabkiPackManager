@@ -2,26 +2,30 @@
   <div class="repo-ref-selector">
     <h2>{{ $t('labkipackmanager-select-source') }}</h2>
     
-    <div class="selector-row">
-      <cdx-field class="selector-field">
-        <template #label>{{ $t('labkipackmanager-repo-selector-label') }}</template>
-        <cdx-select
-          v-model:selected="selectedRepoUrl"
-          :menu-items="repoMenuItems"
-          :disabled="store.busy"
-          @update:selected="onRepoSelected"
-        />
-      </cdx-field>
+    <div class="selector-row" style="display: flex; gap: 24px; flex-wrap: nowrap;">
+      <div class="selector-field" style="flex: 1 1 0; min-width: 0;">
+        <cdx-field>
+          <template #label>{{ $t('labkipackmanager-repo-selector-label') }}</template>
+          <cdx-select
+            v-model:selected="selectedRepoUrl"
+            :menu-items="repoMenuItems"
+            :disabled="store.busy"
+            @update:selected="onRepoSelected"
+          />
+        </cdx-field>
+      </div>
       
-      <cdx-field class="selector-field">
-        <template #label>{{ $t('labkipackmanager-ref-selector-label') }}</template>
-        <cdx-select
-          v-model:selected="selectedRefName"
-          :menu-items="refMenuItems"
-          :disabled="store.busy || !selectedRepoUrl"
-          @update:selected="onRefSelected"
-        />
-      </cdx-field>
+      <div class="selector-field" style="flex: 1 1 0; min-width: 0;">
+        <cdx-field>
+          <template #label>{{ $t('labkipackmanager-ref-selector-label') }}</template>
+          <cdx-select
+            v-model:selected="selectedRefName"
+            :menu-items="refMenuItems"
+            :disabled="store.busy || !selectedRepoUrl"
+            @update:selected="onRefSelected"
+          />
+        </cdx-field>
+      </div>
     </div>
     
     <div v-if="selectedRepoUrl && selectedRefName" class="current-selection">
@@ -222,6 +226,11 @@ async function selectRef(refName) {
     selectedRefName.value = refName;
     store.ref = refName;
     
+    // IMPORTANT: Reset packs state before init
+    // The init command on backend returns full state, and frontend must start empty
+    store.packs = {};
+    store.warnings = [];
+    
     // Fetch graph and hierarchy
     const [graphResponse, hierarchyResponse] = await Promise.all([
       graphGet(store.repoUrl, store.ref),
@@ -332,18 +341,24 @@ h2 {
 }
 
 .selector-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 24px;
   align-items: flex-start;
   width: 100%;
 }
 
 .selector-field {
-  flex: 1;
-  min-width: 0;
-  width: 50%;
-  flex-shrink: 0;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+/* Make the cdx-field fill its wrapper but not force line breaks */
+.selector-field :deep(.cdx-field) {
+  width: 100% !important;
+  margin: 0 !important;
+  display: block !important;
 }
 
 .current-selection {
@@ -360,4 +375,3 @@ h2 {
   }
 }
 </style>
-

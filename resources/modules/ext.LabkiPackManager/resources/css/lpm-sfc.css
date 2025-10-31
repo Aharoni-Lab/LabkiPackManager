@@ -35,17 +35,23 @@ h2[data-v-a9c77630] {
   font-size: 1.4em;
 }
 .selector-row[data-v-a9c77630] {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 24px;
   align-items: flex-start;
   width: 100%;
 }
 .selector-field[data-v-a9c77630] {
-  flex: 1;
-  min-width: 0;
-  width: 50%;
-  flex-shrink: 0;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+/* Make the cdx-field fill its wrapper but not force line breaks */
+.selector-field[data-v-a9c77630] .cdx-field {
+  width: 100% !important;
+  margin: 0 !important;
+  display: block !important;
 }
 .current-selection[data-v-a9c77630] {
   padding: 12px;
@@ -180,6 +186,10 @@ h3[data-v-04226ecd] {
   border: 1px solid #c8ccd1;
   border-radius: 8px;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 h3[data-v-adb05fca] {
   margin-top: 0;
@@ -205,6 +215,7 @@ h3[data-v-adb05fca] {
 }
 .tree-nodes[data-v-adb05fca] {
   margin-top: 16px;
+  width: 100%;
 }
 
 

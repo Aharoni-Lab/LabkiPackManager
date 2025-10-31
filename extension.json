@@ -66,6 +66,8 @@
         "labkipackmanager-depends-on",
         "labkipackmanager-select",
         "labkipackmanager-deselect",
+        "labkipackmanager-update",
+        "labkipackmanager-remove",
         "labkipackmanager-auto-selected",
         "labkipackmanager-selected",
         "labkipackmanager-details-title",

@@ -20,6 +20,7 @@
           :depth="0"
           @select-pack="onSelectPack"
           @deselect-pack="onDeselectPack"
+          @set-pack-action="onSetPackAction"
         />
       </div>
     </div>
@@ -42,6 +43,15 @@ async function onSelectPack(packName) {
 
 async function onDeselectPack(packName) {
   await sendCommand('deselect_pack', { pack_name: packName });
+}
+
+function onSetPackAction(payload) {
+  // Just update the pack action locally without API call
+  // The action will be sent when user clicks Apply
+  const pack = store.packs[payload.pack_name];
+  if (pack) {
+    pack.action = payload.action;
+  }
 }
 
 async function sendCommand(command, data) {
@@ -82,6 +92,10 @@ function $t(key) {
   border: 1px solid #c8ccd1;
   border-radius: 8px;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 h3 {
@@ -112,6 +126,7 @@ h3 {
 
 .tree-nodes {
   margin-top: 16px;
+  width: 100%;
 }
 </style>
 

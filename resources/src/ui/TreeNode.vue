@@ -29,21 +29,33 @@
         </div>
         
         <div v-if="node.type === 'pack'" class="node-actions">
+          <!-- Install button: for packs not yet installed (current_version is null) -->
           <cdx-button
-            v-if="!packState?.selected && !packState?.auto_selected"
-            size="small"
+            v-if="packState && packState.current_version === null"
+            :style="installButtonStyle"
             action="progressive"
-            @click="onSelect"
+            @click="toggleInstall"
           >
             {{ $t('labkipackmanager-select') }}
           </cdx-button>
+          
+          <!-- Update button: for installed packs with newer version available -->
           <cdx-button
-            v-if="packState?.selected || packState?.auto_selected"
-            size="small"
-            action="destructive"
-            @click="onDeselect"
+            v-if="canUpdate"
+            :style="updateButtonStyle"
+            @click="toggleAction('update')"
           >
-            {{ $t('labkipackmanager-deselect') }}
+            {{ $t('labkipackmanager-update') }}
+          </cdx-button>
+          
+          <!-- Remove button: for installed packs -->
+          <cdx-button
+            v-if="packState && packState.current_version !== null"
+            :style="removeButtonStyle"
+            action="destructive"
+            @click="toggleAction('remove')"
+          >
+            {{ $t('labkipackmanager-remove') }}
           </cdx-button>
         </div>
       </div>
@@ -57,6 +69,7 @@
         :depth="depth + 1"
         @select-pack="$emit('select-pack', $event)"
         @deselect-pack="$emit('deselect-pack', $event)"
+        @set-pack-action="$emit('set-pack-action', $event)"
       />
     </div>
   </div>
@@ -72,7 +85,7 @@ const props = defineProps({
   depth: Number
 });
 
-const emit = defineEmits(['select-pack', 'deselect-pack']);
+const emit = defineEmits(['select-pack', 'deselect-pack', 'set-pack-action']);
 
 const expanded = ref(props.depth < 2); // Auto-expand first 2 levels
 
@@ -81,6 +94,14 @@ const packState = computed(() => {
     return null;
   }
   return store.packs[props.node.label] || null;
+});
+
+const canUpdate = computed(() => {
+  if (!packState.value) return false;
+  if (packState.value.current_version === null) return false; // Not installed
+  if (!packState.value.target_version) return false;
+  // Check if target version is greater than current version
+  return packState.value.target_version > packState.value.current_version;
 });
 
 const statusClass = computed(() => {
@@ -103,6 +124,42 @@ const statusText = computed(() => {
   return '';
 });
 
+const installButtonStyle = computed(() => {
+  if (!packState.value) return {};
+  if (packState.value.action === 'install') {
+    return {
+      border: '2px solid #36c',
+      boxShadow: 'inset 0 0 4px rgba(0, 0, 0, 0.2)',
+      fontWeight: 'bold',
+    };
+  }
+  return {};
+});
+
+const updateButtonStyle = computed(() => {
+  if (!packState.value) return {};
+  if (packState.value.action === 'update') {
+    return {
+      border: '2px solid #36c',
+      boxShadow: 'inset 0 0 4px rgba(0, 0, 0, 0.2)',
+      fontWeight: 'bold',
+    };
+  }
+  return {};
+});
+
+const removeButtonStyle = computed(() => {
+  if (!packState.value) return {};
+  if (packState.value.action === 'remove') {
+    return {
+      border: '2px solid #36c',
+      boxShadow: 'inset 0 0 4px rgba(0, 0, 0, 0.2)',
+      fontWeight: 'bold',
+    };
+  }
+  return {};
+});
+
 function toggleExpanded() {
   expanded.value = !expanded.value;
 }
@@ -113,6 +170,25 @@ function onSelect() {
 
 function onDeselect() {
   emit('deselect-pack', props.node.label);
+}
+
+function toggleAction(action) {
+  // If the action is already set, toggle it off (set to unchanged)
+  const newAction = packState.value?.action === action ? 'unchanged' : action;
+  emit('set-pack-action', { pack_name: props.node.label, action: newAction });
+}
+
+function toggleInstall() {
+  // For Install button: emit select-pack like before to maintain API compatibility
+  if (packState.value?.action === 'install') {
+    // If already marked for install, emit deselect
+    emit('set-pack-action', { pack_name: props.node.label, action: 'unchanged' });
+    emit('deselect-pack', props.node.label);
+  } else {
+    // If not marked for install, emit select
+    emit('set-pack-action', { pack_name: props.node.label, action: 'install' });
+    emit('select-pack', props.node.label);
+  }
 }
 
 // Helper for i18n

@@ -27,8 +27,17 @@ export function mergeDiff(target: PacksState, diff: PacksState): void {
  * @returns Merged pack state
  */
 function mergePack(dst: PackState, src: PackState): PackState {
+  // Preserve local-only fields that shouldn't be overwritten by server
+  const preservedAction = dst.action;
+  
   // Shallow merge pack-level fields
   const out: PackState = { ...dst, ...src };
+  
+  // Restore the action field - it's local-only and set by the user
+  // Don't let server diffs overwrite it
+  if (preservedAction !== undefined) {
+    out.action = preservedAction;
+  }
 
   // Deep merge pages if present in source
   if (src.pages) {

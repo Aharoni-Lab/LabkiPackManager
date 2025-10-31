@@ -371,10 +371,9 @@ final class PackSessionState {
 		$targetVersion = $packDef['version'];
 		$prefix = $packDef['prefix'] ?? '';
 
-		// Determine action type
-		$action = $currentVersion === null
-			? 'install'
-			: ( $currentVersion !== $targetVersion ? 'update' : 'unchanged' );
+		// Determine action type - start with 'unchanged' for all
+		// Users must explicitly click buttons to mark for install/update/remove
+		$action = 'unchanged';
 
 		// Build pack-level state
 		$packState = [];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\Handlers\Packs;
 
 use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Services\LabkiPackRegistry;
 
 /**
  * Handles clearing session state.
@@ -20,8 +21,8 @@ use LabkiPackManager\Domain\PackSessionState;
  * }
  *
  * Behavior:
- * - Clears all session state for the current user and ref
- * - Returns a new empty state (not persisted, save=false)
+ * - Resets session state to the initial state based on currently installed packs
+ * - Returns a state reflecting what's currently installed in MediaWiki
  */
 final class ClearHandler extends BasePackHandler {
 
@@ -32,17 +33,35 @@ final class ClearHandler extends BasePackHandler {
 		$userId = $context['user_id'];
 		$refId = $context['ref_id'];
 
-		// Clear the state from storage
-		$this->stateStore->clear( $userId, $refId );
+		$packRegistry = new LabkiPackRegistry();
+		// Get installed packs for this ref
+		$installed = $packRegistry->listPacksByRef( $refId );
+		$installedMap = [];
+		foreach ( $installed as $p ) {
+			$installedMap[$p->name()] = $p;
+		}
 
-		// Create a new empty state to return (not persisted)
-		$newState = new PackSessionState( $refId, $userId, [] );
+		// Build pack states from manifest - same as InitHandler
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+		
+		$packs = [];
+		foreach ( $manifestPacks as $packName => $packDef ) {
+			$currentVersion = isset( $installedMap[$packName] )
+				? $installedMap[$packName]->version()
+				: null;
 
-		// Don't persist, just return the cleared state
-		return [
-			'state'    => $newState,
-			'warnings' => [],
-			'save'     => false,
-		];
+			$packs[$packName] = PackSessionState::createPackState(
+				$packName,
+				$packDef,
+				$currentVersion
+			);
+		}
+
+		// Create new session state based on what's currently installed
+		$newState = new PackSessionState( $refId, $userId, $packs );
+
+		// Persist this cleared/reset state
+		return $this->result( $newState, [], true );
 	}
 }
