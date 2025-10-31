@@ -58,8 +58,6 @@
     }
   },
   "APIModules": {
-    "labkiQuery": "LabkiPackManager\\API\\ApiLabkiQuery",
-    "labkiUpdate": "LabkiPackManager\\API\\ApiLabkiUpdate",
     "labkiManifestGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiManifestGet",
     "labkiHierarchyGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiHierarchyGet",
     "labkiGraphGet": "LabkiPackManager\\API\\Manifests\\ApiLabkiGraphGet",
