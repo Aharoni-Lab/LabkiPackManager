@@ -10,10 +10,7 @@
   "autoload": {
     "psr-4": {
       "LabkiPackManager\\": "includes/"
-    },
-    "files": [
-      "../mediawiki/vendor/autoload.php"
-    ]
+    }
   },
   "autoload-dev": {
     "psr-4": {
