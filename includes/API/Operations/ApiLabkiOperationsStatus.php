@@ -9,6 +9,7 @@ use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use ApiBase;
 use ApiMain;
+use MediaWiki\Json\FormatJson;
 
 /**
  * ApiLabkiOperationsStatus
@@ -150,7 +151,8 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 			$this->dieWithError( 'apierror-permissiondenied-generic', 'permission_denied' );
 		}
 
-		$resultData = json_decode( $operation->resultData(), true );
+		$parsed = FormatJson::parse( $operation->resultData(), FormatJson::FORCE_ASSOC );
+		$resultData = $parsed->isOK() ? $parsed->getValue() : [];
 
 		// Build response
 		$result = $this->getResult();
@@ -192,13 +194,16 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 		// Format operations for response
 		$formattedOps = [];
 		foreach ( $operations as $op ) {
+			$parsed = FormatJson::parse( $op->resultData(), FormatJson::FORCE_ASSOC );
+			$resultData = $parsed->isOK() ? $parsed->getValue() : [];
+
 			$formattedOps[] = [
 				'operation_id' => $op->id()->toString(),
 				'operation_type' => $op->type(),
 				'status' => $op->status(),
 				'progress' => $op->progress(),
 				'message' => $op->message(),
-				'result_data' => json_decode( $op->resultData(), true ),
+				'result_data' => $resultData,
 				'user_id' => $op->userId(),
 				'created_at' => $op->createdAt(),
 				'started_at' => $op->startedAt(),
