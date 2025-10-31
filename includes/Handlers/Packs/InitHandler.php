@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\Handlers\Packs;
 
 use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Services\LabkiPackRegistry;
 
 /**
  * Handles initializing a new PackSessionState from the manifest.
@@ -35,11 +36,7 @@ final class InitHandler extends BasePackHandler {
 		$refId    = $context['ref_id'];
 		$services = $context['services'];
 
-		$packRegistry = $services->getService( 'LabkiPackManager.PackRegistry' );
-		if ( !$packRegistry ) {
-			throw new \RuntimeException( 'InitHandler: PackRegistry service not found' );
-		}
-
+		$packRegistry = new LabkiPackRegistry();
 		// Get installed packs for this ref
 		$installed = $packRegistry->listPacksByRef( $refId );
 		$installedMap = [];
@@ -48,7 +45,7 @@ final class InitHandler extends BasePackHandler {
 		}
 
 		// Build pack states from manifest
-		$manifestPacks = $manifest['packs'] ?? [];
+		$manifestPacks = $manifest['packs'];
 		$packs = [];
 		foreach ( $manifestPacks as $packName => $packDef ) {
 			$currentVersion = isset( $installedMap[$packName] )

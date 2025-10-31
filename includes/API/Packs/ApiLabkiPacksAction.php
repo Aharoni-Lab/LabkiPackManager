@@ -12,7 +12,7 @@ use LabkiPackManager\Domain\PackSessionState;
 use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
-
+use LabkiPackManager\Services\PackStateStore;
 
 /**
  * Unified, intent-driven endpoint for pack interactions.
@@ -57,7 +57,7 @@ final class ApiLabkiPacksAction extends PackApiBase {
 	/** @inheritDoc */
 	public function __construct( \ApiMain $main, string $name ) {
 		parent::__construct( $main, $name );
-
+        
 		// Register command → handler class map.
 		// Add new commands here without touching endpoint logic.
 		$this->handlers = [
@@ -74,11 +74,17 @@ final class ApiLabkiPacksAction extends PackApiBase {
 
 	/** Execute the API request. */
 	public function execute(): void {
+        // Right now we require manage permission for all commands.
+        // TODO: Should we require manage permission for all commands?
 		$this->requireManagePermission();
 
 		$params = $this->extractRequestParams();
-		$payload = $this->parsePayload( $params );
-
+		$payload = $params['payload'];
+		if ( !is_array( $payload ) ) {
+			$this->dieWithError( 'labkipackmanager-error-invalid-payload', 'invalid_payload' );
+		}
+        // ------------------------------------------------------------
+        // Validate payload fields
 		$command = $payload['command'];
 		$repoUrl = $payload['repo_url'];
 		$refName = $payload['ref'];
@@ -96,13 +102,34 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		if ( !is_array( $data ) ) {
 			$this->dieWithError( 'labkipackmanager-error-invalid-payload', 'invalid_payload' );
 		}
+        // ------------------------------------------------------------
 
+        // ------------------------------------------------------------
 		// Resolve repo/ref and manifest
-		[$repoId, $refId, $manifest] = $this->resolveRepoRefAndManifestStrict( $repoUrl, $refName );
+        $repoRegistry = new LabkiRepoRegistry();
+		$refRegistry  = new LabkiRefRegistry();
+
+		$repoId = $repoRegistry->getRepoId( $repoUrl );
+		if ( $repoId === null ) {
+			$this->dieWithError( 'labkipackmanager-error-repo-not-found', 'repo_not_found' );
+		}
+
+		$refId = $refRegistry->getRefIdByRepoAndRef( $repoUrl, $refName );
+		if ( $refId === null ) {
+			$this->dieWithError( 'labkipackmanager-error-ref-not-found', 'ref_not_found' );
+		}
+
+		$manifestStore = new ManifestStore( $repoUrl, $refName );
+		$status = $manifestStore->getManifest();
+		if ( !$status->isOK() ) {
+			$this->dieWithError( 'labkipackmanager-error-manifest-not-found', 'manifest_not_found' );
+		}
+		$manifest = $status->getValue();
+		// ------------------------------------------------------------
 
 		// Load or create state per command. Non-init requires existing state.
 		$userId = $this->getUser()->getId();
-		$stateStore = $this->getPackStateStore();
+		$stateStore = new PackStateStore();
 		$state = $stateStore->get( $userId, $refId );
 
 		if ( $command !== 'init' && $state === null ) {
@@ -110,15 +137,17 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		}
 
 		// Lookup handler
-		$handlerClass = $this->handlers[$command] ?? null;
+		$handlerClass = $this->handlers[$command];
 		if ( $handlerClass === null ) {
 			$this->dieWithError( 'labkipackmanager-error-unknown-command', 'unknown_command' );
 		}
 
 		// Capture old state for diff computation
-		$oldPacks = $state ? $state->packs() : [];
+        // Pages are nested inside packs
+		$oldPacks = $state->packs();
 
 		// Build context for handlers
+        // TODO: make sure we need to pass all this context to the handler
 		$ctx = [
 			'user_id'  => $userId,
 			'repo_url' => $repoUrl,
@@ -144,20 +173,13 @@ final class ApiLabkiPacksAction extends PackApiBase {
 			$this->dieWithError( 'labkipackmanager-error-internal', 'internal_error' );
 		}
 
-		// Validate handler result
-		if ( !is_array( $result ) || !isset( $result['state'] ) || !( $result['state'] instanceof PackSessionState ) ) {
-			$this->dieWithError( 'labkipackmanager-error-handler-invalid-result', 'handler_invalid_result' );
-		}
-
 		/** @var PackSessionState $newState */
 		$newState = $result['state'];
-		$warnings = isset( $result['warnings'] ) && is_array( $result['warnings'] ) ? $result['warnings'] : [];
-		$operationInfo = $result['operation_info'] ?? null;
+		$warnings = $result['warnings'];
+		$operationInfo = $result['operation_info'];
 
 		// Persist unless handler requested otherwise
-		$shouldSave = !array_key_exists( 'save', $result ) || (bool)$result['save'] === true;
-
-		if ( $shouldSave ) {
+		if ($result['save'] ) {
 			$stateStore->save( $newState );
 		}
 
@@ -179,60 +201,13 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		}
 
 		// Respond uniformly
-		$this->addResponseUniform( $responseData );
-	}
-
-	/** Parse and validate payload JSON using MediaWiki utilities. */
-	private function parsePayload( array $params ): array {
-		$json = $params['payload'] ?? null;
-		if ( !is_string( $json ) || $json === '' ) {
-			$this->dieWithError( 'labkipackmanager-error-invalid-payload', 'invalid_payload' );
-		}
-		$parsed = FormatJson::parse( $json, FormatJson::FORCE_ASSOC );
-		if ( !$parsed->isGood() ) {
-			$this->dieWithError( 'labkipackmanager-error-invalid-payload', 'invalid_payload' );
-		}
-		$payload = $parsed->getValue();
-		return is_array( $payload ) ? $payload : [];
-	}
-
-	/**
-	 * Resolve repo/ref objects and load manifest.
-	 *
-	 * @return array [RepoId, ContentRefId, manifest_array]
-	 */
-	private function resolveRepoRefAndManifestStrict( string $repoUrl, string $ref ): array {
-		$repoRegistry = new LabkiRepoRegistry();
-		$refRegistry  = new LabkiRefRegistry();
-
-		$repoId = $repoRegistry->getRepoId( $repoUrl );
-		if ( $repoId === null ) {
-			$this->dieWithError( 'labkipackmanager-error-repo-not-found', 'repo_not_found' );
-		}
-
-		$refId = $refRegistry->getRefIdByRepoAndRef( $repoUrl, $ref );
-		if ( $refId === null ) {
-			$this->dieWithError( 'labkipackmanager-error-ref-not-found', 'ref_not_found' );
-		}
-
-		$manifestStore = new ManifestStore( $repoUrl, $ref );
-		$status = $manifestStore->get();
-		if ( !$status->isOK() ) {
-			$this->dieWithError( 'labkipackmanager-error-manifest-not-found', 'manifest_not_found' );
-		}
-		$manifestData = $status->getValue();
-		$manifest = $manifestData['manifest'] ?? [];
-		return [ $repoId, $refId, $manifest ];
-	}
-
-	/** Uniform response builder with meta. */
-	private function addResponseUniform( array $data ): void {
+        // We will keep this for now, but we will eventually remove it and use the responseData directly.
 		$result = $this->getResult();
-		$data['meta'] = [
+		$responseData['meta'] = [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		];
-		foreach ( $data as $k => $v ) {
+		foreach ( $responseData as $k => $v ) {
 			$result->addValue( null, $k, $v );
 		}
 	}
@@ -258,8 +233,7 @@ final class ApiLabkiPacksAction extends PackApiBase {
 	private function computePackDiff( array $oldPack, array $newPack ): array {
 		$diff = [];
 
-		$topLevel = [ 'selected', 'auto_selected', 'auto_selected_reason', 'action', 'current_version', 'target_version', 'prefix' ];
-		foreach ( $topLevel as $field ) {
+		foreach ( PackSessionState::PACK_FIELDS as $field ) {
 			$ov = $oldPack[$field] ?? null;
 			$nv = $newPack[$field] ?? null;
 			if ( $ov !== $nv ) {
@@ -267,8 +241,8 @@ final class ApiLabkiPacksAction extends PackApiBase {
 			}
 		}
 
-		$oldPages = $oldPack['pages'] ?? [];
-		$newPages = $newPack['pages'] ?? [];
+		$oldPages = $oldPack['pages'];
+		$newPages = $newPack['pages'];
 		$pagesDiff = $this->computePagesDiff( $oldPages, $newPages );
 		if ( !empty( $pagesDiff ) ) {
 			$diff['pages'] = $pagesDiff;
@@ -287,8 +261,7 @@ final class ApiLabkiPacksAction extends PackApiBase {
 				continue;
 			}
 			$pageDiff = [];
-			$fields = [ 'name', 'default_title', 'final_title', 'has_conflict', 'conflict_type' ];
-			foreach ( $fields as $f ) {
+			foreach ( PackSessionState::PAGE_FIELDS as $f ) {
 				$ov = $oldPage[$f] ?? null;
 				$nv = $newPage[$f] ?? null;
 				if ( $ov !== $nv ) {
@@ -300,12 +273,6 @@ final class ApiLabkiPacksAction extends PackApiBase {
 			}
 		}
 		return $diff;
-	}
-
-	/** Shortcut to PackStateStore via service accessor on the base class if present. */
-	private function getPackStateStore(): \LabkiPackManager\Services\PackStateStore {
-		// Prefer DI if PackApiBase exposes it; fallback to direct instantiation.
-		return new \LabkiPackManager\Services\PackStateStore();
 	}
 
 	/** POST is required for all commands. */
@@ -327,7 +294,7 @@ final class ApiLabkiPacksAction extends PackApiBase {
 	public function getAllowedParams(): array {
 		return [
 			'payload' => [
-				ParamValidator::PARAM_TYPE => 'text',
+				ParamValidator::PARAM_TYPE => 'json',
 				ParamValidator::PARAM_REQUIRED => true,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-packs-action-param-payload',
 			],

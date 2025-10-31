@@ -42,6 +42,33 @@ final class PackSessionState {
 	private int $timestamp;
 
 	/**
+	 * Pack-level state fields.
+	 * These represent the top-level properties of a pack within the session.
+	 */
+	public const PACK_FIELDS = [
+		'selected',              // User manually selected this pack
+		'auto_selected',         // Pack was auto-selected as dependency
+		'auto_selected_reason',  // Reason for auto-selection
+		'action',                // install|update|remove|unchanged
+		'current_version',       // Version currently installed (null if not installed)
+		'target_version',        // Version from manifest
+		'prefix',                // Pack prefix for page titles (user-customizable)
+	];
+
+	/**
+	 * Page-level state fields.
+	 * These represent the properties of individual pages within a pack.
+	 */
+	public const PAGE_FIELDS = [
+		'name',            // Original page name from manifest
+		'default_title',   // Computed default title (prefix/name)
+		'final_title',     // User-customized title or default
+		'has_conflict',    // Whether this title conflicts with existing page
+		'conflict_type',   // Type of conflict (title_exists, namespace_invalid, etc.)
+		'installed',       // Whether this page is already installed
+	];
+
+	/**
 	 * Constructor.
 	 *
 	 * @param ContentRefId $refId Content ref ID
@@ -341,16 +368,27 @@ final class PackSessionState {
 		array $packDef,
 		?string $currentVersion = null
 	): array {
-		$targetVersion = $packDef['version'] ?? '0.0.0';
-		$prefix = $packDef['prefix'] ?? $packName;
+		$targetVersion = $packDef['version'];
+		$prefix = $packDef['prefix'] ?? '';
 
-		// Determine action
-		if ( $currentVersion === null ) {
-			$action = 'install';
-		} elseif ( $currentVersion !== $targetVersion ) {
-			$action = 'update';
-		} else {
-			$action = 'unchanged';
+		// Determine action type
+		$action = $currentVersion === null
+			? 'install'
+			: ( $currentVersion !== $targetVersion ? 'update' : 'unchanged' );
+
+		// Build pack-level state
+		$packState = [];
+		foreach ( self::PACK_FIELDS as $field ) {
+			$packState[$field] = match ( $field ) {
+				'selected' => $currentVersion !== null,
+				'auto_selected' => false,
+				'auto_selected_reason' => null,
+				'action' => $action,
+				'current_version' => $currentVersion,
+				'target_version' => $targetVersion,
+				'prefix' => $prefix,
+				default => null,
+			};
 		}
 
 		// Build pages array
@@ -358,24 +396,24 @@ final class PackSessionState {
 		$manifestPages = $packDef['pages'] ?? [];
 		foreach ( $manifestPages as $pageName ) {
 			$defaultTitle = $prefix ? "{$prefix}/{$pageName}" : $pageName;
-			$pages[$pageName] = [
-				'name' => $pageName,
-				'default_title' => $defaultTitle,
-				'final_title' => $defaultTitle,
-				'has_conflict' => false,
-				'conflict_type' => null,
-			];
+
+			$pageState = [];
+			foreach ( self::PAGE_FIELDS as $f ) {
+				$pageState[$f] = match ( $f ) {
+					'name' => $pageName,
+					'default_title' => $defaultTitle,
+					'final_title' => $defaultTitle,
+					'has_conflict' => false,
+					'conflict_type' => null,
+					'installed' => false,
+					default => null,
+				};
+			}
+			$pages[$pageName] = $pageState;
 		}
 
-		return [
-			'selected' => $currentVersion !== null, // Pre-select if installed
-			'auto_selected' => false,
-			'auto_selected_reason' => null,
-			'action' => $action,
-			'current_version' => $currentVersion,
-			'target_version' => $targetVersion,
-			'prefix' => $prefix,
-			'pages' => $pages,
-		];
+		$packState['pages'] = $pages;
+
+		return $packState;
 	}
 }
