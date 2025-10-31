@@ -13,6 +13,7 @@ use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\PackStateStore;
+use MediaWiki\Status\Status;
 
 /**
  * Unified, intent-driven endpoint for pack interactions.
@@ -79,7 +80,14 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		$this->requireManagePermission();
 
 		$params = $this->extractRequestParams();
-		$payload = $params['payload'];
+		$payloadString = $params['payload'];
+		
+		// Decode JSON string to array since we use 'string' type
+		$payload = FormatJson::parse( $payloadString, FormatJson::FORCE_ASSOC );
+		if ( !$payload->isOK() ) {
+			$this->dieWithError( 'labkipackmanager-error-invalid-payload', 'invalid_payload' );
+		}
+		$payload = $payload->getValue();
 		if ( !is_array( $payload ) ) {
 			$this->dieWithError( 'labkipackmanager-error-invalid-payload', 'invalid_payload' );
 		}
@@ -143,8 +151,9 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		}
 
 		// Capture old state for diff computation
-        // Pages are nested inside packs
-		$oldPacks = $state->packs();
+		// Pages are nested inside packs
+		// For init command, state is null so oldPacks will be empty
+		$oldPacks = $state ? $state->packs() : [];
 
 		// Build context for handlers
         // TODO: make sure we need to pass all this context to the handler
@@ -200,16 +209,18 @@ final class ApiLabkiPacksAction extends PackApiBase {
 			$responseData['operation'] = $operationInfo;
 		}
 
-		// Respond uniformly
-        // We will keep this for now, but we will eventually remove it and use the responseData directly.
+		// Respond uniformly - use addValue() with proper boolean conversion
 		$result = $this->getResult();
 		$responseData['meta'] = [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
 		];
-		foreach ( $responseData as $k => $v ) {
-			$result->addValue( null, $k, $v );
-		}
+		
+		// Convert all booleans to integers for proper API serialization
+		$responseData = $this->prepareDiffForApi( $responseData );
+		
+		// Add the entire response as a single nested value
+		$result->addValue( null, 'labkiPacksAction', $responseData );
 	}
 
 	/** Compute deep diff between two pack states. */
@@ -294,7 +305,7 @@ final class ApiLabkiPacksAction extends PackApiBase {
 	public function getAllowedParams(): array {
 		return [
 			'payload' => [
-				ParamValidator::PARAM_TYPE => 'json',
+				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => true,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-packs-action-param-payload',
 			],
@@ -320,5 +331,22 @@ final class ApiLabkiPacksAction extends PackApiBase {
 			'action=labkiPacksAction&payload={"command":"apply","repo_url":"https://github.com/Aharoni-Lab/labki-packs","ref":"main","data":{}}'
 				=> 'apihelp-labkipacksaction-example-apply',
 		];
+	}
+
+	/**
+	 * Convert booleans in nested array to integers (0/1) for API serialization.
+	 *
+	 * @param array $data
+	 * @return array
+	 */
+	private function prepareDiffForApi( array $data ): array {
+		foreach ( $data as $k => &$v ) {
+			if ( is_bool( $v ) ) {
+				$v = $v ? 1 : 0;
+			} elseif ( is_array( $v ) ) {
+				$v = $this->prepareDiffForApi( $v );
+			}
+		}
+		return $data;
 	}
 }

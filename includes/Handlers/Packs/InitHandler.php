@@ -36,6 +36,8 @@ final class InitHandler extends BasePackHandler {
 		$refId    = $context['ref_id'];
 		$services = $context['services'];
 
+		wfDebugLog( 'labkipack', "InitHandler: Starting with manifest keys: " . json_encode( array_keys( $manifest ) ) );
+
 		$packRegistry = new LabkiPackRegistry();
 		// Get installed packs for this ref
 		$installed = $packRegistry->listPacksByRef( $refId );
@@ -44,10 +46,17 @@ final class InitHandler extends BasePackHandler {
 			$installedMap[$p->name()] = $p;
 		}
 
+		wfDebugLog( 'labkipack', "InitHandler: Installed packs: " . json_encode( array_keys( $installedMap ) ) );
+
 		// Build pack states from manifest
-		$manifestPacks = $manifest['packs'];
+		// The manifest structure has packs nested under manifest.manifest.packs
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+		wfDebugLog( 'labkipack', "InitHandler: Manifest packs: " . json_encode( array_keys( $manifestPacks ) ) );
+		
 		$packs = [];
 		foreach ( $manifestPacks as $packName => $packDef ) {
+			wfDebugLog( 'labkipack', "InitHandler: Processing pack: " . $packName );
 			$currentVersion = isset( $installedMap[$packName] )
 				? $installedMap[$packName]->version()
 				: null;
@@ -59,8 +68,12 @@ final class InitHandler extends BasePackHandler {
 			);
 		}
 
+		wfDebugLog( 'labkipack', "InitHandler: Built " . count( $packs ) . " packs" );
+
 		// Create new session state
 		$newState = new PackSessionState( $refId, $userId, $packs );
+
+		wfDebugLog( 'labkipack', "InitHandler: New state has " . count( $newState->packs() ) . " packs" );
 
 		// Return full state, no diff
 		return $this->result( $newState, [], true );

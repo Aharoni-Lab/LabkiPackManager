@@ -8,8 +8,8 @@ $specialPageAliases = [];
 
 /** English (English) */
 $specialPageAliases['en'] = [
-    'LabkiPackManager' => [ 'LabkiPackManager' ],
-    'LabkiDBViewer' => [ 'LabkiDBViewer' ],
+    'LabkiPacksManager' => [ 'LabkiPacksManager', 'Labki Packs Manager' ],
+    'LabkiDBViewer' => [ 'LabkiDBViewer', 'Labki DB Viewer' ],
 ];
 
 

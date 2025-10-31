@@ -41,7 +41,7 @@ final class SidebarHook {
         // This will create the section if it doesn't exist, or append if it does
         $bar['Labki'][] = [
             'text' => 'Pack Manager',
-            'href' => SkinComponentUtils::makeSpecialUrl( 'LabkiPackManager' ),
+            'href' => SkinComponentUtils::makeSpecialUrl( 'LabkiPacksManager' ),
             'id' => 'n-labki-pack-manager',
             'active' => false,
         ];

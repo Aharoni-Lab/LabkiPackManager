@@ -35,7 +35,8 @@ final class SelectPackHandler extends BasePackHandler {
 		}
 
 		// Capture old state for comparison if needed (handled at API level)
-		$manifestPacks = $manifest['packs'] ?? [];
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
 		if ( !isset( $manifestPacks[$packName] ) ) {
 			throw new \InvalidArgumentException( "SelectPackHandler: pack '{$packName}' not found in manifest" );
 		}

@@ -33,7 +33,9 @@ abstract class BasePackHandler implements PackCommandHandler {
 	 * @return array List of packs that were auto-selected
 	 */
 	protected function resolveDependencies( PackSessionState $state, array $manifest ): array {
-		$manifestPacks = $manifest['packs'] ?? [];
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+		$selectedPacks = $state->getSelectedPackNames();
 		$autoSelected = [];
 
 		// Clear previous auto-selections
@@ -43,9 +45,8 @@ abstract class BasePackHandler implements PackCommandHandler {
 			}
 		}
 
-		$selected = $state->getUserSelectedPackNames();
+		$queue = $selectedPacks;
 		$processed = [];
-		$queue = $selected;
 
 		while ( $queue ) {
 			$packName = array_shift( $queue );
@@ -56,7 +57,7 @@ abstract class BasePackHandler implements PackCommandHandler {
 
 			$deps = $manifestPacks[$packName]['depends_on'] ?? [];
 			foreach ( $deps as $depName ) {
-				if ( in_array( $depName, $selected, true ) ) {
+				if ( in_array( $depName, $selectedPacks, true ) ) {
 					continue;
 				}
 				$pack = $state->getPack( $depName );

@@ -52,11 +52,11 @@ final class DeselectPackHandler extends BasePackHandler {
 		}
 
 		// Validate pack exists
-		if ( !$state->hasPack( $packName ) ) {
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+		if ( !isset( $manifestPacks[$packName] ) ) {
 			throw new \InvalidArgumentException( "DeselectPackHandler: pack '{$packName}' not found in state" );
 		}
-
-		$manifestPacks = $manifest['packs'] ?? [];
 
 		// Check if other selected packs depend on this one
 		$dependents = [];

@@ -17,7 +17,7 @@
     ]
   },
   "ExtensionMessagesFiles": {
-    "LabkiPackManagerAlias": "LabkiPackManager.alias.php"
+    "LabkiPacksManagerAlias": "LabkiPacksManager.alias.php"
   },
   "AutoloadNamespaces": {
     "LabkiPackManager\\": "includes/",
@@ -36,18 +36,60 @@
         "resources/css/labkipackmanager.css"
       ],
       "messages": [
-        "labkipackmanager-ui-content-repo",
-        "labkipackmanager-ui-current",
-        "labkipackmanager-ui-load",
-        "labkipackmanager-ui-refresh",
-        "labkipackmanager-ui-included",
-        "labkipackmanager-ui-not-included",
-        "labkipackmanager-ui-no-packs",
-        "labkipackmanager-ui-selected-packs",
-        "labkipackmanager-ui-fetched",
-        "labkipackmanager-ui-cache-suffix",
-        "labkipackmanager-load-success",
-        "labkipackmanager-refresh-success"
+        "labkipackmanager-special-title",
+        "labkipackmanager-special-description",
+        "labkipackmanager-select-source",
+        "labkipackmanager-repo-selector-label",
+        "labkipackmanager-ref-selector-label",
+        "labkipackmanager-current-selection",
+        "labkipackmanager-add-repo-option",
+        "labkipackmanager-add-ref-option",
+        "labkipackmanager-add-repo-title",
+        "labkipackmanager-add-repo-submit",
+        "labkipackmanager-add-ref-title",
+        "labkipackmanager-add-ref-submit",
+        "labkipackmanager-cancel",
+        "labkipackmanager-repo-url-label",
+        "labkipackmanager-repo-url-placeholder",
+        "labkipackmanager-default-ref-label",
+        "labkipackmanager-default-ref-placeholder",
+        "labkipackmanager-ref-name-label",
+        "labkipackmanager-ref-name-placeholder",
+        "labkipackmanager-repository",
+        "labkipackmanager-graph-title",
+        "labkipackmanager-mermaid-not-installed",
+        "labkipackmanager-no-graph-loaded",
+        "labkipackmanager-hierarchy-title",
+        "labkipackmanager-no-hierarchy-loaded",
+        "labkipackmanager-pack-count",
+        "labkipackmanager-page-count",
+        "labkipackmanager-depends-on",
+        "labkipackmanager-select",
+        "labkipackmanager-deselect",
+        "labkipackmanager-auto-selected",
+        "labkipackmanager-selected",
+        "labkipackmanager-details-title",
+        "labkipackmanager-warnings",
+        "labkipackmanager-selected-packs",
+        "labkipackmanager-manually-selected",
+        "labkipackmanager-action",
+        "labkipackmanager-version",
+        "labkipackmanager-prefix",
+        "labkipackmanager-pages",
+        "labkipackmanager-no-packs-selected",
+        "labkipackmanager-state-hash",
+        "labkipackmanager-apply",
+        "labkipackmanager-refresh",
+        "labkipackmanager-clear",
+        "labkipackmanager-clear-confirm",
+        "labkipackmanager-apply-success",
+        "labkipackmanager-apply-success-with-id",
+        "labkipackmanager-refresh-success",
+        "labkipackmanager-clear-success",
+        "labkipackmanager-loading",
+        "labkipackmanager-error-repo-not-found",
+        "labkipackmanager-error-invalid-url",
+        "labkipackmanager-error-invalid-protocol"
       ],
       "dependencies": [
         "mediawiki.util",
@@ -84,11 +126,11 @@
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
   },
   "SpecialPages": {
-    "LabkiPackManager": "LabkiPackManager\\Special\\SpecialLabkiPackManager",
+    "LabkiPacksManager": "LabkiPackManager\\Special\\SpecialLabkiPacksManager",
     "LabkiDBViewer": "LabkiPackManager\\Special\\SpecialLabkiDBViewer"
   },
   "SpecialPageGroups": {
-      "LabkiPackManager": "labki",
+      "LabkiPacksManager": "labki",
       "LabkiDBViewer": "labki"
   },
   "config": {
