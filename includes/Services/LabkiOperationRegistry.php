@@ -247,78 +247,53 @@ final class LabkiOperationRegistry {
      *
      * Returns all fields for the requested operation, or null if not found.
      *
-     * @param OperationId $operationId The operation ID to fetch
+     * @param OperationId|string $operationId The operation ID to fetch (object or string)
      * @return Operation|null Operation domain object, or null if not found
      */
-    public function getOperation( OperationId $operationId ): ?Operation {
+    public function getOperation( OperationId|string $operationId ): ?Operation {
+        $operationIdStr = $operationId instanceof OperationId ? $operationId->toString() : $operationId;
         $row = $this->dbr->selectRow(
             Operation::TABLE,
             Operation::FIELDS,
-            [ 'operation_id' => $operationId->toString() ],
+            [ 'operation_id' => $operationIdStr ],
             __METHOD__
         );
         return $row ? Operation::fromRow( $row ) : null;
     }
 
     /**
-     * Fetch recent operations with optional filters
+     * Fetch operations with optional filters
      *
      * Returns operations ordered by most recently updated first.
+     * Can filter by type, status, and/or user ID.
      *
      * @param string|null $type Filter by operation type (null for all types)
-     * @param int|null $limit Maximum number of operations to return
+     * @param string|null $status Filter by status (null for all statuses)
+     * @param int|null $userId Filter by user ID (null for all users)
+     * @param int $limit Maximum number of operations to return
      * @return Operation[] Array of Operation domain objects
      */
-    public function listOperations( ?string $type = null, ?int $limit = 50 ): array {
+    public function getOperations(
+        ?string $type = null,
+        ?string $status = null,
+        ?int $userId = null,
+        int $limit = 50
+    ): array {
         $conds = [];
         if ( $type !== null ) {
             $conds['operation_type'] = $type;
         }
+        if ( $status !== null ) {
+            $conds['status'] = $status;
+        }
+        if ( $userId !== null ) {
+            $conds['user_id'] = $userId;
+        }
+        
         $res = $this->dbr->select(
             Operation::TABLE,
             Operation::FIELDS,
             $conds,
-            __METHOD__,
-            [ 'ORDER BY' => 'updated_at DESC', 'LIMIT' => $limit ]
-        );
-        return array_map( static fn( $row ) => Operation::fromRow( $row ), iterator_to_array( $res ) );
-    }
-
-    /**
-     * Get operations by status
-     *
-     * Returns all operations matching the specified status, useful for finding
-     * all queued, running, or failed operations.
-     *
-     * @param string $status Status to filter by (e.g., 'running', 'failed')
-     * @param int|null $limit Maximum number of operations to return
-     * @return Operation[] Array of Operation domain objects
-     */
-    public function getOperationsByStatus( string $status, ?int $limit = 50 ): array {
-        $res = $this->dbr->select(
-            Operation::TABLE,
-            Operation::FIELDS,
-            [ 'status' => $status ],
-            __METHOD__,
-            [ 'ORDER BY' => 'updated_at DESC', 'LIMIT' => $limit ]
-        );
-        return array_map( static fn( $row ) => Operation::fromRow( $row ), iterator_to_array( $res ) );
-    }
-
-    /**
-     * Get operations by user ID
-     *
-     * Returns all operations initiated by a specific user.
-     *
-     * @param int $userId User ID to filter by
-     * @param int|null $limit Maximum number of operations to return
-     * @return Operation[] Array of Operation domain objects
-     */
-    public function getOperationsByUser( int $userId, ?int $limit = 50 ): array {
-        $res = $this->dbr->select(
-            Operation::TABLE,
-            Operation::FIELDS,
-            [ 'user_id' => $userId ],
             __METHOD__,
             [ 'ORDER BY' => 'updated_at DESC', 'LIMIT' => $limit ]
         );

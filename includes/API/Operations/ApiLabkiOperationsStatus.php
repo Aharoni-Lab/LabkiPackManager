@@ -97,59 +97,60 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 
 	/** Execute API request. */
 	public function execute(): void {
+		// Extract parameters
 		$params = $this->extractRequestParams();
-		$operationId = isset( $params['operation_id'] ) ? trim( (string)$params['operation_id'] ) : null;
-		$limit = $params['limit'] ?? 50;
+		$operationId = $params['operation_id'];
+		$limit = $params['limit'];
 		
 		// Validate limit range
+		// Should be done by ParamValidator, but we're not using it yet
+		// TODO: Figure out how to improve this by properly using ParamValidator
 		if ( $limit < 1 || $limit > 500 ) {
 			$this->dieWithError( [ 'apierror-integer-outofrange', 'limit', 1, 500 ], 'badvalue' );
 		}
 
-		$registry = new LabkiOperationRegistry();
 		$currentUser = $this->getUser();
 		$currentUserId = $currentUser->getId();
 		$canManage = $currentUser->isAllowed( 'labkipackmanager-manage' );
 
 		// Single operation mode
 		if ( $operationId !== null && $operationId !== '' ) {
-			$this->executeSingleOperation( $registry, $operationId, $currentUserId, $canManage );
+			$this->executeSingleOperation( $operationId, $currentUserId, $canManage );
 			return;
 		}
 
 		// List operations mode
-		$this->executeListOperations( $registry, $currentUserId, $canManage, $limit );
+		$this->executeListOperations( $currentUserId, $canManage, $limit );
 	}
 
 	/**
 	 * Handle single operation status query
 	 *
-	 * @param LabkiOperationRegistry $registry Operation registry instance
 	 * @param string $operationId Operation ID to query
 	 * @param int $currentUserId Current user's ID
 	 * @param bool $canManage Whether user has manage permission
 	 */
 	private function executeSingleOperation(
-		LabkiOperationRegistry $registry,
 		string $operationId,
 		int $currentUserId,
 		bool $canManage
 	): void {
-		$operation = $registry->getOperation( new OperationId( $operationId ) );
+		$registry = new LabkiOperationRegistry();
+		$operation = $registry->getOperation( $operationId );
 
+		// Consider moving this to the LabkiOperationRegistry
 		if ( $operation === null ) {
 			$this->dieWithError( 'labkipackmanager-error-operation-not-found', 'operation_not_found' );
 		}
 
 		// Permission check: users can only see their own operations unless they have manage permission
-		$operationUserId = $operation->userId() ?? 0;
+		$operationUserId = $operation->userId();
 		// Deny access if: user is NOT a manager AND operation doesn't belong to current user AND operation is not system-owned
-		if ( !$canManage && $operationUserId !== $currentUserId && $operationUserId !== 0 ) {
+		if ( !$canManage && $operationUserId !== $currentUserId ) {
 			$this->dieWithError( 'apierror-permissiondenied-generic', 'permission_denied' );
 		}
 
-		// Parse result_data if it's valid JSON
-		$resultData = $this->parseResultData( $operation->resultData() );
+		$resultData = json_decode( $operation->resultData(), true );
 
 		// Build response
 		$result = $this->getResult();
@@ -171,23 +172,21 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 
 	/**
 	 * Handle list operations query
-	 *
-	 * @param LabkiOperationRegistry $registry Operation registry instance
 	 * @param int $currentUserId Current user's ID
 	 * @param bool $canManage Whether user has manage permission
 	 * @param int $limit Maximum number of operations to return
 	 */
 	private function executeListOperations(
-		LabkiOperationRegistry $registry,
 		int $currentUserId,
 		bool $canManage,
 		int $limit
 	): void {
+		$registry = new LabkiOperationRegistry();
 		// Managers can see all operations, regular users see only their own
 		if ( $canManage ) {
-			$operations = $registry->listOperations( null, $limit );
+			$operations = $registry->getOperations( limit: $limit );
 		} else {
-			$operations = $registry->getOperationsByUser( $currentUserId, $limit );
+			$operations = $registry->getOperations( userId: $currentUserId, limit: $limit );
 		}
 
 		// Format operations for response
@@ -197,10 +196,10 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 				'operation_id' => $op->id()->toString(),
 				'operation_type' => $op->type(),
 				'status' => $op->status(),
-				'progress' => $op->progress() ?? 0,
-				'message' => $op->message() ?? '',
-				'result_data' => $this->parseResultData( $op->resultData() ),
-				'user_id' => $op->userId() ?? 0,
+				'progress' => $op->progress(),
+				'message' => $op->message(),
+				'result_data' => json_decode( $op->resultData(), true ),
+				'user_id' => $op->userId(),
 				'created_at' => $op->createdAt(),
 				'started_at' => $op->startedAt(),
 				'updated_at' => $op->updatedAt(),
@@ -216,26 +215,6 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 		] );
 	}
 
-	/**
-	 * Parse result_data from JSON string to array if valid
-	 *
-	 * @param string|null $resultData JSON string or null
-	 * @return array|string|null Parsed array, original string, or null
-	 */
-	private function parseResultData( ?string $resultData ) {
-		if ( $resultData === null || $resultData === '' ) {
-			return null;
-		}
-
-		$decoded = json_decode( $resultData, true );
-		if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) {
-			return $decoded;
-		}
-
-		// Return as-is if not valid JSON
-		return $resultData;
-	}
-
 	/** Define allowed parameters. */
 	public function getAllowedParams(): array {
 		return [
@@ -246,7 +225,6 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 			],
 			'limit' => [
 				ParamValidator::PARAM_TYPE => 'integer',
-				ParamValidator::PARAM_REQUIRED => false,
 				ParamValidator::PARAM_DEFAULT => 50,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-operations-status-param-limit',
 			],
