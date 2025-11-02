@@ -25,5 +25,12 @@ class ApiMain {}
 class WANObjectCache {
     public const TTL_INDEFINITE = 0;
 }
+abstract class Job {
+    protected array $params;
+    public function __construct(string $command, Title $title, array $params = []) {
+        $this->params = $params;
+    }
+    abstract public function run(): bool;
+}
 function wfDebugLog(string $channel, string $message): void {}
 function wfMessage(string $key): string { return ''; }

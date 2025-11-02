@@ -46,18 +46,17 @@ final class ApplyHandler extends BasePackHandler {
 		$services = $context['services'];
 
 		// Verify state hash matches - prevents tampering and ensures sync
-		$frontendStateHash = $data['state_hash'] ?? null;
+		$frontendStateHash = $data['state_hash'];
 		$backendStateHash = $state->hash();
-		if ( $frontendStateHash && $frontendStateHash !== $backendStateHash ) {
+		if ( $frontendStateHash !== $backendStateHash ) {
 			throw new \RuntimeException( 
 				"ApplyHandler: state hash mismatch. Frontend hash: {$frontendStateHash}, Backend hash: {$backendStateHash}. " .
 				"Please refresh and try again."
 			);
 		}
 
-		// Use packs data from frontend if provided, otherwise use state
-		// Frontend sends current pack state with all user-marked actions
-		$packsData = $data['packs'] ?? $state->packs();
+		// Use packs data from state. Front and backend are in sync.
+		$packsData = $state->packs();
 
 		// Build operations array from state
 		$operations = [];
@@ -68,15 +67,20 @@ final class ApplyHandler extends BasePackHandler {
 		];
 
 		foreach ( $packsData as $packName => $packState ) {
+			// TODO: Set 'action' for each pack as unchanged to start with when building the state.
 			$action = $packState['action'] ?? 'unchanged';
-			$isSelected = ( $packState['selected'] ?? false ) || ( $packState['auto_selected'] ?? false );
-
-			// Skip unchanged packs
+			// Skip unchanged packs	
 			if ( $action === 'unchanged' ) {
 				continue;
 			}
+			
+			$isSelected = ( $packState['selected'] ?? false ) || ( $packState['auto_selected'] ?? false );
+
+
 
 			// Only include selected packs for install/update
+			// TODO: I don't think this should be possible to happen
+			// but we should verify that is the case before removing this check.
 			if ( ( $action === 'install' || $action === 'update' ) && !$isSelected ) {
 				continue;
 			}
@@ -86,17 +90,19 @@ final class ApplyHandler extends BasePackHandler {
 				$operations[] = [
 					'action'     => 'install',
 					'pack_name'  => $packName,
-					'pages'      => $this->buildPagesArray( $packState['pages'] ?? [] ),
+					'pages'      => $this->buildPagesArray( $packState['pages'] ),
 				];
 				$summary['installs']++;
 			} elseif ( $action === 'update' ) {
 				$operations[] = [
 					'action'         => 'update',
 					'pack_name'      => $packName,
-					'target_version' => $packState['target_version'] ?? '0.0.0',
-					'pages'          => $this->buildPagesArray( $packState['pages'] ?? [] ),
+					'target_version' => $packState['target_version'],
+					'pages'          => $this->buildPagesArray( $packState['pages'] ),
 				];
 				$summary['updates']++;
+
+			// TDOD: I am not sure if we need to check if selected here
 			} elseif ( $action === 'remove' && !$isSelected ) {
 				// Remove operations for deselected installed packs
 				// We need the pack_id from the registry
@@ -108,8 +114,9 @@ final class ApplyHandler extends BasePackHandler {
 				$packId = $packRegistry->getPackIdByName( $refId, $packName );
 				if ( $packId !== null ) {
 					$operations[] = [
-						'action'  => 'remove',
-						'pack_id' => $packId->toInt(),
+						'action'  	=> 'remove',
+						'pack_name'	=> $packName,
+						'pack_id' 	=> $packId->toInt(),
 					];
 					$summary['removes']++;
 				}

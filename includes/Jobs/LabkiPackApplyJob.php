@@ -42,8 +42,7 @@ use LabkiPackManager\Services\LabkiPackManager;
  * ```php
  * [
  *   'action' => 'remove',
- *   'pack_id' => 123,
- *   'delete_pages' => true
+ *   'pack_id' => 123
  * ]
  * ```
  *
@@ -70,28 +69,25 @@ final class LabkiPackApplyJob extends Job {
 
 	/** Execute the background job. */
 	public function run(): bool {
-		$refIdInt = (int)( $this->params['ref_id'] ?? 0 );
-		$operations = $this->params['operations'] ?? [];
-		$operationIdStr = $this->params['operation_id'] ?? ( 'pack_apply_' . uniqid() );
-		$userId = (int)( $this->params['user_id'] ?? 0 );
+		$operationRegistry = new LabkiOperationRegistry();
+		$packManager = new LabkiPackManager();
+
+		$refIdInt = (int)( $this->params['ref_id']);
+		$operations = $this->params['operations'];
+		$operationIdStr = $this->params['operation_id'];
+		$userId = (int)( $this->params['user_id']);
 
 		$refId = new ContentRefId( $refIdInt );
 		$operationId = new OperationId( $operationIdStr );
 
+
+
 		wfDebugLog( 'labkipack', "LabkiPackApplyJob::run() started for refId={$refId->toInt()} with " . count( $operations ) . " operation(s) (operation_id={$operationIdStr})" );
 
 		// Basic validation
+		// TODO: Likely this is validated before the job is called, we should check that.
 		if ( $refIdInt === 0 || empty( $operations ) ) {
 			wfDebugLog( 'labkipack', "LabkiPackApplyJob: missing ref_id or operations" );
-			return false;
-		}
-
-		try {
-			$operationRegistry = new LabkiOperationRegistry();
-			$packManager = new LabkiPackManager();
-		} catch ( \Throwable $e ) {
-			$errorMessage = "LabkiPackApplyJob: failed to initialize services: {$e->getMessage()}";
-			wfDebugLog( 'labkipack', $errorMessage );
 			return false;
 		}
 
@@ -104,13 +100,20 @@ final class LabkiPackApplyJob extends Job {
 		$updateOps = [];
 
 		foreach ( $operations as $op ) {
-			$action = $op['action'] ?? 'unknown';
-			if ( $action === 'remove' ) {
-				$removeOps[] = $op;
-			} elseif ( $action === 'install' ) {
-				$installOps[] = $op;
-			} elseif ( $action === 'update' ) {
-				$updateOps[] = $op;
+			$action = $op['action'];
+			switch ( $action ) {
+				case 'remove':
+					$removeOps[] = $op;
+					break;
+				case 'install':
+					$installOps[] = $op;
+					break;
+				case 'update':
+					$updateOps[] = $op;
+					break;
+				default:
+					// We shouldn't ever get here, but we should handle it?
+					throw new \InvalidArgumentException( "Invalid action: {$action}" );
 			}
 		}
 
@@ -136,18 +139,17 @@ final class LabkiPackApplyJob extends Job {
 			wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 1 - Processing " . count( $removeOps ) . " remove operation(s)" );
 			foreach ( $removeOps as $op ) {
 				$packId = new PackId( (int)$op['pack_id'] );
-				$deletePages = $op['delete_pages'] ?? false;
 
 				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Removing pack ID {$packId->toInt()}" );
 				
 				try {
-					$removeResult = $packManager->removePack( $packId, $deletePages, $userId );
+					$removeResult = $packManager->removePack( $packId, $userId );
 					
 					if ( $removeResult['success'] ) {
 						$results['removes'][] = [
 							'pack_id' => $packId->toInt(),
-							'pack_name' => $removeResult['pack_name'] ?? 'Unknown',
-							'pages_deleted' => $removeResult['pages_deleted'] ?? 0,
+							'pack_name' => $removeResult['pack_name'],
+							'pages_deleted' => $removeResult['pages_deleted'],
 							'success' => true,
 						];
 						$completedOps++;
@@ -158,7 +160,7 @@ final class LabkiPackApplyJob extends Job {
 						$results['removes'][] = [
 							'pack_id' => $packId->toInt(),
 							'success' => false,
-							'error' => $removeResult['error'] ?? 'Unknown error',
+							'error' => $removeResult['error'],
 						];
 						$results['errors'][] = "Remove pack {$packId->toInt()}: " . ( $removeResult['error'] ?? 'Unknown error' );
 					}
@@ -180,8 +182,8 @@ final class LabkiPackApplyJob extends Job {
 			// Phase 2: INSTALL operations
 			wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 2 - Processing " . count( $installOps ) . " install operation(s)" );
 			foreach ( $installOps as $op ) {
-				$packName = $op['pack_name'] ?? 'Unknown Pack';
-				$pages = $op['pages'] ?? [];
+				$packName = $op['pack_name'];
+				$pages = $op['pages'];
 
 				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Installing pack: {$packName}" );
 				
@@ -189,22 +191,18 @@ final class LabkiPackApplyJob extends Job {
 					// Build pack definition from operation
 					$packDef = [
 						'name' => $packName,
-						'version' => $op['version'] ?? null,
+						'version' => $op['version'],
 						'pages' => [],
 					];
 
 					// Map pages with their final titles
-					foreach ( $pages as $page ) {
-						$pageName = $page['name'] ?? $page['original'] ?? null;
-						$finalTitle = $page['final_title'] ?? $page['finalTitle'] ?? null;
-						
-						if ( $pageName && $finalTitle ) {
-							$packDef['pages'][] = [
-								'name' => $pageName,
-								'finalTitle' => $finalTitle,
-							];
-						}
-					}
+					$packDef['pages'] = array_map(
+						fn($page) => [
+							'name' => $page['name'],
+							'finalTitle' => $page['final_title']
+						],
+						$pages
+					);
 
 					$installResult = $packManager->installSinglePack( $refId, $packDef, $userId );
 					
@@ -245,8 +243,8 @@ final class LabkiPackApplyJob extends Job {
 			// Phase 3: UPDATE operations
 			wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 3 - Processing " . count( $updateOps ) . " update operation(s)" );
 			foreach ( $updateOps as $op ) {
-				$packName = $op['pack_name'] ?? 'Unknown Pack';
-				$targetVersion = $op['target_version'] ?? null;
+				$packName = $op['pack_name'];
+				$targetVersion = $op['target_version'];
 
 				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Updating pack: {$packName}" );
 				
@@ -256,9 +254,9 @@ final class LabkiPackApplyJob extends Job {
 					if ( $updateResult['success'] ) {
 						$results['updates'][] = [
 							'pack_name' => $packName,
-							'old_version' => $updateResult['old_version'] ?? null,
-							'new_version' => $updateResult['new_version'] ?? null,
-							'pages_updated' => $updateResult['pages_updated'] ?? 0,
+							'old_version' => $updateResult['old_version'],
+							'new_version' => $updateResult['new_version'],
+							'pages_updated' => $updateResult['pages_updated'],
 							'success' => true,
 						];
 						$completedOps++;

@@ -87,6 +87,8 @@ services:
   mediawiki-jobrunner:
     # Don't override image - use base docker-compose.yml's jobrunner image
     user: "$(id -u):$(id -g)"
+    # Restrict to only LabkiPackManager jobs
+    command: ["php", "maintenance/runJobs.php", "--wait", "--type=labkiRepoAdd", "--type=labkiRepoSync", "--type=labkiRepoRemove", "--type=labkiPackApply"]
     volumes:
       - $EXT_DIR:/var/www/html/w/extensions/LabkiPackManager:cached
       - $LOG_DIR:$CONTAINER_LOG_PATH

@@ -11,8 +11,7 @@ use MediaWiki\Content\WikitextContent;
 use MediaWiki\Title\Title;
 use MediaWiki\CommentStore\CommentStoreComment;
 use MediaWiki\Revision\SlotRecord;
-use MediaWiki\Page\WikiPage;
-use Status;
+use MediaWiki\Status\Status;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -47,22 +46,12 @@ class LabkiPackManager {
 
 	/**
 	 * Constructor.
-	 *
-	 * @param LabkiPackRegistry|null $packRegistry Optional pack registry (for testing)
-	 * @param LabkiPageRegistry|null $pageRegistry Optional page registry (for testing)
-	 * @param LabkiRepoRegistry|null $repoRegistry Optional repo registry (for testing)
-	 * @param LabkiRefRegistry|null $refRegistry Optional ref registry (for testing)
 	 */
-	public function __construct(
-		?LabkiPackRegistry $packRegistry = null,
-		?LabkiPageRegistry $pageRegistry = null,
-		?LabkiRepoRegistry $repoRegistry = null,
-		?LabkiRefRegistry $refRegistry = null
-	) {
-		$this->packRegistry = $packRegistry ?? new LabkiPackRegistry();
-		$this->pageRegistry = $pageRegistry ?? new LabkiPageRegistry();
-		$this->repoRegistry = $repoRegistry ?? new LabkiRepoRegistry();
-		$this->refRegistry = $refRegistry ?? new LabkiRefRegistry();
+	public function __construct() {
+		$this->packRegistry = new LabkiPackRegistry();
+		$this->pageRegistry = new LabkiPageRegistry();
+		$this->repoRegistry = new LabkiRepoRegistry();
+		$this->refRegistry = new LabkiRefRegistry();
 	}
 
 	/**
@@ -87,40 +76,15 @@ class LabkiPackManager {
 		}
 
 		$worktreePath = $ref->worktreePath();
-		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-			wfDebugLog( 'labkipack', "Worktree not found: {$worktreePath}" );
-			return [];
-		}
 
 		// Get manifest to extract depends_on for each pack
 		$manifestPages = $this->getManifestPagesFromWorktree( $worktreePath );
+
+		// Gets packs from worktree manifest.yml because it's the source of truth for dependencies.
 		$manifestPath = $worktreePath . '/manifest.yml';
-
-		if ( !file_exists( $manifestPath ) ) {
-			wfDebugLog( 'labkipack', "Manifest not found for dependency validation: {$manifestPath}" );
-			return [];
-		}
-
 		$manifestContent = file_get_contents( $manifestPath );
-		if ( $manifestContent === false ) {
-			wfDebugLog( 'labkipack', "Failed to read manifest: {$manifestPath}" );
-			return [];
-		}
-
-		try {
-			$manifest = Yaml::parse( $manifestContent );
-			if ( !is_array( $manifest ) ) {
-				return [];
-			}
-		} catch ( \Exception $e ) {
-			wfDebugLog( 'labkipack', "Failed to parse manifest: " . $e->getMessage() );
-			return [];
-		}
-
-		$packs = $manifest['packs'] ?? [];
-		if ( !is_array( $packs ) ) {
-			return [];
-		}
+		$manifest = Yaml::parse( $manifestContent );
+		$packs = $manifest['packs'];
 
 		// Get list of already installed packs for this ref
 		$installedPackNames = [];
@@ -129,25 +93,13 @@ class LabkiPackManager {
 			$installedPackNames[] = $pack->name();
 		}
 
-		wfDebugLog( 'labkipack', "Already installed packs: " . implode( ', ', $installedPackNames ) );
-
 		// Collect all missing dependencies
 		$missingDeps = [];
 
 		foreach ( $packsToInstall as $packName ) {
-			if ( !isset( $packs[$packName] ) ) {
-				wfDebugLog( 'labkipack', "Pack {$packName} not found in manifest" );
-				continue;
-			}
 
 			$packDef = $packs[$packName];
-			$dependsOn = $packDef['depends_on'] ?? [];
-
-			if ( !is_array( $dependsOn ) ) {
-				continue;
-			}
-
-			wfDebugLog( 'labkipack', "Pack {$packName} depends on: " . implode( ', ', $dependsOn ) );
+			$dependsOn = $packDef['depends_on'];
 
 			foreach ( $dependsOn as $depName ) {
 				// Check if dependency is satisfied
@@ -199,28 +151,20 @@ class LabkiPackManager {
 				$packsBeingRemoved[$pack->name()] = $pack;
 			}
 		}
-
-		wfDebugLog( 'labkipack', "Checking dependencies for " . count( $packsBeingRemoved ) . " pack(s) being removed" );
-
-		// Check if any packs (not being removed) depend on the packs being removed
+		
+		// Identify packs being removed that are blocking others due to dependency
 		$blockingDependencies = [];
 
 		foreach ( $packsBeingRemoved as $packName => $pack ) {
-			// Get all packs that depend on this pack
 			$dependentPacks = $this->packRegistry->getPacksDependingOn( $refId, $pack->id() );
-			
+
 			foreach ( $dependentPacks as $dependentPack ) {
-				// If the dependent pack is also being removed, it's not a blocking dependency
-				if ( in_array( $dependentPack->name(), $packsToRemove, true ) ) {
-					continue;
+				$dependentPackName = $dependentPack->name();
+
+				// If the dependent pack is not being removed, it creates a blocking dependency
+				if ( !in_array( $dependentPackName, $packsToRemove, true ) ) {
+					$blockingDependencies[$packName][] = $dependentPackName;
 				}
-				
-				// This is a blocking dependency
-				if ( !isset( $blockingDependencies[$packName] ) ) {
-					$blockingDependencies[$packName] = [];
-				}
-				$blockingDependencies[$packName][] = $dependentPack->name();
-				wfDebugLog( 'labkipack', "Blocking dependency: {$dependentPack->name()} depends on {$packName}" );
 			}
 		}
 
@@ -250,7 +194,6 @@ class LabkiPackManager {
 		foreach ( $packNames as $packName ) {
 			if ( !in_array( $packName, $installedPackNames, true ) ) {
 				$notInstalled[] = $packName;
-				wfDebugLog( 'labkipack', "Pack not installed: {$packName}" );
 			}
 		}
 
@@ -270,41 +213,16 @@ class LabkiPackManager {
 
 		// Get ref to access worktree for target versions
 		$ref = $this->refRegistry->getRefById( $refId );
-		if ( !$ref ) {
-			wfDebugLog( 'labkipack', "Ref not found: {$refId->toInt()}" );
-			return [];
-		}
 
 		$worktreePath = $ref->worktreePath();
-		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-			wfDebugLog( 'labkipack', "Worktree not found: {$worktreePath}" );
-			return [];
-		}
 
 		// Get manifest to extract target versions
 		$manifestPath = $worktreePath . '/manifest.yml';
-		if ( !file_exists( $manifestPath ) ) {
-			wfDebugLog( 'labkipack', "Manifest not found: {$manifestPath}" );
-			return [];
-		}
-
 		$manifestContent = file_get_contents( $manifestPath );
-		if ( $manifestContent === false ) {
-			wfDebugLog( 'labkipack', "Failed to read manifest: {$manifestPath}" );
-			return [];
-		}
 
-		try {
-			$manifest = \Symfony\Component\Yaml\Yaml::parse( $manifestContent );
-			if ( !is_array( $manifest ) ) {
-				return [];
-			}
-		} catch ( \Exception $e ) {
-			wfDebugLog( 'labkipack', "Failed to parse manifest: " . $e->getMessage() );
-			return [];
-		}
+		$manifest = Yaml::parse( $manifestContent );
+		$manifestPacks = $manifest['packs'];
 
-		$manifestPacks = $manifest['packs'] ?? [];
 
 		$versionErrors = [];
 
@@ -318,36 +236,22 @@ class LabkiPackManager {
 			}
 
 			$installedPack = $this->packRegistry->getPack( $packId );
-			if ( !$installedPack ) {
-				continue;
-			}
-
 			$currentVersion = $installedPack->version();
 			
 			// Get target version from manifest or pack definition
-			$targetVersion = $packDef['target_version'] ?? null;
+			$targetVersion = $packDef['target_version'];
+
+			// TODO: This likely shouldn't ever be needed here but leaving in for now to be safe.
 			if ( $targetVersion === null && isset( $manifestPacks[$packName]['version'] ) ) {
 				$targetVersion = $manifestPacks[$packName]['version'];
-			}
-
-			// If no target version specified, skip validation (will use manifest version)
-			if ( $targetVersion === null || $currentVersion === null ) {
-				continue;
 			}
 
 			// Parse versions to check major version
 			$currentParts = $this->parseVersion( $currentVersion );
 			$targetParts = $this->parseVersion( $targetVersion );
 
-			if ( $currentParts === null || $targetParts === null ) {
-				wfDebugLog( 'labkipack', "Invalid version format for {$packName}: current={$currentVersion}, target={$targetVersion}" );
-				$versionErrors[$packName] = "Invalid version format (current: {$currentVersion}, target: {$targetVersion})";
-				continue;
-			}
-
 			// Check if major version changed
 			if ( $currentParts['major'] !== $targetParts['major'] ) {
-				wfDebugLog( 'labkipack', "Major version change detected for {$packName}: {$currentVersion} → {$targetVersion}" );
 				$versionErrors[$packName] = "Major version cannot change ({$currentVersion} → {$targetVersion})";
 			}
 		}
@@ -377,6 +281,8 @@ class LabkiPackManager {
 
 		// For each pack being updated, check if any OTHER installed packs depend on it
 		foreach ( $packNames as $packName ) {
+			// We shouldn't be requesting an update for a pack that isn't installed.
+			// TODO: Make sure this is caught by validatePacksInstalled.
 			if ( !isset( $installedPackMap[$packName] ) ) {
 				continue; // Not installed
 			}
@@ -392,8 +298,7 @@ class LabkiPackManager {
 
 				// Otherwise, this is a potential issue
 				// Note: We're being conservative here - in reality, the update might still be compatible
-				// A more sophisticated check would compare dependency constraints
-				wfDebugLog( 'labkipack', "Pack {$packName} is being updated but {$dependent->name()} depends on it and is NOT being updated" );
+				// TODO: A more sophisticated check would compare dependency constraints
 				$errors[] = "Pack '{$packName}' has dependent '{$dependent->name()}' which is not being updated";
 			}
 		}
@@ -443,11 +348,10 @@ class LabkiPackManager {
 	 *
 	 * @param ContentRefId $refId Content ref ID
 	 * @param string $packName Pack name
-	 * @param string|null $targetVersion Optional target version
 	 * @param int $userId User ID performing the update
 	 * @return array Update result
 	 */
-	public function updatePackByName( ContentRefId $refId, string $packName, ?string $targetVersion, int $userId ): array {
+	public function updatePackByName( ContentRefId $refId, string $packName, int $userId ): array {
 		wfDebugLog( 'labkipack', "LabkiPackManager::updatePackByName() called for pack={$packName}, refId={$refId->toInt()}" );
 
 		// Resolve pack name to pack ID
@@ -471,52 +375,14 @@ class LabkiPackManager {
 		}
 
 		$worktreePath = $ref->worktreePath();
-		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-			return [
-				'success' => false,
-				'pack' => $packName,
-				'error' => "Worktree not found: {$worktreePath}",
-			];
-		}
 
 		// Get manifest to build pack definition
 		$manifestPath = $worktreePath . '/manifest.yml';
-		if ( !file_exists( $manifestPath ) ) {
-			return [
-				'success' => false,
-				'pack' => $packName,
-				'error' => "Manifest not found: {$manifestPath}",
-			];
-		}
-
 		$manifestContent = file_get_contents( $manifestPath );
-		if ( $manifestContent === false ) {
-			return [
-				'success' => false,
-				'pack' => $packName,
-				'error' => "Failed to read manifest: {$manifestPath}",
-			];
-		}
+		$manifest = Yaml::parse( $manifestContent );
 
-		try {
-			$manifest = \Symfony\Component\Yaml\Yaml::parse( $manifestContent );
-			if ( !is_array( $manifest ) ) {
-				return [
-					'success' => false,
-					'pack' => $packName,
-					'error' => 'Invalid manifest format',
-				];
-			}
-		} catch ( \Exception $e ) {
-			return [
-				'success' => false,
-				'pack' => $packName,
-				'error' => "Failed to parse manifest: " . $e->getMessage(),
-			];
-		}
-
-		$manifestPacks = $manifest['packs'] ?? [];
-		$manifestPages = $manifest['pages'] ?? [];
+		$manifestPacks = $manifest['packs'];
+		$manifestPages = $manifest['pages'];
 
 		if ( !isset( $manifestPacks[$packName] ) ) {
 			return [
@@ -527,18 +393,15 @@ class LabkiPackManager {
 		}
 
 		$packDef = $manifestPacks[$packName];
-		$packDef['version'] = $targetVersion ?? ( $packDef['version'] ?? null );
 		
 		// Build pages array for this pack
-		$pageList = $packDef['pages'] ?? [];
+		$pageList = $packDef['pages'];
 		$pages = [];
 		foreach ( $pageList as $pageName ) {
-			if ( isset( $manifestPages[$pageName] ) ) {
-				$pages[] = [
-					'name' => $pageName,
-					'file' => $manifestPages[$pageName]['file'] ?? null,
-				];
-			}
+			$pages[] = [
+				'name' => $pageName,
+				'file' => $manifestPages[$pageName]['file'],
+			];
 		}
 		$packDef['pages'] = $pages;
 
@@ -573,42 +436,16 @@ class LabkiPackManager {
 		}
 
 		$repo = $this->repoRegistry->getRepo( $ref->contentRepoId()->toInt() );
-		if ( !$repo ) {
-			$results['success'] = false;
-			$results['errors'][] = "Repo not found for ref: {$refId->toInt()}";
-			return $results;
-		}
-
 		$worktreePath = $ref->worktreePath();
-		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-			$results['success'] = false;
-			$results['errors'][] = "Worktree not found: {$worktreePath}";
-			return $results;
-		}
-
-		wfDebugLog( 'labkipack', "Using worktree: {$worktreePath}" );
 
 		// Build rewrite map (includes existing pages + new pages from all packs)
 		$rewriteMap = $this->buildRewriteMap( $refId, $packs );
-		wfDebugLog( 'labkipack', "Built rewrite map with " . count( $rewriteMap ) . " entries" );
-
 		// Get manifest pages map (page name -> file path)
 		$manifestPages = $this->getManifestPagesFromWorktree( $worktreePath );
-		wfDebugLog( 'labkipack', "Loaded " . count( $manifestPages ) . " pages from manifest" );
 
 		// Install each pack
 		foreach ( $packs as $packDef ) {
-			$packName = $packDef['name'] ?? '';
-			$version = $packDef['version'] ?? '';
-
-			if ( $packName === '' ) {
-				$results['failed'][] = [
-					'pack' => '(unnamed)',
-					'error' => 'Pack name is required',
-				];
-				$results['success'] = false;
-				continue;
-			}
+			$packName = $packDef['name'];
 
 			try {
 				$installResult = $this->installSinglePack(
@@ -659,14 +496,16 @@ class LabkiPackManager {
 		?array $manifestPages = null
 	): array {
 		$packName = $packDef['name'];
-		$version = $packDef['version'] ?? null;
-		$pages = $packDef['pages'] ?? [];
+		$version = $packDef['version'];
+		$pages = $packDef['pages'];
 
 		wfDebugLog( 'labkipack', "Installing pack: {$packName} (version: {$version})" );
 
 		// Auto-fetch worktree path if not provided
 		if ( $worktreePath === null ) {
 			$ref = $this->refRegistry->getRefById( $refId );
+			// Probably don't need this check.
+			// TODO: Make sure this is caught before here if we remove
 			if ( !$ref ) {
 				return [
 					'success' => false,
@@ -675,50 +514,22 @@ class LabkiPackManager {
 				];
 			}
 			$worktreePath = $ref->worktreePath();
-			if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-				return [
-					'success' => false,
-					'pack' => $packName,
-					'error' => "Worktree not found for ref {$refId->toInt()}",
-				];
-			}
 		}
 
 		// Auto-load manifest pages if not provided
 		if ( $manifestPages === null ) {
 			$manifestPath = $worktreePath . '/manifest.yml';
-			if ( !file_exists( $manifestPath ) ) {
-				return [
-					'success' => false,
-					'pack' => $packName,
-					'error' => "Manifest not found: {$manifestPath}",
-				];
-			}
-
-			$manifestContent = file_get_contents( $manifestPath );
-			if ( $manifestContent === false ) {
-				return [
-					'success' => false,
-					'pack' => $packName,
-					'error' => "Failed to read manifest: {$manifestPath}",
-				];
-			}
-
-			$manifest = Yaml::parse( $manifestContent );
-			$pagesSection = $manifest['pages'] ?? [];
+			$manifest = Yaml::parse( file_get_contents( $manifestPath ) );
+			$pagesSection = $manifest['pages'];
 			
 			// Convert pages section to flat map of name => file path
 			$manifestPages = [];
 			foreach ( $pagesSection as $pageName => $pageDef ) {
-				if ( is_array( $pageDef ) && isset( $pageDef['file'] ) ) {
-					$manifestPages[$pageName] = $pageDef['file'];
-				} elseif ( is_string( $pageDef ) ) {
-					$manifestPages[$pageName] = $pageDef;
-				}
+				$manifestPages[$pageName] = $pageDef['file'];
 			}
 		}
 
-		// Auto-build rewrite map if not provided
+		// Default to empty map (no rewriting) if not provided
 		if ( $rewriteMap === null ) {
 			$rewriteMap = [];
 		}
@@ -772,8 +583,6 @@ class LabkiPackManager {
 		// Store pack dependencies as they were at install time
 		$this->storePackDependencies( $refId, $packId, $packName, $worktreePath );
 
-		wfDebugLog( 'labkipack', "Pack {$packName} installed: {$successCount} pages created, {$failedCount} failed" );
-
 		return [
 			'success' => true,
 			'pack' => $packName,
@@ -805,8 +614,8 @@ class LabkiPackManager {
 		$results = [];
 
 		foreach ( $pages as $pageDef ) {
-			$finalTitle = $pageDef['finalTitle'] ?? $pageDef['final_title'] ?? '';
-			$sourceName = $pageDef['original'] ?? $pageDef['name'] ?? '';
+			$finalTitle = $pageDef['final_title'];
+			$sourceName = $pageDef['name'];
 
 			if ( $finalTitle === '' || $sourceName === '' ) {
 				wfDebugLog( 'labkipack', "Skipping page with missing title or name" );
@@ -819,32 +628,11 @@ class LabkiPackManager {
 			}
 
 			// Look up file path from manifest
-			$relPath = $manifestPages[$sourceName] ?? null;
-			if ( !$relPath ) {
-				wfDebugLog( 'labkipack', "No file path found for page: {$sourceName}" );
-				$results[] = [
-					'success' => false,
-					'name' => $sourceName,
-					'final_title' => $finalTitle,
-					'error' => 'File path not found in manifest',
-				];
-				continue;
-			}
+			$relPath = $manifestPages[$sourceName];
 
 			// Read file from worktree
 			$fullPath = $worktreePath . '/' . ltrim( $relPath, '/' );
 			$wikitext = $this->readFileFromWorktree( $fullPath );
-
-			if ( $wikitext === null ) {
-				wfDebugLog( 'labkipack', "Failed to read file: {$fullPath}" );
-				$results[] = [
-					'success' => false,
-					'name' => $sourceName,
-					'final_title' => $finalTitle,
-					'error' => "Failed to read file: {$relPath}",
-				];
-				continue;
-			}
 
 			// Rewrite internal links
 			$updatedText = $this->rewriteLinks( $wikitext, $rewriteMap );
@@ -880,12 +668,6 @@ class LabkiPackManager {
 
 		// Get existing pack
 		$existingPack = $this->packRegistry->getPack( $packId );
-		if ( !$existingPack ) {
-			return [
-				'success' => false,
-				'error' => "Pack not found: {$packId->toInt()}",
-			];
-		}
 
 		// Get ref and worktree
 		$ref = $this->refRegistry->getRefById( $refId );
@@ -895,21 +677,14 @@ class LabkiPackManager {
 				'error' => "Ref not found: {$refId->toInt()}",
 			];
 		}
-
 		$worktreePath = $ref->worktreePath();
-		if ( !$worktreePath || !is_dir( $worktreePath ) ) {
-			return [
-				'success' => false,
-				'error' => "Worktree not found: {$worktreePath}",
-			];
-		}
 
 		// Build rewrite map
 		$rewriteMap = $this->buildRewriteMap( $refId, [ $packDef ] );
 		$manifestPages = $this->getManifestPagesFromWorktree( $worktreePath );
 
 		// Update pages
-		$pages = $packDef['pages'] ?? [];
+		$pages = $packDef['pages'];
 		$updatedPages = $this->importPackPages(
 			$pages,
 			$worktreePath,
@@ -922,7 +697,7 @@ class LabkiPackManager {
 		$failedCount = count( $updatedPages ) - $successCount;
 
 		// Update pack version if provided
-		$newVersion = $packDef['version'] ?? null;
+		$newVersion = $packDef['version'];
 		if ( $newVersion && $newVersion !== $existingPack->version() ) {
 			$this->packRegistry->updatePack( $packId, [
 				'version' => $newVersion,
@@ -965,12 +740,11 @@ class LabkiPackManager {
 	 * Remove a pack and optionally its pages.
 	 *
 	 * @param PackId $packId Pack ID to remove
-	 * @param bool $removePages Whether to delete the MediaWiki pages
 	 * @param int $userId User ID performing the removal
 	 * @return array Removal result
 	 */
-	public function removePack( PackId $packId, bool $removePages, int $userId ): array {
-		wfDebugLog( 'labkipack', "LabkiPackManager::removePack() called for packId={$packId->toInt()}, removePages={$removePages}" );
+	public function removePack( PackId $packId, int $userId ): array {
+		wfDebugLog( 'labkipack', "LabkiPackManager::removePack() called for packId={$packId->toInt()}" );
 
 		// Get pack info
 		$pack = $this->packRegistry->getPack( $packId );
@@ -990,18 +764,18 @@ class LabkiPackManager {
 		$deletedPages = 0;
 		$failedPages = 0;
 
-		// Delete MediaWiki pages if requested
-		if ( $removePages ) {
-			foreach ( $pages as $page ) {
-				$deleted = $this->deleteMediaWikiPage( $page->finalTitle(), $userId );
-				if ( $deleted ) {
-					$deletedPages++;
-				} else {
-					$failedPages++;
-				}
+		// Delete MediaWiki pages
+		// TODO: We really should never fail at deleting pages from a pack
+		// so we should throw an error if we fail to delete a page.
+		foreach ( $pages as $page ) {
+			$deleted = $this->deleteMediaWikiPage( $page->finalTitle(), $userId );
+			if ( $deleted ) {
+				$deletedPages++;
+			} else {
+				$failedPages++;
 			}
 		}
-
+		
 		// Remove pages from page registry
 		$this->pageRegistry->removePagesByPack( $packId );
 
@@ -1045,9 +819,9 @@ class LabkiPackManager {
 		// Add incoming pages
 		$map = $existingMap;
 		foreach ( $incomingPacks as $packDef ) {
-			foreach ( $packDef['pages'] ?? [] as $pageDef ) {
-				$orig = $pageDef['original'] ?? $pageDef['name'] ?? '';
-				$final = $pageDef['finalTitle'] ?? $pageDef['final_title'] ?? '';
+			foreach ( $packDef['pages'] as $pageDef ) {
+				$orig = $pageDef['name'];
+				$final = $pageDef['final_title'];
 				if ( $orig !== '' && $final !== '' ) {
 					$map[$orig] = $final;
 				}
@@ -1067,35 +841,14 @@ class LabkiPackManager {
 	 */
 	private function getManifestPagesFromWorktree( string $worktreePath ): array {
 		$manifestPath = $worktreePath . '/manifest.yml';
-
-		if ( !file_exists( $manifestPath ) ) {
-			wfDebugLog( 'labkipack', "Manifest not found: {$manifestPath}" );
-			return [];
-		}
-
 		$manifestContent = file_get_contents( $manifestPath );
-		if ( $manifestContent === false ) {
-			wfDebugLog( 'labkipack', "Failed to read manifest: {$manifestPath}" );
-			return [];
-		}
 
 		// Parse YAML
-		try {
-			$manifest = Yaml::parse( $manifestContent );
-			if ( !is_array( $manifest ) ) {
-				wfDebugLog( 'labkipack', "Invalid manifest format" );
-				return [];
-			}
-		} catch ( \Exception $e ) {
-			wfDebugLog( 'labkipack', "Failed to parse manifest: " . $e->getMessage() );
-			return [];
-		}
+
+		$manifest = Yaml::parse( $manifestContent );
 
 		// Extract pages
-		$pages = $manifest['pages'] ?? [];
-		if ( !is_array( $pages ) ) {
-			return [];
-		}
+		$pages = $manifest['pages'];
 
 		$map = [];
 		foreach ( $pages as $name => $info ) {
@@ -1103,13 +856,11 @@ class LabkiPackManager {
 				continue;
 			}
 
-			$path = $info['file'] ?? null;
+			$path = $info['file'];
 			if ( $path ) {
 				$map[$name] = $path;
 			}
 		}
-
-		wfDebugLog( 'labkipack', "Loaded " . count( $map ) . " pages from manifest" );
 		return $map;
 	}
 
@@ -1126,10 +877,6 @@ class LabkiPackManager {
 		}
 
 		$content = file_get_contents( $fullPath );
-		if ( $content === false ) {
-			wfDebugLog( 'labkipack', "Failed to read file: {$fullPath}" );
-			return null;
-		}
 
 		// Remove BOM if present
 		$clean = preg_replace( '/^\xEF\xBB\xBF/', '', $content );
@@ -1179,7 +926,6 @@ class LabkiPackManager {
 	private function createOrUpdatePage( string $titleText, string $wikitext, int $userId ): array {
 		$title = Title::newFromText( $titleText );
 		if ( !$title ) {
-			wfDebugLog( 'labkipack', "Invalid title: {$titleText}" );
 			return [
 				'success' => false,
 				'error' => "Invalid title: {$titleText}",
@@ -1208,11 +954,10 @@ class LabkiPackManager {
 		$status = $pageUpdater->getStatus();
 
 		if ( !$status || !$status->isOK() ) {
-			$errorMsg = $status ? Status::wrap( $status )->getWikiText() : 'Unknown error';
-			wfDebugLog( 'labkipack', "Failed to save page {$titleText}: {$errorMsg}" );
+			wfDebugLog( 'labkipack', "Failed to save page {$titleText}" );
 			return [
 				'success' => false,
-				'error' => "Failed to save page: {$errorMsg}",
+				'error' => "Failed to save page",
 			];
 		}
 
@@ -1239,27 +984,35 @@ class LabkiPackManager {
 			return false;
 		}
 
-		$wikiPageFactory = MediaWikiServices::getInstance()->getWikiPageFactory();
-		$page = $wikiPageFactory->newFromTitle( $title );
-
+		// Get user for deletion
 		$user = MediaWikiServices::getInstance()->getUserFactory()->newFromId( $userId );
 		if ( !$user || !$user->isRegistered() ) {
 			wfDebugLog( 'labkipack', "Invalid user ID for deletion: {$userId}" );
 			return false;
 		}
 
-		// Delete the page
-		$reason = 'Removed via LabkiPackManager';
-		$status = $page->doDeleteArticleReal( $reason, $user );
+		// Use modern DeletePage service
+		try {
+			$services = MediaWikiServices::getInstance();
+			$wikiPageFactory = $services->getWikiPageFactory();
+			$wikiPage = $wikiPageFactory->newFromTitle( $title );
+			$deletePageFactory = $services->getDeletePageFactory();
+			$deletePage = $deletePageFactory->newDeletePage( $wikiPage, $user );
+			$reason = 'Removed via LabkiPackManager';
 
-		if ( !$status || !$status->isOK() ) {
-			$errorMsg = $status ? Status::wrap( $status )->getWikiText() : 'Unknown error';
-			wfDebugLog( 'labkipack', "Failed to delete page {$titleText}: {$errorMsg}" );
+			$status = $deletePage->deleteIfAllowed( $reason );
+
+			if ( !$status || !$status->isGood() ) {
+				wfDebugLog( 'labkipack', "Failed to delete page {$titleText}" );
+				return false;
+			}
+
+			wfDebugLog( 'labkipack', "Successfully deleted page: {$titleText}" );
+			return true;
+		} catch ( \Exception $e ) {
+			wfDebugLog( 'labkipack', "Exception deleting page {$titleText}: " . $e->getMessage() );
 			return false;
 		}
-
-		wfDebugLog( 'labkipack', "Successfully deleted page: {$titleText}" );
-		return true;
 	}
 
 	/**
@@ -1307,7 +1060,7 @@ class LabkiPackManager {
 		}
 
 		$packDef = $packs[$packName];
-		$dependsOn = $packDef['depends_on'] ?? [];
+		$dependsOn = $packDef['depends_on'];
 
 		if ( !is_array( $dependsOn ) || empty( $dependsOn ) ) {
 			wfDebugLog( 'labkipack', "Pack {$packName} has no dependencies" );

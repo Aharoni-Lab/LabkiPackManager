@@ -31,6 +31,8 @@ final class InitHandler extends BasePackHandler {
 	/**
 	 * @inheritDoc
 	 */
+	// TODO: We are passing the services in context right now. Should we do that
+	// or should we just list used services in these handlers?
 	public function handle( ?PackSessionState $state, array $manifest, array $data, array $context ): array {
 		$userId   = $context['user_id'];
 		$refId    = $context['ref_id'];
