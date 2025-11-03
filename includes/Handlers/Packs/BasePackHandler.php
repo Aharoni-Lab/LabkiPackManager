@@ -6,6 +6,7 @@ namespace LabkiPackManager\Handlers\Packs;
 
 use MediaWiki\Title\Title;
 use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Domain\ContentRefId;
 use LabkiPackManager\Services\PackStateStore;
 
 /**
@@ -20,6 +21,64 @@ abstract class BasePackHandler implements PackCommandHandler {
 
 	public function __construct( ?PackStateStore $stateStore = null ) {
 		$this->stateStore = $stateStore ?? new PackStateStore();
+	}
+
+	/**
+	 * Build fresh pack state from manifest and installed packs.
+	 * Common logic for InitHandler and ClearHandler.
+	 *
+	 * @param ContentRefId $refId Content ref ID
+	 * @param int $userId User ID
+	 * @param array $manifest Manifest data
+	 * @return PackSessionState New state with installed packs loaded
+	 */
+	protected function buildFreshState( $refId, int $userId, array $manifest ): PackSessionState {
+		$packRegistry = new \LabkiPackManager\Services\LabkiPackRegistry();
+		$pageRegistry = new \LabkiPackManager\Services\LabkiPageRegistry();
+		
+		// Get installed packs for this ref
+		$installed = $packRegistry->listPacksByRef( $refId );
+		$installedMap = [];
+		$installedPagesMap = [];
+		
+		foreach ( $installed as $p ) {
+			$installedMap[$p->name()] = $p;
+			
+			// Load installed pages for this pack with their final titles
+			$pages = $pageRegistry->listPagesByPack( $p->id() );
+			$pageDataMap = [];
+			foreach ( $pages as $page ) {
+				$pageDataMap[$page->name()] = $page->finalTitle();
+			}
+			$installedPagesMap[$p->name()] = $pageDataMap;
+		}
+
+		wfDebugLog( 'labkipack', "buildFreshState: Installed packs: " . json_encode( array_keys( $installedMap ) ) );
+
+		// Build pack states from manifest
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+		wfDebugLog( 'labkipack', "buildFreshState: Manifest packs: " . json_encode( array_keys( $manifestPacks ) ) );
+		
+		$packs = [];
+		foreach ( $manifestPacks as $packName => $packDef ) {
+			$currentVersion = isset( $installedMap[$packName] )
+				? $installedMap[$packName]->version()
+				: null;
+			$installedPages = $installedPagesMap[$packName] ?? [];
+
+			$packs[$packName] = PackSessionState::createPackState(
+				$packName,
+				$packDef,
+				$currentVersion,
+				$installedPages
+			);
+		}
+
+		wfDebugLog( 'labkipack', "buildFreshState: Built " . count( $packs ) . " packs" );
+
+		// Create new session state
+		return new PackSessionState( $refId, $userId, $packs );
 	}
 
 	/**
@@ -157,6 +216,104 @@ abstract class BasePackHandler implements PackCommandHandler {
 		}
 
 		return $dependents;
+	}
+
+	/**
+	 * Find installed packs that depend on the given pack and are NOT marked for removal/update.
+	 * Used to prevent removing/updating a pack that's still needed.
+	 *
+	 * @param PackSessionState $state
+	 * @param array $manifest
+	 * @param string $packName Pack to check dependents for
+	 * @return array Array of dependent pack names
+	 */
+	protected function findInstalledPacksDependingOn( PackSessionState $state, array $manifest, string $packName ): array {
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+		
+		$dependents = [];
+		foreach ( $state->packs() as $otherPackName => $otherPackState ) {
+			if ( $otherPackName === $packName ) {
+				continue;
+			}
+
+			// Only check installed packs
+			$otherInstalled = $otherPackState['installed'] ?? false;
+			if ( !$otherInstalled ) {
+				continue;
+			}
+
+			// Skip packs that are already marked for removal or update
+			$otherAction = $otherPackState['action'] ?? 'unchanged';
+			if ( $otherAction === 'remove' || $otherAction === 'update' ) {
+				continue;
+			}
+
+			// Check if this pack depends on the target pack
+			$dependencies = $manifestPacks[$otherPackName]['depends_on'] ?? [];
+			if ( in_array( $packName, $dependencies, true ) ) {
+				$dependents[] = $otherPackName;
+			}
+		}
+
+		return $dependents;
+	}
+
+	/**
+	 * Propagate removal action to dependencies.
+	 * When removing a pack, also remove its dependencies if no other pack needs them.
+	 *
+	 * @param PackSessionState $state
+	 * @param array $manifest
+	 * @param string $packName Pack being removed
+	 */
+	protected function propagateRemovalToDependencies( 
+		PackSessionState $state, 
+		array $manifest, 
+		string $packName 
+	): void {
+		$manifestData = $manifest['manifest'] ?? $manifest;
+		$manifestPacks = $manifestData['packs'] ?? [];
+
+		// Get dependencies for this pack
+		$dependencies = $manifestPacks[$packName]['depends_on'] ?? [];
+		
+		foreach ( $dependencies as $depName ) {
+			if ( !isset( $manifestPacks[$depName] ) ) {
+				continue;
+			}
+
+			$depPack = $state->getPack( $depName );
+			if ( !$depPack ) {
+				continue;
+			}
+
+			// Only auto-remove if the dependency is installed
+			$depInstalled = $depPack['installed'] ?? false;
+			if ( !$depInstalled ) {
+				continue;
+			}
+
+			// Don't override manual actions
+			$depAutoReason = $depPack['auto_selected_reason'] ?? null;
+			$depAction = $depPack['action'] ?? 'unchanged';
+			if ( $depAction !== 'unchanged' && $depAutoReason === null ) {
+				continue;
+			}
+
+			// Check if any OTHER installed pack still needs this dependency
+			$stillNeeded = $this->findInstalledPacksDependingOn( $state, $manifest, $depName );
+			if ( !empty( $stillNeeded ) ) {
+				// Don't remove - still needed by other packs
+				continue;
+			}
+
+			// Safe to auto-remove this dependency
+			$state->setPackAction( $depName, 'remove', "Dependency of {$packName}" );
+			
+			// Recursively propagate to nested dependencies
+			$this->propagateRemovalToDependencies( $state, $manifest, $depName );
+		}
 	}
 
 	/**

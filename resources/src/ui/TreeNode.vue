@@ -75,7 +75,7 @@
               type="text"
               :value="prefixInputValue"
               :placeholder="
-                $t('labkipackmanager-prefix-placeholder') ||
+                $t('labkipackmanager-pack-prefix-placeholder') ||
                 'MyNamespace/MyPack'
               "
               :disabled="!isPackEditable"

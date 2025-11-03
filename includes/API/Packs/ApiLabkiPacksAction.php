@@ -133,12 +133,15 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		$manifest = $status->getValue();
 		// ------------------------------------------------------------
 
-		// Load or create state per command. Non-init requires existing state.
+		// Load or create state per command
+		// init, refresh, and clear can work without existing state (they rebuild from scratch)
+		// Other commands require existing state to operate on
 		$userId = $this->getUser()->getId();
 		$stateStore = new PackStateStore();
 		$state = $stateStore->get( $userId, $refId );
 
-		if ( $command !== 'init' && $state === null ) {
+		$commandsAllowedWithoutState = [ 'init', 'refresh', 'clear' ];
+		if ( !in_array( $command, $commandsAllowedWithoutState, true ) && $state === null ) {
 			$this->dieWithError( 'labkipackmanager-error-invalid-state', 'no_state' );
 		}
 

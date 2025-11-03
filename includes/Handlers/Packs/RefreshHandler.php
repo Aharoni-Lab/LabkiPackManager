@@ -20,10 +20,9 @@ use LabkiPackManager\Domain\PackSessionState;
  * }
  *
  * Behavior:
- * - Revalidates selections against the current manifest
- * - Re-resolves all dependencies
- * - Detects page conflicts
+ * - Rebuilds state from current manifest and installed packs
  * - Useful after manifest updates or to synchronize state
+ * - Same as init/clear - creates fresh state
  */
 final class RefreshHandler extends BasePackHandler {
 
@@ -31,16 +30,17 @@ final class RefreshHandler extends BasePackHandler {
 	 * @inheritDoc
 	 */
 	public function handle( ?PackSessionState $state, array $manifest, array $data, array $context ): array {
-		if ( !$state ) {
-			throw new \RuntimeException( 'RefreshHandler: state cannot be null' );
-		}
+		$userId = $context['user_id'];
+		$refId = $context['ref_id'];
 
-		// Re-resolve all dependencies
-		$this->resolveDependencies( $state, $manifest );
+		wfDebugLog( 'labkipack', "RefreshHandler: Refreshing state for user={$userId}, ref={$refId->toInt()}" );
 
-		// Detect conflicts
-		$warnings = $this->detectPageConflicts( $state );
+		// Build fresh state from manifest and installed packs (same as Init/Clear)
+		$newState = $this->buildFreshState( $refId, $userId, $manifest );
 
-		return $this->result( $state, $warnings );
+		wfDebugLog( 'labkipack', "RefreshHandler: Rebuilt state with " . count( $newState->packs() ) . " packs" );
+
+		// Persist the refreshed state
+		return $this->result( $newState, [], true );
 	}
 }

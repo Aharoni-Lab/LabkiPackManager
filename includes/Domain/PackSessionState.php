@@ -355,17 +355,23 @@ final class PackSessionState {
 	 * @param string $packName Pack name
 	 * @param array $packDef Pack definition from manifest
 	 * @param string|null $currentVersion Currently installed version (null if not installed)
-	 * @param array $installedPageNames List of installed page names (empty if pack not installed)
+	 * @param array $installedPages Map of page name => final_title for installed pages
 	 * @return array Pack state structure
 	 */
 	public static function createPackState(
 		string $packName,
 		array $packDef,
 		?string $currentVersion = null,
-		array $installedPageNames = []
+		array $installedPages = []
 	): array {
 		$targetVersion = $packDef['version'];
-		$prefix = $packDef['prefix'] ?? '';
+		$manifestPrefix = $packDef['prefix'] ?? '';
+
+		// For installed packs, extract the actual prefix from installed page titles
+		$prefix = $manifestPrefix;
+		if ( !empty( $installedPages ) ) {
+			$prefix = self::extractPrefixFromInstalledPages( $installedPages );
+		}
 
 		// Determine action type - start with 'unchanged' for all
 		// Users must explicitly click buttons to mark for install/update/remove
@@ -389,15 +395,18 @@ final class PackSessionState {
 		$pages = [];
 		$manifestPages = $packDef['pages'] ?? [];
 		foreach ( $manifestPages as $pageName ) {
+			$isInstalled = isset( $installedPages[$pageName] );
+			
+			// Use installed final_title if available, otherwise construct from prefix
 			$defaultTitle = $prefix ? "{$prefix}/{$pageName}" : $pageName;
-			$isInstalled = in_array( $pageName, $installedPageNames, true );
+			$finalTitle = $installedPages[$pageName] ?? $defaultTitle;
 
 			$pageState = [];
 			foreach ( self::PAGE_FIELDS as $f ) {
 				$pageState[$f] = match ( $f ) {
 					'name' => $pageName,
 					'default_title' => $defaultTitle,
-					'final_title' => $defaultTitle,
+					'final_title' => $finalTitle,
 					'has_conflict' => false,
 					'conflict_type' => null,
 					'installed' => $isInstalled,
@@ -410,5 +419,42 @@ final class PackSessionState {
 		$packState['pages'] = $pages;
 
 		return $packState;
+	}
+
+	/**
+	 * Extract the prefix from installed page titles.
+	 * Finds the common prefix before the last '/' in all page titles.
+	 *
+	 * @param array $installedPages Map of page name => final_title
+	 * @return string Extracted prefix or empty string
+	 */
+	private static function extractPrefixFromInstalledPages( array $installedPages ): string {
+		if ( empty( $installedPages ) ) {
+			return '';
+		}
+
+		// Get the first page's title
+		$firstTitle = reset( $installedPages );
+		$firstPageName = key( $installedPages );
+		
+		// Check if title has format "Prefix/PageName"
+		$lastSlashPos = strrpos( $firstTitle, '/' );
+		if ( $lastSlashPos === false ) {
+			// No slash, no prefix
+			return '';
+		}
+
+		// Extract prefix and verify it matches for all pages
+		$prefix = substr( $firstTitle, 0, $lastSlashPos );
+		
+		// Verify all pages have the same prefix
+		foreach ( $installedPages as $pageName => $pageTitle ) {
+			if ( !str_starts_with( $pageTitle, $prefix . '/' ) ) {
+				// Inconsistent prefix, return empty
+				return '';
+			}
+		}
+
+		return $prefix;
 	}
 }

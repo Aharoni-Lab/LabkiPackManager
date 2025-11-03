@@ -46,7 +46,7 @@
                 <small>{{ $t('labkipackmanager-version') }}: {{ pack.state.target_version }}</small>
               </div>
               <div v-if="pack.state.prefix">
-                <small>{{ $t('labkipackmanager-prefix') }}: {{ pack.state.prefix }}</small>
+                <small>{{ $t('labkipackmanager-pack-prefix') }}: {{ pack.state.prefix }}</small>
               </div>
               <div v-if="pack.pageCount > 0">
                 <small>{{ $t('labkipackmanager-pages') }}: {{ pack.pageCount }}</small>
