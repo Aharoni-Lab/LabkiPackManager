@@ -25,11 +25,12 @@ use LabkiPackManager\Domain\ContentRefId;
  * The cached state contains:
  * - Metadata: ref_id, user_id, hash, timestamp
  * - Packs: Flat array of pack states, each containing:
- *   - Selection flags: selected, auto_selected, auto_selected_reason
- *   - Action: install|update|remove|unchanged
+ *   - Action: install|update|remove|unchanged (primary state)
+ *   - Auto reason: auto_selected_reason (null if manual, otherwise explains why)
  *   - Versions: current_version, target_version
  *   - Customization: prefix (for page titles)
- *   - Pages: Array of page states with name, default_title, final_title, conflicts
+ *   - Installation status: installed (boolean)
+ *   - Pages: Array of page states with name, default_title, final_title, conflicts, installed
  *
  * Example structure:
  * ```php
@@ -40,19 +41,20 @@ use LabkiPackManager\Domain\ContentRefId;
  *   'timestamp' => 1730345678,
  *   'packs' => [
  *     'test pack' => [
- *       'selected' => true,
- *       'auto_selected' => false,
  *       'action' => 'install',
+ *       'auto_selected_reason' => null,
  *       'current_version' => null,
  *       'target_version' => '1.0.0',
  *       'prefix' => 'TestPack',
+ *       'installed' => false,
  *       'pages' => [
  *         'test page' => [
  *           'name' => 'test page',
  *           'default_title' => 'TestPack/test page',
  *           'final_title' => 'TestPack/test page',
  *           'has_conflict' => false,
- *           'conflict_type' => null
+ *           'conflict_type' => null,
+ *           'installed' => false
  *         ]
  *       ]
  *     ]

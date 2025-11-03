@@ -38,8 +38,7 @@ use MediaWiki\Status\Status;
  * Handlers live in includes/Handlers/Packs/ and implement PackCommandHandler.
  * Example handler class names (registered in $this->handlers):
  *   - InitHandler
- *   - SelectPackHandler
- *   - DeselectPackHandler
+ *   - SetPackActionHandler
  *   - RenamePageHandler
  *   - SetPackPrefixHandler
  *   - RefreshHandler
@@ -63,8 +62,7 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		// Add new commands here without touching endpoint logic.
 		$this->handlers = [
 			'init'            => \LabkiPackManager\Handlers\Packs\InitHandler::class,
-			'select_pack'     => \LabkiPackManager\Handlers\Packs\SelectPackHandler::class,
-			'deselect_pack'   => \LabkiPackManager\Handlers\Packs\DeselectPackHandler::class,
+			'set_pack_action' => \LabkiPackManager\Handlers\Packs\SetPackActionHandler::class,
 			'rename_page'     => \LabkiPackManager\Handlers\Packs\RenamePageHandler::class,
 			'set_pack_prefix' => \LabkiPackManager\Handlers\Packs\SetPackPrefixHandler::class,
 			'refresh'         => \LabkiPackManager\Handlers\Packs\RefreshHandler::class,
@@ -320,9 +318,9 @@ final class ApiLabkiPacksAction extends PackApiBase {
 			'action=labkiPacksAction&payload={"command":"init","repo_url":"https://github.com/Aharoni-Lab/labki-packs","ref":"main","data":{}}'
 				=> 'apihelp-labkipacksaction-example-init',
 
-			// Example: select pack
-			'action=labkiPacksAction&payload={"command":"select_pack","repo_url":"https://github.com/Aharoni-Lab/labki-packs","ref":"main","data":{"pack_name":"Advanced Imaging"}}'
-				=> 'apihelp-labkipacksaction-example-selectpack',
+			// Example: set pack action (install)
+			'action=labkiPacksAction&payload={"command":"set_pack_action","repo_url":"https://github.com/Aharoni-Lab/labki-packs","ref":"main","data":{"pack_name":"Advanced Imaging","action":"install"}}'
+				=> 'apihelp-labkipacksaction-example-setpackaction',
 
 			// Example: rename page
 			'action=labkiPacksAction&payload={"command":"rename_page","repo_url":"https://github.com/Aharoni-Lab/labki-packs","ref":"main","data":{"pack_name":"test pack","page_name":"test page","new_title":"Custom/Title"}}'

@@ -82,6 +82,8 @@
         "labkipackmanager-state-hash",
         "labkipackmanager-apply",
         "labkipackmanager-refresh",
+        "labkipackmanager-pack-prefix",
+	      "labkipackmanager-page-title",
         "labkipackmanager-clear",
         "labkipackmanager-clear-confirm",
         "labkipackmanager-apply-success",

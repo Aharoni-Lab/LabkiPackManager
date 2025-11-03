@@ -41,11 +41,20 @@ final class InitHandler extends BasePackHandler {
 		wfDebugLog( 'labkipack', "InitHandler: Starting with manifest keys: " . json_encode( array_keys( $manifest ) ) );
 
 		$packRegistry = new LabkiPackRegistry();
+		$pageRegistry = new \LabkiPackManager\Services\LabkiPageRegistry();
+		
 		// Get installed packs for this ref
 		$installed = $packRegistry->listPacksByRef( $refId );
 		$installedMap = [];
+		$installedPagesMap = [];
+		
 		foreach ( $installed as $p ) {
 			$installedMap[$p->name()] = $p;
+			
+			// Load installed pages for this pack
+			$pages = $pageRegistry->listPagesByPack( $p->id() );
+			$pageNames = array_map( fn( $page ) => $page->name(), $pages );
+			$installedPagesMap[$p->name()] = $pageNames;
 		}
 
 		wfDebugLog( 'labkipack', "InitHandler: Installed packs: " . json_encode( array_keys( $installedMap ) ) );
@@ -62,11 +71,13 @@ final class InitHandler extends BasePackHandler {
 			$currentVersion = isset( $installedMap[$packName] )
 				? $installedMap[$packName]->version()
 				: null;
+			$installedPageNames = $installedPagesMap[$packName] ?? [];
 
 			$packs[$packName] = PackSessionState::createPackState(
 				$packName,
 				$packDef,
-				$currentVersion
+				$currentVersion,
+				$installedPageNames
 			);
 		}
 

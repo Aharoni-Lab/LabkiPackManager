@@ -18,8 +18,6 @@
           :key="node.id"
           :node="node"
           :depth="0"
-          @select-pack="onSelectPack"
-          @deselect-pack="onDeselectPack"
           @set-pack-action="onSetPackAction"
         />
       </div>
@@ -37,21 +35,12 @@ defineProps({
   hierarchy: Object
 });
 
-async function onSelectPack(packName) {
-  await sendCommand('select_pack', { pack_name: packName });
-}
-
-async function onDeselectPack(packName) {
-  await sendCommand('deselect_pack', { pack_name: packName });
-}
-
-function onSetPackAction(payload) {
-  // Just update the pack action locally without API call
-  // The action will be sent when user clicks Apply
-  const pack = store.packs[payload.pack_name];
-  if (pack) {
-    pack.action = payload.action;
-  }
+async function onSetPackAction(payload) {
+  // Send set_pack_action command to backend
+  await sendCommand('set_pack_action', {
+    pack_name: payload.pack_name,
+    action: payload.action
+  });
 }
 
 async function sendCommand(command, data) {
@@ -60,6 +49,7 @@ async function sendCommand(command, data) {
   try {
     store.busy = true;
     
+    console.log(`[sendCommand] Sending ${command}:`, data);
     const response = await packsAction({
       command,
       repo_url: store.repoUrl,
@@ -67,10 +57,15 @@ async function sendCommand(command, data) {
       data,
     });
     
+    console.log(`[sendCommand] Response diff:`, response.diff);
+    console.log(`[sendCommand] Pack state before merge:`, data.pack_name ? store.packs[data.pack_name] : 'N/A');
+    
     // Merge diff into store
     mergeDiff(store.packs, response.diff);
     store.stateHash = response.state_hash;
     store.warnings = response.warnings;
+    
+    console.log(`[sendCommand] Pack state after merge:`, data.pack_name ? store.packs[data.pack_name] : 'N/A');
   } catch (e) {
     console.error('Command failed:', e);
     // You might want to emit an error event here

@@ -30,20 +30,18 @@ export interface PackPageState {
  * State for a pack including all its pages.
  */
 export interface PackState {
-  /** User manually selected this pack */
-  selected?: boolean;
-  /** Pack was auto-selected as dependency */
-  auto_selected?: boolean;
-  /** Reason for auto-selection */
-  auto_selected_reason?: string | null;
   /** Action type: install|update|remove|unchanged */
   action?: 'install' | 'update' | 'remove' | 'unchanged';
+  /** Reason for auto-action (null if manually set by user, otherwise explains why) */
+  auto_selected_reason?: string | null;
   /** Version currently installed (null if not installed) */
   current_version?: string | null;
   /** Version from manifest */
   target_version?: string | null;
   /** Pack prefix for page titles (user-customizable) */
   prefix?: string;
+  /** Whether this pack is already installed */
+  installed?: boolean;
   /** Pages within this pack */
   pages?: Record<string, PackPageState>;
 }
@@ -61,7 +59,7 @@ export type PacksState = Record<string, PackState>;
  * Payload for labkiPacksAction API.
  */
 export interface PacksActionPayload {
-  /** Command name (init, select_pack, deselect_pack, etc.) */
+  /** Command name (init, set_pack_action, rename_page, etc.) */
   command: string;
   /** Repository URL */
   repo_url: string;

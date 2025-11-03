@@ -27,7 +27,11 @@
           >
             <div class="pack-header">
               <strong>{{ pack.name }}</strong>
-              <span v-if="pack.state.auto_selected" class="pack-badge auto">
+              <span 
+                v-if="pack.state.auto_selected_reason" 
+                class="pack-badge auto"
+                :title="pack.state.auto_selected_reason"
+              >
                 {{ $t('labkipackmanager-auto-selected') }}
               </span>
               <span v-else class="pack-badge manual">
@@ -124,7 +128,9 @@ const selectedPacks = computed(() => {
   const packs = [];
   
   for (const [name, state] of Object.entries(store.packs)) {
-    if (state.selected || state.auto_selected) {
+    // Show packs that have any action set (not 'unchanged')
+    // This includes install, update, and remove actions
+    if (state.action && state.action !== 'unchanged') {
       packs.push({
         name,
         state,
@@ -277,10 +283,6 @@ h4 {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.selected-packs-section {
-  /* Styling */
 }
 
 .packs-list {

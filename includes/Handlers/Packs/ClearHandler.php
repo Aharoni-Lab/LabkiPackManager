@@ -34,11 +34,20 @@ final class ClearHandler extends BasePackHandler {
 		$refId = $context['ref_id'];
 
 		$packRegistry = new LabkiPackRegistry();
+		$pageRegistry = new \LabkiPackManager\Services\LabkiPageRegistry();
+		
 		// Get installed packs for this ref
 		$installed = $packRegistry->listPacksByRef( $refId );
 		$installedMap = [];
+		$installedPagesMap = [];
+		
 		foreach ( $installed as $p ) {
 			$installedMap[$p->name()] = $p;
+			
+			// Load installed pages for this pack
+			$pages = $pageRegistry->listPagesByPack( $p->id() );
+			$pageNames = array_map( fn( $page ) => $page->name(), $pages );
+			$installedPagesMap[$p->name()] = $pageNames;
 		}
 
 		// Build pack states from manifest - same as InitHandler
@@ -50,11 +59,13 @@ final class ClearHandler extends BasePackHandler {
 			$currentVersion = isset( $installedMap[$packName] )
 				? $installedMap[$packName]->version()
 				: null;
+			$installedPageNames = $installedPagesMap[$packName] ?? [];
 
 			$packs[$packName] = PackSessionState::createPackState(
 				$packName,
 				$packDef,
-				$currentVersion
+				$currentVersion,
+				$installedPageNames
 			);
 		}
 

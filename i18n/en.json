@@ -207,7 +207,9 @@
 	"labkipackmanager-apply-success-with-id": "Changes queued successfully! Operation ID: $1",
 	"labkipackmanager-clear-success": "Session cleared successfully.",
 	"labkipackmanager-loading": "Loading",
-	"labkipackmanager-refresh": "Refresh"
+	"labkipackmanager-refresh": "Refresh",
+	"labkipackmanager-pack-prefix": "Pack Prefix",
+	"labkipackmanager-page-title": "Page Title"
 
 }
 

@@ -187,22 +187,22 @@ final class LabkiPackApplyJob extends Job {
 
 				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Installing pack: {$packName}" );
 				
-				try {
-					// Build pack definition from operation
-					$packDef = [
-						'name' => $packName,
-						'version' => $op['version'],
-						'pages' => [],
-					];
+			try {
+				// Build pack definition from operation
+				$packDef = [
+					'name' => $packName,
+					'version' => $op['target_version'],
+					'pages' => [],
+				];
 
-					// Map pages with their final titles
-					$packDef['pages'] = array_map(
-						fn($page) => [
-							'name' => $page['name'],
-							'finalTitle' => $page['final_title']
-						],
-						$pages
-					);
+				// Map pages with their final titles
+				$packDef['pages'] = array_map(
+					fn($page) => [
+						'name' => $page['name'],
+						'final_title' => $page['final_title']
+					],
+					$pages
+				);
 
 					$installResult = $packManager->installSinglePack( $refId, $packDef, $userId );
 					

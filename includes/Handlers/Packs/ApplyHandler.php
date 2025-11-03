@@ -67,30 +67,19 @@ final class ApplyHandler extends BasePackHandler {
 		];
 
 		foreach ( $packsData as $packName => $packState ) {
-			// TODO: Set 'action' for each pack as unchanged to start with when building the state.
 			$action = $packState['action'] ?? 'unchanged';
 			// Skip unchanged packs	
 			if ( $action === 'unchanged' ) {
 				continue;
 			}
-			
-			$isSelected = ( $packState['selected'] ?? false ) || ( $packState['auto_selected'] ?? false );
 
-
-
-			// Only include selected packs for install/update
-			// TODO: I don't think this should be possible to happen
-			// but we should verify that is the case before removing this check.
-			if ( ( $action === 'install' || $action === 'update' ) && !$isSelected ) {
-				continue;
-			}
-
-			// Build operation
+			// Build operation based on action
 			if ( $action === 'install' ) {
 				$operations[] = [
-					'action'     => 'install',
-					'pack_name'  => $packName,
-					'pages'      => $this->buildPagesArray( $packState['pages'] ),
+					'action'         => 'install',
+					'pack_name'      => $packName,
+					'target_version' => $packState['target_version'],
+					'pages'          => $this->buildPagesArray( $packState['pages'] ),
 				];
 				$summary['installs']++;
 			} elseif ( $action === 'update' ) {
@@ -101,10 +90,8 @@ final class ApplyHandler extends BasePackHandler {
 					'pages'          => $this->buildPagesArray( $packState['pages'] ),
 				];
 				$summary['updates']++;
-
-			// TDOD: I am not sure if we need to check if selected here
-			} elseif ( $action === 'remove' && !$isSelected ) {
-				// Remove operations for deselected installed packs
+			} elseif ( $action === 'remove' ) {
+				// Remove operations for packs marked for removal
 				// We need the pack_id from the registry
 				$packRegistry = $services->getService( 'LabkiPackManager.PackRegistry' );
 				if ( !$packRegistry ) {
