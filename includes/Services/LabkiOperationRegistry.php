@@ -54,18 +54,12 @@ final class LabkiOperationRegistry {
     }
 
     /**
-     * Convert timestamp fields to database format.
-     * @param array<string,mixed> $fields
-     * @return array<string,mixed>
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
      */
-    private function convertTimestamps( array $fields ): array {
-        $timestampFields = [ 'created_at', 'updated_at', 'started_at' ];
-        foreach ( $timestampFields as $field ) {
-            if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $this->dbw->timestamp( $fields[$field] );
-            }
-        }
-        return $fields;
+    public function now(): string {
+        return $this->dbw->timestamp( wfTimestampNow() );
     }
 
     /**
@@ -88,21 +82,15 @@ final class LabkiOperationRegistry {
         string $status = Operation::STATUS_QUEUED,
         string $message = ''
     ): void {
-        $now = wfTimestampNow();
-        $row = [
+        $this->dbw->insert( Operation::TABLE, [
             'operation_id' => $operationId->toString(),
             'operation_type' => $type,
             'status' => $status,
             'message' => $message,
             'user_id' => $userId,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ];
-        
-        // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $row );
-        
-        $this->dbw->insert( Operation::TABLE, $row, __METHOD__ );
+            'created_at' => $this->now(),
+            'updated_at' => $this->now(),
+        ], __METHOD__ );
     }
 
     /**
@@ -127,7 +115,7 @@ final class LabkiOperationRegistry {
     ): void {
         $row = [
             'status' => $status,
-            'updated_at' => wfTimestampNow(),
+            'updated_at' => $this->now(),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
@@ -138,9 +126,6 @@ final class LabkiOperationRegistry {
         if ( $resultData !== null ) {
             $row['result_data'] = $resultData;
         }
-        
-        // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $row );
         
         $this->dbw->update(
             Operation::TABLE,
@@ -161,18 +146,14 @@ final class LabkiOperationRegistry {
      * @return void
      */
     public function startOperation( OperationId $operationId, ?string $message = null ): void {
-        $now = wfTimestampNow();
         $row = [
             'status' => Operation::STATUS_RUNNING,
-            'started_at' => $now,
-            'updated_at' => $now,
+            'started_at' => $this->now(),
+            'updated_at' => $this->now(),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
         }
-        
-        // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $row );
         
         $this->dbw->update(
             Operation::TABLE,

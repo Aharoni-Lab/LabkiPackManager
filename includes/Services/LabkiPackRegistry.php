@@ -37,19 +37,13 @@ class LabkiPackRegistry {
     private const TABLE = 'labki_pack';
 
     /**
-     * Convert timestamp fields to database format.
-     * @param IDatabase $dbw Database connection
-     * @param array<string,mixed> $fields
-     * @return array<string,mixed>
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
      */
-    private function convertTimestamps( IDatabase $dbw, array $fields ): array {
-        $timestampFields = [ 'created_at', 'updated_at', 'installed_at' ];
-        foreach ( $timestampFields as $field ) {
-            if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $dbw->timestamp( $fields[$field] );
-            }
-        }
-        return $fields;
+    public function now(): string {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        return $dbw->timestamp( \wfTimestampNow() );
     }
 
     /**
@@ -66,20 +60,16 @@ class LabkiPackRegistry {
         }
 
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        $now = \wfTimestampNow();
         $row = [
             'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId,
             'name' => $name,
             'version' => $meta['version'] ?? null,
             'source_commit' => $meta['source_commit'] ?? null,
-            'installed_at' => $meta['installed_at'] ?? $now,
+            'installed_at' => $meta['installed_at'] ?? $this->now(),
             'installed_by' => $meta['installed_by'] ?? null,
-            'updated_at' => $now,
+            'updated_at' => $this->now(),
             'status' => $meta['status'] ?? 'installed',
         ];
-        
-        // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $dbw, $row );
 
         $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
@@ -158,7 +148,7 @@ class LabkiPackRegistry {
         $existing = $this->getPackIdByName( $refId, $name );
         if ( $existing !== null ) {
             $this->updatePack( $existing, [
-                'installed_at' => \wfTimestampNow(),
+                'installed_at' => $this->now(),
                 'installed_by' => $installedBy,
                 'status' => 'installed',
                 'version' => $version,
@@ -188,11 +178,8 @@ class LabkiPackRegistry {
         // Note: Only persists metadata changes. Caller ensures MW changes are applied first.
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = \wfTimestampNow();
+            $fields['updated_at'] = $this->now();
         }
-        
-        // Convert timestamps to DB format
-        $fields = $this->convertTimestamps( $dbw, $fields );
         
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
@@ -233,17 +220,15 @@ class LabkiPackRegistry {
         }
 
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        $now = \wfTimestampNow();
         $packIdInt = $packId instanceof PackId ? $packId->toInt() : $packId;
         
         $rows = [];
         foreach ( $dependsOnPackIds as $depPackId ) {
-            $row = [
+            $rows[] = [
                 'pack_id' => $packIdInt,
                 'depends_on_pack_id' => $depPackId instanceof PackId ? $depPackId->toInt() : $depPackId,
-                'created_at' => $now,
+                'created_at' => $this->now(),
             ];
-            $rows[] = $this->convertTimestamps( $dbw, $row );
         }
 
         $dbw->newInsertQueryBuilder()

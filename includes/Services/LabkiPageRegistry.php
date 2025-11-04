@@ -38,19 +38,13 @@ class LabkiPageRegistry {
     private const TABLE = 'labki_page';
 
     /**
-     * Convert timestamp fields to database format.
-     * @param IDatabase $dbw Database connection
-     * @param array<string,mixed> $fields
-     * @return array<string,mixed>
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
      */
-    private function convertTimestamps( IDatabase $dbw, array $fields ): array {
-        $timestampFields = [ 'created_at', 'updated_at' ];
-        foreach ( $timestampFields as $field ) {
-            if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $dbw->timestamp( $fields[$field] );
-            }
-        }
-        return $fields;
+    public function now(): string {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        return $dbw->timestamp( \wfTimestampNow() );
     }
 
     /**
@@ -83,7 +77,6 @@ class LabkiPageRegistry {
         // Note: This persists registry state for an installed page. Caller must ensure
         // the corresponding MW page exists/was modified successfully before calling this.
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        $now = \wfTimestampNow();
         $row = [
             'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
             'name' => $pageData['name'],
@@ -92,12 +85,9 @@ class LabkiPageRegistry {
             'wiki_page_id' => $pageData['wiki_page_id'] ?? null,
             'last_rev_id' => $pageData['last_rev_id'] ?? null,
             'content_hash' => $pageData['content_hash'] ?? null,
-            'created_at' => $pageData['created_at'] ?? $now,
-            'updated_at' => $now,
+            'created_at' => $pageData['created_at'] ?? $this->now(),
+            'updated_at' => $this->now(),
         ];
-        
-        // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $dbw, $row );
         
         $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
@@ -196,11 +186,8 @@ class LabkiPageRegistry {
     public function updatePage( int|PageId $pageId, array $fields ): void {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = \wfTimestampNow();
+            $fields['updated_at'] = $this->now();
         }
-        
-        // Convert timestamps to DB format
-        $fields = $this->convertTimestamps( $dbw, $fields );
         
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )

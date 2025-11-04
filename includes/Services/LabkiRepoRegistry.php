@@ -37,19 +37,13 @@ class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
     /**
-     * Convert timestamp fields to database format.
-     * @param IDatabase $dbw Database connection
-     * @param array<string,mixed> $fields
-     * @return array<string,mixed>
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
      */
-    private function convertTimestamps( IDatabase $dbw, array $fields ): array {
-        $timestampFields = [ 'created_at', 'updated_at', 'last_fetched' ];
-        foreach ( $timestampFields as $field ) {
-            if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $dbw->timestamp( $fields[$field] );
-            }
-        }
-        return $fields;
+    public function now(): string {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        return $dbw->timestamp( \wfTimestampNow() );
     }
 
     /**
@@ -108,19 +102,15 @@ class LabkiRepoRegistry {
         wfDebugLog('labkipack', "addRepoEntry() inserting {$contentRepoUrl}");
 
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
-        $now = \wfTimestampNow();
 
         $row = array_merge([
             'content_repo_url'  => $contentRepoUrl,
             'default_ref'       => 'main',
             'bare_path'         => null,
             'last_fetched'      => null,
-            'created_at'        => $now,
-            'updated_at'        => $now,
+            'created_at'        => $this->now(),
+            'updated_at'        => $this->now(),
         ], $extraFields);
-        
-        // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $dbw, $row );
 
         try {
             $dbw->newInsertQueryBuilder()
@@ -157,10 +147,7 @@ class LabkiRepoRegistry {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
-        $fields['updated_at'] = $fields['updated_at'] ?? \wfTimestampNow();
-        
-        // Convert timestamps to DB format
-        $fields = $this->convertTimestamps( $dbw, $fields );
+        $fields['updated_at'] = $fields['updated_at'] ?? $this->now();
 
         $dbw->newUpdateQueryBuilder()
             ->update(self::TABLE)
