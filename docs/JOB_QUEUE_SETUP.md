@@ -21,7 +21,7 @@ The extension registers the following job classes:
 
 ### 2. Job Queue Storage
 
-Jobs are stored in a SQLite database table (`my_wiki_jobqueue`) with the following configuration in LocalSettings.php (auto-configured by reset_mw_test.sh):
+Jobs are stored in a SQLite database table (`my_wiki_jobqueue`) with the following configuration in LocalSettings.php (auto-configured by setup_mw_test_env.sh):
 
 ```php
 $wgJobTypeConf['default'] = [
@@ -113,7 +113,7 @@ All services share:
 
 ### Automatic Setup (LabkiPackManager Development)
 
-The job queue is automatically configured when you run `reset_mw_test.sh`:
+The job queue is automatically configured when you run `setup_mw_test_env.sh`:
 
 1. **Jobs registered** - extension.json declares all job types
 2. **Job queue database** - SQLite table created automatically
@@ -284,7 +284,7 @@ docker compose logs -f mediawiki-jobrunner
 ### $wgJobRunRate
 - **Default**: 1 (jobs run 1% of the time on web requests)
 - **Configured Value**: 0 (never run on web requests)
-- Set in LocalSettings.php by reset_mw_test.sh
+- Set in LocalSettings.php by setup_mw_test_env.sh
 
 ### $wgJobTypeConf['default']['claimTTL']
 - **Default**: 3600 (1 hour)

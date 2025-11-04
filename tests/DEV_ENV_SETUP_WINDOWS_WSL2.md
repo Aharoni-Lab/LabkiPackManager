@@ -39,20 +39,22 @@ git config --global user.email "you@example.com"
 mkdir -p ~/dev && cd ~/dev
 ```
 
-### B. Quick path: use the reset script (recommended)
+### B. Quick path: use the setup script (recommended)
 
-For a one-command setup/reset that mirrors CI (SQLite), run from your host shell (WSL):
+For a one-command setup that mirrors CI (SQLite), run from your host shell (WSL):
 
 ```bash
 cd ~/dev/LabkiPackManager
-chmod +x reset_mw_test.sh
-./reset_mw_test.sh
+chmod +x setup_mw_test_env.sh
+./setup_mw_test_env.sh
 ```
 
-This will: clone/update MediaWiki, start containers, install MW (SQLite), mount this extension, install Mermaid, enable both, and run the updater. After it completes, open `http://localhost:8080/w`.
+This will: clone/update MediaWiki, start containers, install MW (SQLite), mount this extension, install Mermaid, enable both, and run the updater. Uses platform-appropriate cache directories. After it completes, open `http://localhost:8080/w`.
 
 Notes:
-- Do not run with sudo. If permissions get messed up, fix with `sudo chown -R $USER:$USER ~/dev/mediawiki`.
+- Do not run with sudo. If permissions get messed up on the cache directory, fix ownership accordingly.
+- The script uses platform-specific cache directories (e.g., `~/.cache/labki/mediawiki-test` on Linux).
+- You can override the location with `MW_DIR=/your/custom/path ./setup_mw_test_env.sh`
 - If you prefer manual setup or need to debug, continue with the detailed steps below.
 
 ### C. Get MediaWiki core with the built-in Docker dev environment

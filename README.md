@@ -34,10 +34,17 @@ If you are developing locally with MediaWiki-Docker, use the bundled script to i
 ```bash
 # from your host shell (WSL/macOS/Linux), not inside the container
 cd ~/dev/LabkiPackManager
-chmod +x reset_mw_test.sh
-./reset_mw_test.sh
+chmod +x setup_mw_test_env.sh
+./setup_mw_test_env.sh
 ```
-Note: Docker needs to be running
+
+**Notes:**
+- Docker needs to be running
+- MediaWiki will be cloned to a platform-appropriate cache directory:
+  - Linux: `~/.cache/labki/mediawiki-test`
+  - macOS: `~/Library/Caches/labki/mediawiki-test`
+  - Windows: `~\AppData\Local\labki\mediawiki-test`
+- You can override with: `MW_DIR=/custom/path ./setup_mw_test_env.sh`
 
 Then:
 
@@ -52,8 +59,8 @@ cd into the mediawiki directory then
   docker compose exec mediawiki bash -lc 'composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/integration'
   ```
 
-Notes:
-- Do not run the script with sudo. If you see permission errors after running as root, fix ownership: `sudo chown -R $USER:$USER ~/dev/mediawiki`.
+**Additional notes:**
+- Do not run the script with sudo. If you see permission errors, fix ownership on the cache directory.
 - The script mirrors the CI flow (SQLite), and is idempotent — safe to re-run when things get out of sync.
 
 3. Configure content sources (raw file hosts):

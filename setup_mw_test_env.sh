@@ -2,13 +2,35 @@
 set -euo pipefail
 
 #
-# LabkiPackManager — MediaWiki test environment reset script (SQLite)
-# with working log mount, dedicated jobrunner, and verified debug log output
+# LabkiPackManager — MediaWiki test environment setup script (SQLite)
+# Sets up MediaWiki with working log mount, dedicated jobrunner, and verified debug log output.
+# Uses platform-appropriate cache directories (macOS/Windows/Linux).
 #
 
+# --- Determine platform-appropriate cache directory ---
+get_cache_dir() {
+    case "$(uname -s)" in
+        Darwin*)
+            # macOS: ~/Library/Caches/labki
+            echo "$HOME/Library/Caches/labki"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            # Windows (Git Bash/MSYS)
+            local appdata="${LOCALAPPDATA:-$HOME/AppData/Local}"
+            echo "$appdata/labki"
+            ;;
+        *)
+            # Linux/Unix: ~/.cache/labki (XDG Base Directory spec)
+            echo "${XDG_CACHE_HOME:-$HOME/.cache}/labki"
+            ;;
+    esac
+}
+
 # --- CONFIG ---
-MW_DIR="$HOME/dev/mediawiki"
-EXT_DIR="$HOME/dev/LabkiPackManager"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CACHE_BASE="$(get_cache_dir)"
+MW_DIR="${MW_DIR:-$CACHE_BASE/mediawiki-test}"
+EXT_DIR="${EXT_DIR:-$SCRIPT_DIR}"
 MW_BRANCH=REL1_44
 MW_PORT=8080
 MW_ADMIN_USER=Admin
@@ -18,6 +40,8 @@ CONTAINER_LOG_PATH="/var/log/labkipack"
 CONTAINER_LOG_FILE="$CONTAINER_LOG_PATH/labkipack.log"
 CONTAINER_WIKI_PATH="/var/www/html/w"
 # ---------------
+
+echo "==> Using test environment directory: $MW_DIR"
 
 echo "==> Stopping and removing old MediaWiki containers/volumes..."
 if [ -d "$MW_DIR" ]; then
