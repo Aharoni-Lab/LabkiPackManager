@@ -129,12 +129,8 @@ h3[data-v-04226ecd] {
 }
 
 /* ==================== PACK CARD - PROPER NESTING ==================== */
+/* Most styling is inline (see template) */
 .labki-tree .pack-card {
-  border: 1px solid #c8ccd1 !important;
-  border-radius: 8px !important;
-  background: #ffffff !important;
-  padding: 12px !important;
-  margin-bottom: 12px !important;
   transition: all 0.2s ease !important;
 }
 
@@ -321,33 +317,11 @@ h3[data-v-04226ecd] {
 }
 
 /* ==================== META ROW ==================== */
-.labki-tree .meta-row {
-  margin-top: 8px !important;
-  padding-left: 32px !important;
-  border-top: 1px solid #eaecf0 !important;
-  padding-top: 8px !important;
-}
-.labki-tree .meta-content {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 4px !important;
-}
-.labki-tree .desc {
-  font-size: 0.9em !important;
-  color: #54595d !important;
-  line-height: 1.5 !important;
-}
-.labki-tree .depends {
-  font-size: 0.85em !important;
-  color: #72777d !important;
-}
+/* Most styling is inline (see template) */
 
 /* ==================== CHILDREN CONTAINER (INSIDE CARD) ==================== */
+/* Most styling is inline (see template) */
 .labki-tree .children {
-  margin-top: 12px !important;
-  padding-left: 20px !important;
-  border-left: 2px solid #eaecf0 !important;
-  padding-top: 8px !important;
   overflow: hidden !important;
 }
 
@@ -562,92 +536,235 @@ h3[data-v-adb05fca] {
 }
 
 
+/*
+  ============================================================================
+  DETAILS PANEL - CARD-BASED DESIGN WITH INLINE STYLES
+  ============================================================================
+  
+  Following the same pattern as TreeNode.vue:
+  
+  ⚠️ INLINE STYLES ARE REQUIRED for layout and visual styling!
+  
+  WHY: MediaWiki/Codex CSS has extremely high specificity that overrides
+       our stylesheet classes. Inline styles have highest specificity.
+  
+  - Pack cards use inline :style="" bindings for all visual properties
+  - CSS classes here only provide base structure and animations
+  - Any layout-critical styling MUST be in :style="" bindings
+  
+  ============================================================================
+*/
+
+/* ==================== PANEL CONTAINER ==================== */
 .details-panel[data-v-348c6e2c] {
   padding: 20px;
   background: white;
   border: 1px solid #c8ccd1;
   border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-h3[data-v-348c6e2c] {
-  margin-top: 0;
-  margin-bottom: 16px;
-  font-size: 1.2em;
+.panel-header[data-v-348c6e2c] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #eaecf0;
 }
-h4[data-v-348c6e2c] {
-  margin-top: 0;
-  margin-bottom: 12px;
-  font-size: 1em;
-  color: #54595d;
+.panel-header h3[data-v-348c6e2c] {
+  margin: 0;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #202122;
+}
+.pack-count-badge[data-v-348c6e2c] {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #3366cc 0%, #447ff5 100%);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(51, 102, 204, 0.2);
 }
 .panel-content[data-v-348c6e2c] {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
+
+/* ==================== SECTION HEADERS ==================== */
+.section-header[data-v-348c6e2c] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.section-icon[data-v-348c6e2c] {
+  font-size: 1.4em;
+  line-height: 1;
+}
+.section-header h4[data-v-348c6e2c] {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #202122;
+}
+
+/* ==================== WARNINGS SECTION ==================== */
 .warnings-section[data-v-348c6e2c] {
+  animation: slideIn-348c6e2c 0.3s ease;
+}
+.warnings-list[data-v-348c6e2c] {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.packs-list[data-v-348c6e2c] {
+
+/* ==================== PACK CARDS ==================== */
+/* Most styling is inline (see template), CSS here is for fallback/animations only */
+.packs-grid[data-v-348c6e2c] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pack-card[data-v-348c6e2c]:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-3px);
+}
+.status-icon[data-v-348c6e2c] {
+  font-size: 1.1em;
+  line-height: 1;
+}
+.status-icon.spinning[data-v-348c6e2c] {
+  display: inline-block;
+  animation: spin-348c6e2c 2s linear infinite;
+}
+.status-text[data-v-348c6e2c] {
+  font-weight: 600;
+}
+
+/* ==================== EMPTY STATE ==================== */
+.empty-state[data-v-348c6e2c] {
+  text-align: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #fafbfc 0%, #f8f9fa 100%);
+  border-radius: 8px;
+  border: 2px dashed #c8ccd1;
+}
+.empty-icon[data-v-348c6e2c] {
+  font-size: 3em;
+  margin-bottom: 10px;
+  opacity: 0.4;
+}
+.empty-text[data-v-348c6e2c] {
+  margin: 0 0 8px 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #54595d;
+}
+.empty-hint[data-v-348c6e2c] {
+  margin: 0;
+  font-size: 0.9em;
+  color: #72777d;
+}
+
+/* ==================== ACTIONS SECTION ==================== */
+.actions-section[data-v-348c6e2c] {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.pack-item[data-v-348c6e2c] {
-  padding: 12px;
-  background: #f8f9fa;
-  border-radius: 4px;
-  border: 1px solid #eaecf0;
-}
-.pack-header[data-v-348c6e2c] {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.pack-badge[data-v-348c6e2c] {
-  font-size: 0.75em;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: normal;
-}
-.pack-badge.auto[data-v-348c6e2c] {
-  background: #fef6e7;
-  color: #ac6600;
-}
-.pack-badge.manual[data-v-348c6e2c] {
-  background: #eaf3ff;
-  color: #36c;
-}
-.pack-details[data-v-348c6e2c] {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: #54595d;
-}
-.no-selection[data-v-348c6e2c] {
-  text-align: center;
-  padding: 20px;
-  color: #72777d;
-}
-.no-selection p[data-v-348c6e2c] {
-  margin: 0;
-}
-.state-info[data-v-348c6e2c] {
-  padding: 8px;
-  background: #f8f9fa;
-  border-radius: 4px;
-  color: #72777d;
-}
-.state-info code[data-v-348c6e2c] {
-  font-family: monospace;
-  font-size: 0.9em;
+  padding-top: 16px;
+  border-top: 2px solid #eaecf0;
 }
 .action-buttons[data-v-348c6e2c] {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+.action-buttons[data-v-348c6e2c] .cdx-button {
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 10px 20px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+.action-buttons[data-v-348c6e2c] .cdx-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+.action-buttons[data-v-348c6e2c] .cdx-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+.state-info[data-v-348c6e2c] {
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #eaecf0 100%);
+  border-radius: 6px;
+  border: 1px solid #c8ccd1;
+}
+.state-info small[data-v-348c6e2c] {
+  color: #54595d;
+  font-size: 0.85em;
+}
+.state-info code[data-v-348c6e2c] {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.9em;
+  color: #202122;
+  background: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #c8ccd1;
+}
+
+/* ==================== ANIMATIONS ==================== */
+@keyframes spin-348c6e2c {
+from { transform: rotate(0deg);
+}
+to { transform: rotate(360deg);
+}
+}
+@keyframes pulse-348c6e2c {
+0%, 100% { opacity: 1;
+}
+50% { opacity: 0.8;
+}
+}
+@keyframes slideIn-348c6e2c {
+from {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+to {
+    opacity: 1;
+    transform: translateY(0);
+}
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+.pack-header[data-v-348c6e2c] {
+    flex-direction: column;
+    align-items: flex-start;
+}
+.operation-status[data-v-348c6e2c] {
+    align-self: flex-start;
+}
+.pack-info-grid[data-v-348c6e2c] {
+    grid-template-columns: 1fr;
+}
+.action-buttons[data-v-348c6e2c] {
+    flex-direction: column;
+}
+.action-buttons[data-v-348c6e2c] .cdx-button {
+    width: 100%;
+}
+.panel-header[data-v-348c6e2c] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+.pack-count-badge[data-v-348c6e2c] {
+    align-self: flex-start;
+}
 }
 
 

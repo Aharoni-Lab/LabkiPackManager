@@ -67,8 +67,8 @@
         :style="{
           border: '2px solid #c8ccd1',           /* Card boundary */
           borderRadius: '8px',                   /* Rounded corners */
-          padding: '12px',                       /* Breathing room inside card */
-          marginBottom: '12px',                  /* Space between cards */
+          padding: '10px',                       /* Breathing room inside card */
+          marginBottom: '8px',                   /* Space between cards */
           background: packState?.installed ? '#e8f0f8' :        /* Blue = installed */
                       packState?.action === 'install' ? '#e8f5e9' :  /* Green = install */
                       packState?.action === 'remove' ? '#ffebee' :   /* Red = remove */
@@ -78,110 +78,271 @@
         }"
       >
         <!-- 
-          NODE ROW - Horizontal flexbox containing pack name, badges, editor, buttons
-          ⚠️ INDENTATION via inline paddingLeft: depth * 24px
-          - depth=0: 0px, depth=1: 24px, depth=2: 48px, etc.
+          TWO-COLUMN LAYOUT: Pack info on left, Pages on right
+          ⚠️ Main content area splits into left (pack) and right (pages)
         -->
-        <div class="node-row" :style="{ paddingLeft: `${depth * 24}px` }">
-          <!-- Toggle arrow -->
-          <button
-            v-if="hasChildren"
-            class="toggle"
-            :aria-expanded="expanded.toString()"
-            :aria-label="expanded ? $t('labkipackmanager-collapse') : $t('labkipackmanager-expand')"
-            @click="toggleExpanded"
-          >
-            {{ expanded ? '▼' : '▶' }}
-          </button>
-          <span v-else class="toggle-spacer"></span>
+        <div class="pack-content-wrapper" :style="{
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'flex-start'
+        }">
+          <!-- LEFT COLUMN: Pack info and actions -->
+          <div class="pack-info-column" :style="{
+            flex: childPages.length > 0 ? '0 1 auto' : '1',
+            minWidth: '0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }">
+            <!-- Pack header row -->
+            <div class="node-row" :style="{ 
+              paddingLeft: `${depth * 24}px`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'nowrap'
+            }">
+              <!-- Toggle arrow -->
+              <button
+                v-if="childPacks.length > 0"
+                class="toggle"
+                :aria-expanded="expanded.toString()"
+                :aria-label="expanded ? $t('labkipackmanager-collapse') : $t('labkipackmanager-expand')"
+                @click="toggleExpanded"
+              >
+                {{ expanded ? '▼' : '▶' }}
+              </button>
+              <span v-else class="toggle-spacer"></span>
 
-          <!-- Icon -->
-          <span class="node-icon">📦</span>
+              <!-- Icon -->
+              <span class="node-icon">📦</span>
+              
+              <!-- Name and badges -->
+              <span class="name-section">
+                <strong class="label" :title="node.label">{{ node.label }}</strong>
+                
+                <span v-if="node.version" class="badge version">v{{ node.version }}</span>
+                
+                <span
+                  v-if="packState && packState.action && packState.action !== 'unchanged'"
+                  class="badge"
+                  :class="packState.auto_selected_reason ? 'auto' : 'manual'"
+                  :title="packState.auto_selected_reason || ''"
+                >
+                  {{ packState.auto_selected_reason ? 'Auto' : 'Manual' }}
+                </span>
+                
+                <span v-if="canUpdate" class="badge update">Update Available</span>
+              </span>
+            </div>
+            
+            <!-- Pack: Inline prefix editor (on second row) -->
+            <div v-if="showPackEditor" :style="{ 
+              paddingLeft: `${depth * 24 + 32}px`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }">
+              <span class="prefix-label" :style="{ fontSize: '0.75em', color: '#72777d', fontWeight: '600' }">Prefix:</span>
+              <input
+                class="prefix-input"
+                type="text"
+                :value="prefixInputValue"
+                :placeholder="$t('labkipackmanager-pack-prefix-placeholder') || 'MyNamespace/MyPack'"
+                :disabled="!isPackEditable"
+                :readonly="!isPackEditable"
+                @input="onPrefixChange"
+                :style="{
+                  fontSize: '0.72em',
+                  padding: '4px 7px',
+                  minWidth: '150px',
+                  border: '1px solid #c8ccd1',
+                  borderRadius: '3px',
+                  background: 'white',
+                  fontFamily: 'Monaco, Menlo, Consolas, monospace',
+                  transition: 'all 0.15s ease',
+                  cursor: isPackEditable ? 'text' : 'not-allowed'
+                }"
+              />
+            </div>
+
+            <!-- Actions (for packs only) - on third row -->
+            <div class="actions" :style="{
+              paddingLeft: `${depth * 24 + 32}px`,
+              display: 'flex',
+              gap: '8px',
+              flexWrap: 'wrap'
+            }">
+              <div class="action-item" v-if="packState && packState.current_version === null">
+                <cdx-button
+                  action="progressive"
+                  :weight="packState.action === 'install' ? 'primary' : 'normal'"
+                  :class="{ active: packState.action === 'install' }"
+                  @click="toggleInstall"
+                >
+                  {{ packState.action === 'install' ? '✓ ' : '' }}{{ $t('labkipackmanager-select') }}
+                </cdx-button>
+              </div>
+
+              <div class="action-item" v-if="canUpdate">
+                <cdx-button
+                  :weight="packState?.action === 'update' ? 'primary' : 'normal'"
+                  :class="{ active: packState?.action === 'update' }"
+                  @click="toggleUpdate"
+                >
+                  {{ packState?.action === 'update' ? '✓ ' : '' }}{{ $t('labkipackmanager-update') }}
+                </cdx-button>
+              </div>
+
+              <div class="action-item" v-if="packState && packState.current_version !== null">
+                <cdx-button
+                  action="destructive"
+                  :weight="packState.action === 'remove' ? 'primary' : 'normal'"
+                  :class="{ active: packState.action === 'remove' }"
+                  @click="toggleRemove"
+                >
+                  {{ packState.action === 'remove' ? '✓ ' : '' }}{{ $t('labkipackmanager-remove') }}
+                </cdx-button>
+              </div>
+            </div>
+          </div>
           
-          <!-- Name and badges -->
-          <span class="name-section">
-            <strong class="label" :title="node.label">{{ node.label }}</strong>
+          <!-- RIGHT COLUMN: Pages list (if any) -->
+          <div v-if="childPages.length > 0" class="pages-column" :style="{
+            flex: '1',
+            minWidth: '250px',
+            maxWidth: '400px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            padding: '6px',
+            background: 'rgba(248, 249, 250, 0.3)',
+            borderRadius: '6px',
+            border: '1px solid #eaecf0'
+          }">
+            <div :style="{ 
+              fontSize: '0.7em', 
+              color: '#72777d', 
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: '2px',
+              paddingLeft: '4px'
+            }">
+              📄 Pages ({{ childPages.length }})
+            </div>
             
-            <span v-if="node.version" class="badge version">v{{ node.version }}</span>
-            
-            <span
-              v-if="packState && packState.action && packState.action !== 'unchanged'"
-              class="badge"
-              :class="packState.auto_selected_reason ? 'auto' : 'manual'"
-              :title="packState.auto_selected_reason || ''"
+            <!-- Each page as a row with rename input -->
+            <div 
+              v-for="page in childPages"
+              :key="page.id"
+              class="page-row-inline"
+              :style="{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 6px',
+                background: getPageBackground(page.label),
+                borderRadius: '4px',
+                border: '1px solid #eaecf0',
+                minHeight: '32px'
+              }"
             >
-              {{ packState.auto_selected_reason ? 'Auto' : 'Manual' }}
-            </span>
-            
-            <span v-if="canUpdate" class="badge update">Update Available</span>
-          </span>
-
-          <!-- Pack: Inline prefix editor -->
-          <span v-if="showPackEditor" class="prefix-editor-inline">
-            <span class="arrow">→</span>
-            <span class="prefix-label">Prefix:</span>
-            <input
-              class="prefix-input"
-              type="text"
-              :value="prefixInputValue"
-              :placeholder="$t('labkipackmanager-pack-prefix-placeholder') || 'MyNamespace/MyPack'"
-              :disabled="!isPackEditable"
-              :readonly="!isPackEditable"
-              @input="onPrefixChange"
-            />
-          </span>
-
-          <!-- Spacer to push actions to the right -->
-          <span class="spacer"></span>
-
-          <!-- Actions (for packs only) -->
-          <div class="actions">
-            <div class="action-item" v-if="packState && packState.current_version === null">
-              <cdx-button
-                action="progressive"
-                :weight="packState.action === 'install' ? 'primary' : 'normal'"
-                :class="{ active: packState.action === 'install' }"
-                @click="toggleInstall"
-              >
-                {{ packState.action === 'install' ? '✓ ' : '' }}{{ $t('labkipackmanager-select') }}
-              </cdx-button>
-            </div>
-
-            <div class="action-item" v-if="canUpdate">
-              <cdx-button
-                :weight="packState?.action === 'update' ? 'primary' : 'normal'"
-                :class="{ active: packState?.action === 'update' }"
-                @click="toggleUpdate"
-              >
-                {{ packState?.action === 'update' ? '✓ ' : '' }}{{ $t('labkipackmanager-update') }}
-              </cdx-button>
-            </div>
-
-            <div class="action-item" v-if="packState && packState.current_version !== null">
-              <cdx-button
-                action="destructive"
-                :weight="packState.action === 'remove' ? 'primary' : 'normal'"
-                :class="{ active: packState.action === 'remove' }"
-                @click="toggleRemove"
-              >
-                {{ packState.action === 'remove' ? '✓ ' : '' }}{{ $t('labkipackmanager-remove') }}
-              </cdx-button>
+              <span :style="{ 
+                fontSize: '0.8em', 
+                color: '#202122',
+                fontWeight: '500',
+                minWidth: '60px',
+                maxWidth: '80px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }" :title="page.label">{{ page.label }}</span>
+              
+              <!-- Page rename editor (show if pack is selected for install/update or installed) -->
+              <span v-if="showPackEditor" class="page-rename-inline" :style="{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                flex: '1',
+                minWidth: '0'
+              }">
+                <span class="arrow" :style="{ color: '#72777d', fontSize: '0.8em' }">→</span>
+                <span v-if="getDisplayPrefix(page.label)" class="prefix-chip-inline" :style="{
+                  fontSize: '0.7em',
+                  padding: '3px 6px',
+                  background: '#f0f0f0',
+                  border: '1px solid #c8ccd1',
+                  borderRight: 'none',
+                  borderRadius: '3px 0 0 3px',
+                  color: '#54595d',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'Monaco, Menlo, Consolas, monospace'
+                }">{{ getDisplayPrefixWithSlash(page.label) }}</span>
+                <input
+                  class="page-input"
+                  :class="{ 'has-collision': getPageHasCollision(page.label) }"
+                  type="text"
+                  :value="getPageEditableTitle(page.label)"
+                  :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
+                  :disabled="!getPageEditable(page.label)"
+                  :readonly="!getPageEditable(page.label)"
+                  @input="(e) => onPageTitleChangeForPage(e, page.label)"
+                  @focus="() => console.log('[Page Input Focus] Page:', page.label, 'Editable:', getPageEditable(page.label), 'Pack action:', packState?.action)"
+                  :aria-invalid="getPageHasCollision(page.label) ? 'true' : 'false'"
+                  :style="{
+                    fontSize: '0.72em',
+                    padding: '4px 7px',
+                    flex: '1',
+                    minWidth: '100px',
+                    border: getPageHasCollision(page.label) ? '1px solid #d33' : '1px solid #c8ccd1',
+                    borderRadius: getDisplayPrefix(page.label) ? '0 3px 3px 0' : '3px',
+                    background: getPageHasCollision(page.label) ? '#fff5f5' : 'white',
+                    fontFamily: 'Monaco, Menlo, Consolas, monospace',
+                    transition: 'all 0.15s ease',
+                    cursor: getPageEditable(page.label) ? 'text' : 'not-allowed'
+                  }"
+                />
+                <span v-if="getPageHasCollision(page.label)" class="collision-icon" :style="{ 
+                  fontSize: '1.1em', 
+                  cursor: 'help',
+                  color: '#d33'
+                }" :id="getCollisionId(page.label)" :title="getCollisionTooltip(page.label)">⚠️</span>
+              </span>
             </div>
           </div>
         </div>
         
+        <!-- Description and dependencies below both columns -->
+        
         <!-- Description and dependencies on second row if present -->
-        <div v-if="node.description || node.depends_on?.length" class="meta-row">
-          <div class="meta-content">
-            <div v-if="node.description" class="desc">{{ node.description }}</div>
-            <div v-if="node.depends_on?.length" class="depends">
+        <div v-if="node.description || node.depends_on?.length" class="meta-row" :style="{
+          marginTop: '6px',
+          paddingLeft: '32px',
+          paddingTop: '6px',
+          borderTop: '1px solid #eaecf0'
+        }">
+          <div class="meta-content" :style="{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '3px'
+          }">
+            <div v-if="node.description" class="desc" :style="{
+              fontSize: '0.85em',
+              color: '#54595d',
+              lineHeight: '1.4'
+            }">{{ node.description }}</div>
+            <div v-if="node.depends_on?.length" class="depends" :style="{
+              fontSize: '0.8em',
+              color: '#72777d'
+            }">
               <small>{{ $t('labkipackmanager-depends-on') }}: {{ node.depends_on.join(', ') }}</small>
             </div>
           </div>
         </div>
 
         <!-- 
-          CHILDREN CONTAINER - CRITICAL: Nested packs/pages render INSIDE parent card
+          NESTED PACKS CONTAINER - Only renders nested PACKS (pages shown inline above)
           ⚠️ This is what creates the "recursive card nesting" effect
           - Children are inside the .pack-card div, not siblings
           - Each child pack creates its own card, nested inside this one
@@ -193,17 +354,17 @@
           @leave="onChildrenLeave"
         >
           <div
-            v-if="expanded && hasChildren"
+            v-if="expanded && childPacks.length > 0"
             class="children"
             :style="{
-              marginTop: '12px',            /* Space from parent content */
-              paddingLeft: '20px',          /* Indent nested items */
+              marginTop: '8px',             /* Space from parent content */
+              paddingLeft: '16px',          /* Indent nested items */
               borderLeft: '2px solid #eaecf0',  /* Visual nesting indicator */
-              paddingTop: '8px'             /* Top spacing */
+              paddingTop: '4px'             /* Top spacing */
             }"
           >
             <tree-node
-              v-for="child in sortedChildren"
+              v-for="child in childPacks"
               :key="child.id"
               :node="child"
               :depth="depth + 1"
@@ -215,14 +376,11 @@
       </div>
 
       <!-- 
-        PAGE ROW - Simple horizontal layout for pages (no card wrapper)
-        ⚠️ INLINE STYLES REQUIRED for background colors
-        - Color matches parent pack's action state
-        - Renders inside parent's .children container
-        - No nested children (pages don't contain other items)
+        PAGE ROW - Only rendered for standalone pages (not in a pack's children)
+        This handles edge case where pages might be at root level
       -->
       <div 
-        v-else 
+        v-else-if="node.type === 'page'"
         class="page-row"
         :style="{
           padding: '8px 12px',
@@ -318,6 +476,13 @@ const isPageParentSelected = computed(() => {
   return action === 'install' || action === 'update'
 })
 const isPageEditable = computed(() => {
+  // For pages in the right column, check the pack's state (this node is the pack)
+  if (props.node.type === 'pack') {
+    const action = packState.value?.action
+    return action === 'install' || action === 'update'
+  }
+  
+  // For standalone page nodes (legacy), check parent pack
   const action = parentPackState.value?.action
   const installed = pageState.value?.installed
   return action === 'install' && !installed
@@ -416,6 +581,7 @@ function onPrefixChange(e) {
   prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 400)
 }
 
+// Legacy function for standalone page nodes (edge case)
 function onPageTitleChange(e) {
   if (!isPageEditable.value) return
   const editable = e.target.value
@@ -424,7 +590,7 @@ function onPageTitleChange(e) {
     const newTitle = displayPrefixWithSlash.value
       ? displayPrefixWithSlash.value + editable
       : editable
-    sendRenamePageCommand(newTitle)
+    sendRenamePageCommandLegacy(newTitle)
   }, 400)
 }
 
@@ -448,7 +614,8 @@ async function sendSetPackPrefixCommand(prefix) {
   }
 }
 
-async function sendRenamePageCommand(newTitle) {
+// Legacy function for standalone page nodes (edge case)
+async function sendRenamePageCommandLegacy(newTitle) {
   if (store.busy || !parentName.value) return
   try {
     store.busy = true
@@ -479,6 +646,145 @@ onBeforeUnmount(() => {
 
 function $t(k) { return mw.msg(k) }
 
+function getPageTitle(pageName) {
+  const parentPack = store.packs[props.node.label]
+  const pageState = parentPack?.pages?.[pageName]
+  return pageState?.final_title || pageName
+}
+
+function getPageState(pageName) {
+  const parentPack = store.packs[props.node.label]
+  return parentPack?.pages?.[pageName] || null
+}
+
+function getPageBackground(pageName) {
+  const pageState = getPageState(pageName)
+  if (!pageState) return 'white'
+  
+  if (pageState.installed) return 'rgba(232, 240, 248, 0.4)'
+  if (packState.value?.action === 'install') return 'rgba(232, 245, 233, 0.6)'
+  if (packState.value?.action === 'remove') return 'rgba(255, 235, 238, 0.6)'
+  return 'white'
+}
+
+function getDisplayPrefix(pageName) {
+  return packState.value?.prefix || ''
+}
+
+function getDisplayPrefixWithSlash(pageName) {
+  const prefix = getDisplayPrefix(pageName)
+  return prefix ? (prefix.endsWith('/') ? prefix : prefix + '/') : ''
+}
+
+function getPageEditableTitle(pageName) {
+  const pageState = getPageState(pageName)
+  if (!pageState) return ''
+  
+  const full = pageState.final_title || ''
+  const pref = getDisplayPrefixWithSlash(pageName)
+  
+  // Remove prefix from the title to show only the editable part
+  if (pref && full.startsWith(pref)) {
+    return full.slice(pref.length)
+  }
+  
+  return full
+}
+
+function getPageHasCollision(pageName) {
+  const pageState = getPageState(pageName)
+  const full = pageState?.final_title
+  if (!full || !props.node.label) return false
+  return store.warnings.some(
+    (w) => w.includes(full) && w.includes(props.node.label)
+  )
+}
+
+function getCollisionTooltip(pageName) {
+  const pageState = getPageState(pageName)
+  const full = pageState?.final_title
+  if (!full || !props.node.label) return ''
+  return store.warnings
+    .filter((w) => w.includes(full) && w.includes(props.node.label))
+    .join('\n')
+}
+
+function getCollisionId(pageName) {
+  return `collision-${props.node.label}-${pageName}`
+}
+
+function getPageEditable(pageName) {
+  // Check if this specific page can be edited
+  const pageState = getPageState(pageName)
+  if (!pageState) return false
+  
+  const action = packState.value?.action
+  
+  // Can edit if pack is being installed (and page is not already installed)
+  if (action === 'install' && !pageState.installed) return true
+  
+  // Can edit if pack is being updated
+  if (action === 'update') return true
+  
+  return false
+}
+
+function onPageTitleChangeForPage(e, pageName) {
+  // Check if pack is editable
+  const action = packState.value?.action
+  if (action !== 'install' && action !== 'update') {
+    console.log('[onPageTitleChangeForPage] Pack not in install/update mode, ignoring input')
+    return
+  }
+  
+  const pageState = getPageState(pageName)
+  if (!pageState) {
+    console.log('[onPageTitleChangeForPage] No page state found for', pageName)
+    return
+  }
+  
+  // For install action, only allow editing if page is not already installed
+  if (action === 'install' && pageState.installed) {
+    console.log('[onPageTitleChangeForPage] Page already installed, cannot rename during install')
+    return
+  }
+  
+  const editable = e.target.value
+  console.log('[onPageTitleChangeForPage] Page:', pageName, 'New value:', editable)
+  
+  if (pageTimer) clearTimeout(pageTimer)
+  pageTimer = setTimeout(() => {
+    const prefix = getDisplayPrefixWithSlash(pageName)
+    const newTitle = prefix ? prefix + editable : editable
+    console.log('[onPageTitleChangeForPage] Sending rename command. Pack:', props.node.label, 'Page:', pageName, 'Title:', newTitle)
+    sendRenamePageCommand(pageName, newTitle)
+  }, 400)
+}
+
+async function sendRenamePageCommand(pageName, newTitle) {
+  if (store.busy) return
+  try {
+    store.busy = true
+    const response = await packsAction({
+      command: 'rename_page',
+      repo_url: store.repoUrl,
+      ref: store.ref,
+      data: {
+        pack_name: props.node.label,
+        page_name: pageName,
+        new_title: newTitle,
+      },
+    })
+    mergeDiff(store.packs, response.diff)
+    store.stateHash = response.state_hash
+    store.warnings = response.warnings
+  } catch (e) {
+    console.error('rename_page failed:', e)
+  } finally {
+    store.busy = false
+  }
+}
+
 const sortedChildren = computed(() => {
   if (!props.node.children) return []
   const arr = [...props.node.children]
@@ -493,6 +799,17 @@ const sortedChildren = computed(() => {
     return 0
   })
   return arr
+})
+
+// Separate pages and nested packs
+const childPages = computed(() => {
+  if (!props.node.children) return []
+  return props.node.children.filter(child => child.type === 'page')
+})
+
+const childPacks = computed(() => {
+  if (!props.node.children) return []
+  return props.node.children.filter(child => child.type === 'pack')
 })
 
 // Smooth expand/collapse animations
@@ -552,13 +869,9 @@ function onChildrenLeave(el) {
 }
 
 /* ==================== PACK CARD - PROPER NESTING ==================== */
+/* Most styling is inline (see template) */
 
 .labki-tree .pack-card {
-  border: 1px solid #c8ccd1 !important;
-  border-radius: 8px !important;
-  background: #ffffff !important;
-  padding: 12px !important;
-  margin-bottom: 12px !important;
   transition: all 0.2s ease !important;
 }
 
@@ -769,38 +1082,12 @@ function onChildrenLeave(el) {
 }
 
 /* ==================== META ROW ==================== */
-
-.labki-tree .meta-row {
-  margin-top: 8px !important;
-  padding-left: 32px !important;
-  border-top: 1px solid #eaecf0 !important;
-  padding-top: 8px !important;
-}
-
-.labki-tree .meta-content {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 4px !important;
-}
-
-.labki-tree .desc {
-  font-size: 0.9em !important;
-  color: #54595d !important;
-  line-height: 1.5 !important;
-}
-
-.labki-tree .depends {
-  font-size: 0.85em !important;
-  color: #72777d !important;
-}
+/* Most styling is inline (see template) */
 
 /* ==================== CHILDREN CONTAINER (INSIDE CARD) ==================== */
+/* Most styling is inline (see template) */
 
 .labki-tree .children {
-  margin-top: 12px !important;
-  padding-left: 20px !important;
-  border-left: 2px solid #eaecf0 !important;
-  padding-top: 8px !important;
   overflow: hidden !important;
 }
 

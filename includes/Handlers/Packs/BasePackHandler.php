@@ -260,8 +260,9 @@ abstract class BasePackHandler implements PackCommandHandler {
 	}
 
 	/**
-	 * Propagate removal action to dependencies.
-	 * When removing a pack, also remove its dependencies if no other pack needs them.
+	 * Propagate removal action to dependents (packs that depend on this pack).
+	 * When removing a pack, also remove any packs that depend on it to prevent orphans.
+	 * This propagates UPWARD in the dependency tree, not downward.
 	 *
 	 * @param PackSessionState $state
 	 * @param array $manifest
@@ -275,44 +276,42 @@ abstract class BasePackHandler implements PackCommandHandler {
 		$manifestData = $manifest['manifest'] ?? $manifest;
 		$manifestPacks = $manifestData['packs'] ?? [];
 
-		// Get dependencies for this pack
-		$dependencies = $manifestPacks[$packName]['depends_on'] ?? [];
-		
-		foreach ( $dependencies as $depName ) {
-			if ( !isset( $manifestPacks[$depName] ) ) {
+		// Find all packs that depend on this pack
+		foreach ( $manifestPacks as $otherPackName => $otherPackDef ) {
+			if ( $otherPackName === $packName ) {
 				continue;
 			}
 
-			$depPack = $state->getPack( $depName );
-			if ( !$depPack ) {
+			$dependencies = $otherPackDef['depends_on'] ?? [];
+			
+			// Check if this pack depends on the pack being removed
+			if ( !in_array( $packName, $dependencies, true ) ) {
 				continue;
 			}
 
-			// Only auto-remove if the dependency is installed
-			$depInstalled = $depPack['installed'] ?? false;
-			if ( !$depInstalled ) {
+			$otherPack = $state->getPack( $otherPackName );
+			if ( !$otherPack ) {
+				continue;
+			}
+
+			// Only auto-remove if the dependent is installed
+			$otherInstalled = $otherPack['installed'] ?? false;
+			if ( !$otherInstalled ) {
 				continue;
 			}
 
 			// Don't override manual actions
-			$depAutoReason = $depPack['auto_selected_reason'] ?? null;
-			$depAction = $depPack['action'] ?? 'unchanged';
-			if ( $depAction !== 'unchanged' && $depAutoReason === null ) {
+			$otherAutoReason = $otherPack['auto_selected_reason'] ?? null;
+			$otherAction = $otherPack['action'] ?? 'unchanged';
+			if ( $otherAction !== 'unchanged' && $otherAutoReason === null ) {
 				continue;
 			}
 
-			// Check if any OTHER installed pack still needs this dependency
-			$stillNeeded = $this->findInstalledPacksDependingOn( $state, $manifest, $depName );
-			if ( !empty( $stillNeeded ) ) {
-				// Don't remove - still needed by other packs
-				continue;
-			}
-
-			// Safe to auto-remove this dependency
-			$state->setPackAction( $depName, 'remove', "Dependency of {$packName}" );
+			// Auto-remove this dependent pack (it would be orphaned)
+			$state->setPackAction( $otherPackName, 'remove', "Depends on {$packName} which is being removed" );
 			
-			// Recursively propagate to nested dependencies
-			$this->propagateRemovalToDependencies( $state, $manifest, $depName );
+			// Recursively propagate to packs that depend on THIS pack
+			$this->propagateRemovalToDependencies( $state, $manifest, $otherPackName );
 		}
 	}
 
