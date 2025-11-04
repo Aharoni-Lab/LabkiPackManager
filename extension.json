@@ -20,7 +20,8 @@
     "LabkiPackManagerAlias": "LabkiPackManager.alias.php"
   },
   "AutoloadNamespaces": {
-    "LabkiPackManager\\": "includes/"
+    "LabkiPackManager\\": "includes/",
+    "LabkiPackManager\\Maintenance\\": "maintenance/"
   },
   "ResourceFileModulePaths": {
     "localBasePath": "",
@@ -81,10 +82,15 @@
   "config": {
     "LabkiContentSources": {
       "value": [
-        "https://github.com/Aharoni-Lab/labki-packs",
-        "https://github.com/Aharoni-Lab/labki-base-packs"
+        {
+          "url": "https://github.com/Aharoni-Lab/labki-packs",
+          "ref": ["main", "v1.0.0"]
+        },        
+        {
+          "url": "https://github.com/Aharoni-Lab/labki-base-packs"
+        }
       ],
-      "description": "Array of content pack manifest URLs."
+      "description": "Array of content repositories with optional Git ref (branch, tag, or commit)."
     },
     "LabkiDefaultBranch": {
       "value": "main",

@@ -6,24 +6,44 @@ namespace LabkiPackManager\Services;
 
 use LabkiPackManager\Domain\Pack;
 use LabkiPackManager\Domain\PackId;
-use LabkiPackManager\Domain\ContentRepoId;
+use LabkiPackManager\Domain\ContentRefId;
 use MediaWiki\MediaWikiServices;
 
 /**
- * Pack-level registry service for labki_pack table.
+ * LabkiPackRegistry
+ *
+ * Pack-level registry service for the labki_pack table.
+ *
+ * This service manages content pack metadata, where each entry corresponds to
+ * an installed pack from a specific content ref (branch/tag). Packs are uniquely
+ * identified by (content_ref_id, name) regardless of version.
+ *
+ * Responsibilities:
+ * - Creating and updating pack entries
+ * - Tracking pack metadata (name, version, status, installation info)
+ * - Querying packs by repository, name, or ID
+ * - Listing all packs for a repository
+ * - Deleting packs (cascades to pages)
+ * - Managing pack status (installed, removed, etc.)
+ *
+ * Related tables:
+ * - labki_content_ref: Parent ref (managed by LabkiRefRegistry)
+ * - labki_page: Page metadata within packs (managed by LabkiPageRegistry)
+ *
+ * Note: Not marked as final to allow mocking in unit tests.
  */
-final class LabkiPackRegistry {
+class LabkiPackRegistry {
     private const TABLE = 'labki_pack';
 
     /**
      * Insert a pack if not present and return pack_id.
-     * Uniqueness is by (content_repo_id, name), regardless of version.
-     * @param array{version?:?string,source_ref?:?string,source_commit?:?string,installed_at?:?int,installed_by?:?int,status?:?string} $meta
+     * Uniqueness is by (content_ref_id, name), regardless of version.
+     * @param array{version?:?string,source_commit?:?string,installed_at?:?int,installed_by?:?int,status?:?string} $meta
      */
-    public function addPack( int|ContentRepoId $repoId, string $name, array $meta ): PackId {
+    public function addPack( int|ContentRefId $refId, string $name, array $meta ): PackId {
         // Note: This class only persists registry state. Actual MW page/content operations
         // must be performed by higher layers (API/service) before calling into the registry.
-        $existing = $this->getPackIdByName( $repoId, $name );
+        $existing = $this->getPackIdByName( $refId, $name );
         if ( $existing !== null ) {
             return $existing;
         }
@@ -31,10 +51,9 @@ final class LabkiPackRegistry {
         $now = \wfTimestampNow();
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $row = [
-            'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId,
+            'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId,
             'name' => $name,
             'version' => $meta['version'] ?? null,
-            'source_ref' => $meta['source_ref'] ?? null,
             'source_commit' => $meta['source_commit'] ?? null,
             'installed_at' => $meta['installed_at'] ?? $now,
             'installed_by' => $meta['installed_by'] ?? null,
@@ -49,16 +68,16 @@ final class LabkiPackRegistry {
             ->execute();
 
         $id = (int)$dbw->insertId();
-        wfDebugLog( 'Labki', 'Added pack ' . $name . ' (pack_id=' . $id . ', repo_id=' . $repoId . ')' );
+        wfDebugLog( 'Labki', 'Added pack ' . $name . ' (pack_id=' . $id . ', ref_id=' . $refId . ')' );
         return new PackId( $id );
     }
 
     /**
-     * Fetch pack_id by repo/name (version is ignored for uniqueness).
+     * Fetch pack_id by ref/name (version is ignored for uniqueness).
      */
-    public function getPackIdByName( int|ContentRepoId $repoId, string $name, ?string $version = null ): ?PackId {
+    public function getPackIdByName( int|ContentRefId $refId, string $name, ?string $version = null ): ?PackId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
-        $conds = [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId, 'name' => $name ];
+        $conds = [ 'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId, 'name' => $name ];
         $row = $dbr->newSelectQueryBuilder()
             ->select( 'pack_id' )
             ->from( self::TABLE )
@@ -90,15 +109,15 @@ final class LabkiPackRegistry {
     }
 
     /**
-     * List packs for a repository.
+     * List packs for a ref.
      * @return array<int,Pack>
      */
-    public function listPacksByRepo( int|ContentRepoId $repoId ): array {
+    public function listPacksByRef( int|ContentRefId $refId ): array {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
             ->select( Pack::FIELDS )
             ->from( self::TABLE )
-            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
+            ->where( [ 'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId ] )
             ->orderBy( 'pack_id' )
             ->caller( __METHOD__ )
             ->fetchResultSet();
@@ -115,8 +134,8 @@ final class LabkiPackRegistry {
     }
 
     /** Register or update a pack for install; returns pack_id */
-    public function registerPack( int|ContentRepoId $repoId, string $name, ?string $version, int $installedBy ): ?PackId {
-        $existing = $this->getPackIdByName( $repoId, $name );
+    public function registerPack( int|ContentRefId $refId, string $name, ?string $version, int $installedBy ): ?PackId {
+        $existing = $this->getPackIdByName( $refId, $name );
         if ( $existing !== null ) {
             $this->updatePack( $existing, [
                 'installed_at' => \wfTimestampNow(),
@@ -126,7 +145,7 @@ final class LabkiPackRegistry {
             ] );
             return $existing;
         }
-        return $this->addPack( $repoId, $name, [ 'version' => $version, 'installed_by' => $installedBy, 'status' => 'installed' ] );
+        return $this->addPack( $refId, $name, [ 'version' => $version, 'installed_by' => $installedBy, 'status' => 'installed' ] );
     }
 
     /** Remove a pack and its pages. Prefer using from API where pages are removed explicitly. */

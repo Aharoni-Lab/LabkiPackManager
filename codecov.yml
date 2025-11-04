@@ -1,0 +1,17 @@
+coverage:
+  range: 70..100
+  round: down
+  precision: 2
+  status:
+    project:
+      default:
+        target: 85%
+    patch:
+      default:
+        target: 80%
+comment:
+  layout: "header, diff, tree"
+  behavior: default
+fixes:
+  - "/home/runner/work/LabkiPackManager/LabkiPackManager/mediawiki/extensions/LabkiPackManager/::"
+  - "mediawiki/extensions/LabkiPackManager/::"

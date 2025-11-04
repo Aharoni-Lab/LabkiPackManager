@@ -2,293 +2,294 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Services {
-    use LabkiPackManager\Services\ManifestFetcher;
-    use MediaWiki\Status\Status;
+namespace LabkiPackManager\Tests\Services;
 
-    /**
+    use LabkiPackManager\Services\ManifestFetcher;
+use LabkiPackManager\Services\LabkiRefRegistry;
+use MediaWikiUnitTestCase;
+
+/**
+ * Tests for ManifestFetcher
+ *
+ * ManifestFetcher reads manifest.yml files from local worktrees that have been
+ * prepared by GitContentManager. These tests verify file reading, error handling,
+ * and integration with LabkiRefRegistry.
+ *
      * @coversDefaultClass \LabkiPackManager\Services\ManifestFetcher
      */
-    final class ManifestFetcherTest extends \MediaWikiUnitTestCase {
-        /**
-         * Build a fetcher with a controllable HTTP factory stub.
-         */
-        private function newFetcher(HttpFactoryStub $factory): ManifestFetcher {
-            return new ManifestFetcher($factory);
+final class ManifestFetcherTest extends MediaWikiUnitTestCase {
+
+    private string $tempDir;
+
+    protected function setUp(): void {
+        parent::setUp();
+        // Create a temporary directory for test worktrees
+        $this->tempDir = sys_get_temp_dir() . '/labki_test_' . uniqid();
+        mkdir($this->tempDir, 0777, true);
+    }
+
+    protected function tearDown(): void {
+        // Clean up temporary directory
+        if (is_dir($this->tempDir)) {
+            $this->recursiveDelete($this->tempDir);
         }
-
-        /**
-         * Create a temp file with given contents and return its absolute path.
-         */
-        private function createTempFile(string $contents): string {
-            $path = tempnam(sys_get_temp_dir(), 'mf_');
-            if ($path === false) {
-                $this->fail('tempnam failed');
-            }
-            file_put_contents($path, $contents);
-            return $path;
-        }
-
-        /**
-         * @covers ::headHash
-         */
-        public function testHeadHash_LocalFile_Unsupported_ReturnsNull(): void {
-            $path = $this->createTempFile('local-body');
-            try {
-                $factory = new HttpFactoryStub();
-                $fetcher = $this->newFetcher($factory);
-                $hash = $fetcher->headHash('file://' . $path);
-                $this->assertNull($hash);
-            } finally {
-                @unlink($path);
-            }
-        }
-
-        /**
-         * @covers ::headHash
-         */
-        public function testHeadHash_Remote_UsesETag(): void {
-            $factory = new HttpFactoryStub();
-            $factory->when('https://ex.test/etag', 'HEAD')->respond(
-                ok: true,
-                status: 200,
-                headers: [ 'etag' => [ '"abc123"' ] ],
-                body: ''
-            );
-
-            $fetcher = $this->newFetcher($factory);
-            $hash = $fetcher->headHash('https://ex.test/etag');
-            $this->assertSame('abc123', $hash);
-        }
-
-        /**
-         * @covers ::headHash
-         */
-        public function testHeadHash_Remote_UsesLastModified(): void {
-            $factory = new HttpFactoryStub();
-            $lm = 'Wed, 21 Oct 2015 07:28:00 GMT';
-            $factory->when('https://ex.test/lm', 'HEAD')->respond(
-                ok: true,
-                status: 200,
-                headers: [ 'last-modified' => [ $lm ] ],
-                body: ''
-            );
-
-            $fetcher = $this->newFetcher($factory);
-            $hash = $fetcher->headHash('https://ex.test/lm');
-            $this->assertSame(sha1($lm), $hash);
-        }
-
-        /**
-         * @covers ::headHash
-         */
-        public function testHeadHash_Remote_FallbacksToGETBodyHash(): void {
-            $factory = new HttpFactoryStub();
-            $factory->when('https://ex.test/no-headers', 'HEAD')->respond(
-                ok: true,
-                status: 200,
-                headers: [],
-                body: ''
-            );
-            $factory->when('https://ex.test/no-headers', 'GET')->respond(
-                ok: true,
-                status: 200,
-                headers: [],
-                body: 'body-for-hash'
-            );
-
-            $fetcher = $this->newFetcher($factory);
-            $hash = $fetcher->headHash('https://ex.test/no-headers');
-            $this->assertSame(sha1('body-for-hash'), $hash);
-        }
-
-        /**
-         * @covers ::headHash
-         */
-        public function testHeadHash_Remote_HeadFailure_ReturnsNull(): void {
-            $factory = new HttpFactoryStub();
-            $factory->when('https://ex.test/fail', 'HEAD')->respond(
-                ok: false,
-                status: 500,
-                headers: [],
-                body: ''
-            );
-
-            $fetcher = $this->newFetcher($factory);
-            $hash = $fetcher->headHash('https://ex.test/fail');
-            $this->assertNull($hash);
-        }
-
-        /**
-         * @covers ::fetch
-         */
-        public function testFetch_LocalFile_Unsupported_ReturnsFatal(): void {
-            $path = $this->createTempFile("yaml: true\n");
-            try {
-                $factory = new HttpFactoryStub();
-                $fetcher = $this->newFetcher($factory);
-                $status = $fetcher->fetch('file://' . $path);
-                $this->assertFalse($status->isOK());
-            } finally {
-                @unlink($path);
-            }
-        }
-
-        /**
-         * @covers ::fetch
-         */
-        public function testFetch_LocalFile_Missing_ReturnsFatal(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $status = $fetcher->fetch('/nonexistent/nowhere.yml');
-            $this->assertFalse($status->isOK());
-        }
-
-        /**
-         * @covers ::fetch
-         */
-        public function testFetch_Remote_Success(): void {
-            $factory = new HttpFactoryStub();
-            $factory->when('https://ex.test/ok.yml', 'GET')->respond(
-                ok: true,
-                status: 200,
-                headers: [],
-                body: "a: b\n"
-            );
-
-            $fetcher = $this->newFetcher($factory);
-            $status = $fetcher->fetch('https://ex.test/ok.yml');
-            $this->assertTrue($status->isOK());
-            $this->assertSame("a: b\n", $status->getValue());
-        }
-
-        /**
-         * @covers ::fetch
-         */
-        public function testFetch_Remote_EmptyBody_ReturnsFatal(): void {
-            $factory = new HttpFactoryStub();
-            $factory->when('https://ex.test/empty.yml', 'GET')->respond(
-                ok: true,
-                status: 200,
-                headers: [],
-                body: ''
-            );
-
-            $fetcher = $this->newFetcher($factory);
-            $status = $fetcher->fetch('https://ex.test/empty.yml');
-            $this->assertFalse($status->isOK());
-        }
-
-        /**
-         * Helper to call the private resolveManifestUrl via reflection.
-         */
-        private function resolveUrl(ManifestFetcher $fetcher, string $repoUrl): string {
-            $ref = new \ReflectionClass($fetcher);
-            $m = $ref->getMethod('resolveManifestUrl');
-            $m->setAccessible(true);
-            return (string)$m->invoke($fetcher, $repoUrl);
-        }
-
-        /**
-         * @covers ::resolveManifestUrl
-         */
-        public function testResolveManifestUrl_GitHubRepo_DefaultMain(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $out = $this->resolveUrl($fetcher, 'https://github.com/owner/repo');
-            $this->assertSame('https://raw.githubusercontent.com/owner/repo/main/manifest.yml', $out);
-        }
-
-        /**
-         * @covers ::resolveManifestUrl
-         */
-        public function testResolveManifestUrl_GitHubTreeRef(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $out = $this->resolveUrl($fetcher, 'https://github.com/owner/repo/tree/dev');
-            $this->assertSame('https://raw.githubusercontent.com/owner/repo/dev/manifest.yml', $out);
-        }
-
-        /**
-         * @covers ::resolveManifestUrl
-         */
-        public function testResolveManifestUrl_GitHubBlobManifestPath(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $out = $this->resolveUrl($fetcher, 'https://github.com/owner/repo/blob/dev/path/manifest.yml');
-            $this->assertSame('https://raw.githubusercontent.com/owner/repo/dev/path/manifest.yml', $out);
-        }
-
-        /**
-         * @covers ::resolveManifestUrl
-         */
-        public function testResolveManifestUrl_RawGitHub_BaseAppendsManifest(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $out = $this->resolveUrl($fetcher, 'https://raw.githubusercontent.com/owner/repo/main');
-            $this->assertSame('https://raw.githubusercontent.com/owner/repo/main/manifest.yml', $out);
-        }
-
-        /**
-         * @covers ::resolveManifestUrl
-         */
-        public function testResolveManifestUrl_RawGitHub_ManifestYamlUntouched(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $inp = 'https://raw.githubusercontent.com/owner/repo/main/manifest.yaml';
-            $out = $this->resolveUrl($fetcher, $inp);
-            $this->assertSame($inp, $out);
-        }
-
-        /**
-         * @covers ::resolveManifestUrl
-         */
-        public function testResolveManifestUrl_GenericHttpBaseAppends(): void {
-            $factory = new HttpFactoryStub();
-            $fetcher = $this->newFetcher($factory);
-            $out = $this->resolveUrl($fetcher, 'https://example.com/path/');
-            $this->assertSame('https://example.com/path/manifest.yml', $out);
-        }
+        parent::tearDown();
     }
 
     /**
-     * Simple HTTP factory/request test doubles.
+     * Recursively delete a directory and its contents.
      */
-    final class HttpFactoryStub {
-        /** @var array<string, array<string, HttpRequestStub>> */
-        private array $map = [];
-
-        public function when(string $url, string $method): HttpRequestStub {
-            $method = strtoupper($method);
-            $req = new HttpRequestStub();
-            $this->map[$url][$method] = $req;
-            return $req;
+    private function recursiveDelete(string $dir): void {
+        if (!is_dir($dir)) {
+            return;
         }
-
-        public function create(string $url, array $opts) {
-            $method = strtoupper($opts['method'] ?? 'GET');
-            return $this->map[$url][$method] ?? new HttpRequestStub();
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = "$dir/$file";
+            is_dir($path) ? $this->recursiveDelete($path) : unlink($path);
         }
+        rmdir($dir);
     }
 
-    final class HttpRequestStub {
-        private bool $ok = true;
-        private int $status = 200;
-        private array $headers = [];
-        private string $body = '';
+    /**
+     * Create a mock worktree directory with a manifest.yml file.
+     *
+     * @param string $repoUrl Repository URL (used as identifier)
+     * @param string $ref Git ref (branch/tag)
+     * @param string $manifestContent Contents of manifest.yml
+     * @return string Path to the worktree directory
+     */
+    private function createMockWorktree(string $repoUrl, string $ref, string $manifestContent): string {
+        $worktreePath = $this->tempDir . '/' . md5($repoUrl . $ref);
+        mkdir($worktreePath, 0777, true);
+        file_put_contents($worktreePath . '/manifest.yml', $manifestContent);
+        return $worktreePath;
+    }
 
-        public function respond(bool $ok, int $status, array $headers, string $body): self {
-            $this->ok = $ok;
-            $this->status = $status;
-            $this->headers = $headers;
-            $this->body = $body;
-            return $this;
+    /**
+     * Create a mock LabkiRefRegistry that returns predefined worktree paths.
+     * Uses PHPUnit's mock builder to stub the getWorktreePath() method.
+     */
+    private function createRefRegistryMock(array $worktreeMap): LabkiRefRegistry {
+        $mock = $this->createMock(LabkiRefRegistry::class);
+        
+        $mock->method('getWorktreePath')
+            ->willReturnCallback(function (string $repoUrl, string $ref) use ($worktreeMap) {
+                $key = $repoUrl . '::' . $ref;
+                return $worktreeMap[$key] ?? '/nonexistent/path';
+            });
+        
+        return $mock;
+    }
+
+    /**
+     * @covers ::__construct
+     */
+    public function testConstructor_WithoutRegistry_CreatesDefault(): void {
+        $fetcher = new ManifestFetcher();
+        $this->assertInstanceOf(ManifestFetcher::class, $fetcher);
+    }
+
+    /**
+     * @covers ::__construct
+     */
+    public function testConstructor_WithRegistry_UsesProvided(): void {
+        $registry = $this->createRefRegistryMock([]);
+        $fetcher = new ManifestFetcher($registry);
+        $this->assertInstanceOf(ManifestFetcher::class, $fetcher);
+    }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenValidManifest_ReturnsSuccess(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'main';
+        $manifestYaml = "schema_version: '1.0.0'\nname: Test Pack\npacks: []\n";
+
+        $worktreePath = $this->createMockWorktree($repoUrl, $ref, $manifestYaml);
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => $worktreePath
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        $this->assertTrue($status->isOK(), 'Fetch should succeed for valid manifest');
+        $this->assertSame($manifestYaml, $status->getValue(), 'Should return raw YAML content');
         }
 
-        public function execute(): Status { return $this->ok ? Status::newGood(null) : Status::newFatal('http-error'); }
-        public function getResponseHeaders(): array { return $this->headers; }
-        public function getStatus(): int { return $this->status; }
-        public function getContent(): string { return $this->body; }
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenManifestMissing_ReturnsFatal(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'main';
+
+        // Create worktree directory but no manifest.yml
+        $worktreePath = $this->tempDir . '/no_manifest';
+        mkdir($worktreePath, 0777, true);
+
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => $worktreePath
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        $this->assertFalse($status->isOK(), 'Fetch should fail when manifest.yml is missing');
+        $this->assertTrue($status->hasMessage('labkipackmanager-error-manifest-missing'));
+        }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenManifestEmpty_ReturnsFatal(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'main';
+
+        $worktreePath = $this->createMockWorktree($repoUrl, $ref, '');
+
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => $worktreePath
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        $this->assertFalse($status->isOK(), 'Fetch should fail when manifest.yml is empty');
+        $this->assertTrue($status->hasMessage('labkipackmanager-error-manifest-empty'));
+        }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenManifestUnreadable_ReturnsFatal(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'main';
+
+        $worktreePath = $this->createMockWorktree($repoUrl, $ref, 'valid content');
+        $manifestPath = $worktreePath . '/manifest.yml';
+        
+        // Remove read permissions
+        chmod($manifestPath, 0000);
+
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => $worktreePath
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        // Restore permissions for cleanup
+        chmod($manifestPath, 0644);
+
+        $this->assertFalse($status->isOK(), 'Fetch should fail when manifest.yml is unreadable');
+        $this->assertTrue($status->hasMessage('labkipackmanager-error-manifest-unreadable'));
+    }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenWorktreeDoesNotExist_ReturnsFatal(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'nonexistent';
+
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => '/path/that/does/not/exist'
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        $this->assertFalse($status->isOK(), 'Fetch should fail when worktree does not exist');
+        $this->assertTrue($status->hasMessage('labkipackmanager-error-manifest-missing'));
+        }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenMultipleRefs_ReturnsCorrectContent(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $refMain = 'main';
+        $refDev = 'dev';
+
+        $mainYaml = "schema_version: '1.0.0'\nname: Main Branch\n";
+        $devYaml = "schema_version: '1.0.0'\nname: Dev Branch\n";
+
+        $mainWorktree = $this->createMockWorktree($repoUrl, $refMain, $mainYaml);
+        $devWorktree = $this->createMockWorktree($repoUrl, $refDev, $devYaml);
+
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $refMain => $mainWorktree,
+            $repoUrl . '::' . $refDev => $devWorktree
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+
+        // Fetch main
+        $statusMain = $fetcher->fetch($repoUrl, $refMain);
+        $this->assertTrue($statusMain->isOK());
+        $this->assertSame($mainYaml, $statusMain->getValue());
+
+        // Fetch dev
+        $statusDev = $fetcher->fetch($repoUrl, $refDev);
+        $this->assertTrue($statusDev->isOK());
+        $this->assertSame($devYaml, $statusDev->getValue());
+    }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenComplexYaml_PreservesFormatting(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'main';
+
+        $complexYaml = <<<YAML
+schema_version: '1.0.0'
+name: Complex Pack
+description: |
+  Multi-line
+  description
+packs:
+  - name: pack-one
+    version: 1.0.0
+    pages:
+      - name: Page_One
+      - name: Page_Two
+YAML;
+
+        $worktreePath = $this->createMockWorktree($repoUrl, $ref, $complexYaml);
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => $worktreePath
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        $this->assertTrue($status->isOK());
+        $this->assertSame($complexYaml, $status->getValue(), 'Should preserve exact YAML formatting');
+    }
+
+    /**
+     * @covers ::fetch
+     */
+    public function testFetch_WhenWhitespaceOnlyManifest_ReturnsFatal(): void {
+        $repoUrl = 'https://github.com/example/repo';
+        $ref = 'main';
+
+        $worktreePath = $this->createMockWorktree($repoUrl, $ref, "   \n\t\n  ");
+
+        $registry = $this->createRefRegistryMock([
+            $repoUrl . '::' . $ref => $worktreePath
+        ]);
+
+        $fetcher = new ManifestFetcher($registry);
+        $status = $fetcher->fetch($repoUrl, $ref);
+
+        // Whitespace-only content is now treated as empty (consistent behavior)
+        $this->assertFalse($status->isOK(), 'Fetch should fail when manifest.yml contains only whitespace');
+        $this->assertTrue($status->hasMessage('labkipackmanager-error-manifest-empty'));
     }
 }
 

@@ -7,164 +7,241 @@ namespace LabkiPackManager\Services;
 use LabkiPackManager\Domain\ContentRepo;
 use LabkiPackManager\Domain\ContentRepoId;
 use MediaWiki\MediaWikiServices;
+use RuntimeException;
 
 /**
- * Repository-level registry service for labki_content_repo table.
+ * LabkiRepoRegistry
+ *
+ * Repository-level registry service for the labki_content_repo table.
+ *
+ * This service manages content repository metadata, where each entry corresponds
+ * to one bare Git repository (unique per content_repo_url). It provides CRUD
+ * operations and "ensure" semantics for repository entries.
+ *
+ * Responsibilities:
+ * - Creating and updating repository entries
+ * - Tracking repository metadata (URL, default ref, bare path, last fetched)
+ * - Querying repositories by URL or ID
+ * - Listing all repositories
+ * - Deleting repositories (cascades to refs, packs, pages)
+ *
+ * Related tables:
+ * - labki_content_ref: Per-branch/tag metadata (managed by LabkiRefRegistry)
+ * - labki_pack: Pack metadata (managed by LabkiPackRegistry)
+ * - labki_page: Page metadata (managed by LabkiPageRegistry)
+ *
+ * Note: Not marked as final to allow mocking in unit tests.
  */
-final class LabkiRepoRegistry {
+class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
-    /** Normalize repo URLs for consistent storage and lookup */
-    private function normalizeUrl( string $url ): string {
-        $u = trim( $url );
-        // Trim trailing slashes; leave case as-is to avoid altering path semantics
-        $u = rtrim( $u, "/" );
-        return $u;
-    }
-
     /**
-     * Insert a repository if not present and return repo_id.
+     * Ensure a repository entry exists (create or update) and return its ID.
+     *
+     * If a repository with the given URL already exists, it will be updated with
+     * the provided extra fields. Otherwise, a new repository entry is created.
+     *
+     * This is the recommended method for most use cases as it provides idempotent
+     * behavior - calling it multiple times with the same URL is safe.
+     *
+     * @param string $contentRepoUrl Repository URL (should be normalized)
+     * @param array<string,mixed> $extraFields Optional metadata (e.g., bare_path, last_fetched)
+     * @return ContentRepoId The repository ID (existing or newly created)
      */
-    public function addRepo( string $url, ?string $defaultRef = null ): ContentRepoId {
-        wfDebugLog( 'labkipack', 'addRepo() called with url: ' . $url );
-        $normUrl = $this->normalizeUrl( $url );
-        $existingId = $this->getRepoIdByUrl( $normUrl );
-        if ( $existingId !== null ) {
-            wfDebugLog( 'labkipack', 'addRepo() found existing repo with ID: ' . $existingId->toInt() );
+    public function ensureRepoEntry(
+        string $contentRepoUrl,
+        array $extraFields = []
+    ): ContentRepoId {
+        $now = \wfTimestampNow();
+
+        wfDebugLog('labkipack', "ensureRepoEntry() called for {$contentRepoUrl}");
+
+        // Check if repo already exists
+        $existingId = $this->getRepoIdByUrl($contentRepoUrl);
+        if ($existingId !== null) {
+            wfDebugLog('labkipack', "ensureRepoEntry(): found existing repo (ID={$existingId->toInt()}) → updating");
+            $this->updateRepoEntry($existingId, $extraFields);
             return $existingId;
         }
 
-        wfDebugLog( 'labkipack', 'addRepo() inserting new repo: ' . $normUrl );
-        try {
-            $now = \wfTimestampNow();
-            $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        // Otherwise create new entry
+        return $this->addRepoEntry($contentRepoUrl, $extraFields);
+    }
 
+    /**
+     * Insert a new repository entry.
+     *
+     * Creates a new repository record with default values for required fields.
+     * Use ensureRepoEntry() instead if you want idempotent behavior.
+     *
+     * Default values:
+     * - default_ref: 'main'
+     * - bare_path: null
+     * - last_fetched: null
+     * - created_at: current timestamp
+     * - updated_at: current timestamp
+     *
+     * @param string $contentRepoUrl Repository URL (should be normalized)
+     * @param array<string,mixed> $extraFields Optional metadata to override defaults
+     * @return ContentRepoId The newly created repository ID
+     * @throws \Exception If database insertion fails
+     */
+    public function addRepoEntry(
+        string $contentRepoUrl,
+        array $extraFields = []
+    ): ContentRepoId {
+        $now = \wfTimestampNow();
+
+        wfDebugLog('labkipack', "addRepoEntry() inserting {$contentRepoUrl}");
+
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
+
+        $row = array_merge([
+            'content_repo_url'  => $contentRepoUrl,
+            'default_ref'       => 'main',
+            'bare_path'         => null,
+            'last_fetched'      => null,
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ], $extraFields);
+
+        try {
             $dbw->newInsertQueryBuilder()
-                ->insertInto( self::TABLE )
-                ->row( [
-                    'content_repo_url' => $normUrl,
-                    'default_ref' => $defaultRef,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ] )
-                ->caller( __METHOD__ )
+                ->insertInto(self::TABLE)
+                ->row($row)
+                ->caller(__METHOD__)
                 ->execute();
 
-            $id = (int)$dbw->insertId();
-            wfDebugLog( 'labkipack', 'Successfully added repo ' . $normUrl . ' (repo_id=' . $id . ')' );
-            return new ContentRepoId( $id );
-        } catch ( Exception $e ) {
-            wfDebugLog( 'labkipack', 'addRepo() failed with exception: ' . $e->getMessage() );
-            wfDebugLog( 'labkipack', 'Stack trace: ' . $e->getTraceAsString() );
+            $newId = (int)$dbw->insertId();
+            wfDebugLog('labkipack', "addRepoEntry(): created new repo entry (ID={$newId}) for {$contentRepoUrl}");
+            return new ContentRepoId($newId);
+
+        } catch (\Exception $e) {
+            wfDebugLog('labkipack', "addRepoEntry() failed: " . $e->getMessage());
             throw $e;
         }
     }
 
     /**
-     * Get a repository ID by its URL.
+     * Update an existing repository record by ID.
+     *
+     * Updates the specified fields for a repository. The updated_at timestamp
+     * is automatically set to the current time unless explicitly provided.
+     *
+     * @param int|ContentRepoId $repoId Repository ID to update
+     * @param array<string,mixed> $fields Fields to update (e.g., bare_path, last_fetched)
+     * @return void
      */
-    public function getRepoIdByUrl( string $url ): ?ContentRepoId {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
-        $normUrl = $this->normalizeUrl( $url );
-        $row = $dbr->newSelectQueryBuilder()
-            ->select( 'content_repo_id' )
-            ->from( self::TABLE )
-            ->where( [ 'content_repo_url' => $normUrl ] )
-            ->caller( __METHOD__ )
-            ->fetchRow();
-        if ( !$row ) {
-            return null;
+    public function updateRepoEntry(int|ContentRepoId $repoId, array $fields): void {
+        if (empty($fields)) {
+            return; // nothing to update
         }
-        return new ContentRepoId( (int)$row->content_repo_id );
+
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
+        $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
+
+        $fields['updated_at'] = $fields['updated_at'] ?? \wfTimestampNow();
+
+        $dbw->newUpdateQueryBuilder()
+            ->update(self::TABLE)
+            ->set($fields)
+            ->where(['content_repo_id' => $id])
+            ->caller(__METHOD__)
+            ->execute();
+
+        wfDebugLog('labkipack', "updateRepoEntry(): updated repo ID={$id} with fields: " . json_encode(array_keys($fields)));
     }
 
     /**
-     * Fetch full repository record by ID.
-     * @return ContentRepo|null
+     * Get a repository ID by its canonical URL.
+     *
+     * Performs an exact match lookup on the content_repo_url field.
+     * The URL should be normalized before calling this method.
+     *
+     * @param string $contentRepoUrl Repository URL to look up
+     * @return ContentRepoId|null Repository ID if found, null otherwise
      */
-    public function getRepoById( int|ContentRepoId $repoId ): ?ContentRepo {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+    public function getRepoIdByUrl(string $contentRepoUrl): ?ContentRepoId {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
+
         $row = $dbr->newSelectQueryBuilder()
-            ->select( ContentRepo::FIELDS )
-            ->from( self::TABLE )
-            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
-            ->caller( __METHOD__ )
+            ->select('content_repo_id')
+            ->from(self::TABLE)
+            ->where(['content_repo_url' => $contentRepoUrl])
+            ->caller(__METHOD__)
             ->fetchRow();
-        if ( !$row ) {
-            return null;
-        }
-        return ContentRepo::fromRow( $row );
+
+        return $row ? new ContentRepoId((int)$row->content_repo_id) : null;
     }
 
-    /** Small helper used by API: return same as getRepoById but named getRepoInfo */
-    // We can see which function name we like more and remove the other probably
-    public function getRepoInfo( int|ContentRepoId $repoId ): ?ContentRepo {
-        return $this->getRepoById( $repoId );
-    }
+    /**
+     * Fetch a complete repository record by ID.
+     *
+     * Returns a ContentRepo domain object with all repository metadata.
+     *
+     * @param int|ContentRepoId $repoId Repository ID to fetch
+     * @return ContentRepo|null Repository object if found, null otherwise
+     */
+    public function getRepoById(int|ContentRepoId $repoId): ?ContentRepo {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
+        $row = $dbr->newSelectQueryBuilder()
+            ->select(ContentRepo::FIELDS)
+            ->from(self::TABLE)
+            ->where([
+                'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId,
+            ])
+            ->caller(__METHOD__)
+            ->fetchRow();
 
-    /** Ensure repo exists by URL and return its ID. */
-    public function ensureRepo( string $url ): ContentRepoId {
-        wfDebugLog( 'labkipack', 'ensureRepo() called with url: ' . $url );
-        $normUrl = $this->normalizeUrl( $url );
-        wfDebugLog( 'labkipack', 'ensureRepo() called with url: ' . $url . ', normalized: ' . $normUrl );
-        
-        $id = $this->getRepoIdByUrl( $normUrl );
-        if ( $id !== null ) {
-            wfDebugLog( 'labkipack', 'Found existing repo with ID: ' . $id->toInt() );
-            return $id;
-        }
-        
-        wfDebugLog( 'labkipack', 'No existing repo found, calling addRepo' );
-        return $this->addRepo( $normUrl, null );
+        return $row ? ContentRepo::fromRow($row) : null;
     }
 
     /**
      * List all repositories.
-     * @return array<int,ContentRepo>
+     *
+     * Returns all repository records ordered by ID.
+     *
+     * @return array<int,ContentRepo> Array of ContentRepo objects
      */
     public function listRepos(): array {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
         $res = $dbr->newSelectQueryBuilder()
-            ->select( ContentRepo::FIELDS )
-            ->from( self::TABLE )
-            ->orderBy( 'content_repo_id' )
-            ->caller( __METHOD__ )
+            ->select(ContentRepo::FIELDS)
+            ->from(self::TABLE)
+            ->orderBy('content_repo_id')
+            ->caller(__METHOD__)
             ->fetchResultSet();
+
         $out = [];
-        foreach ( $res as $row ) {
-            $out[] = ContentRepo::fromRow( $row );
+        foreach ($res as $row) {
+            $out[] = ContentRepo::fromRow($row);
         }
         return $out;
     }
 
     /**
-     * Update repository fields; always touches updated_at unless explicitly provided.
-     * @param array<string,mixed> $fields
+     * Delete a repository entry.
+     *
+     * Removes the repository record from the database. Due to foreign key constraints,
+     * this will cascade delete all associated refs, packs, and pages.
+     *
+     * Warning: This is a destructive operation. Ensure all associated data should
+     * be removed before calling this method.
+     *
+     * @param int|ContentRepoId $repoId Repository ID to delete
+     * @return void
      */
-    public function updateRepo( int|ContentRepoId $repoId, array $fields ): void {
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = \wfTimestampNow();
-        }
-        $dbw->newUpdateQueryBuilder()
-            ->update( self::TABLE )
-            ->set( $fields )
-            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
-            ->caller( __METHOD__ )
-            ->execute();
-    }
+    public function deleteRepo(int|ContentRepoId $repoId): void {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
+        $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
-    /**
-     * Delete repository (cascade removes packs/pages).
-     */
-    public function deleteRepo( int|ContentRepoId $repoId ): void {
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $dbw->newDeleteQueryBuilder()
-            ->deleteFrom( self::TABLE )
-            ->where( [ 'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId ] )
-            ->caller( __METHOD__ )
+            ->deleteFrom(self::TABLE)
+            ->where(['content_repo_id' => $id])
+            ->caller(__METHOD__)
             ->execute();
+
+        wfDebugLog('labkipack', "deleteRepo(): deleted repo ID={$id}");
     }
+
 }
-
-

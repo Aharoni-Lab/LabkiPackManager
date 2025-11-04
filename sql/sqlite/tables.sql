@@ -1,32 +1,58 @@
+
+-- labki_content_repo
+--  └── labki_content_ref
+--          └── labki_pack
+--                  └── labki_page
+
 -- ===========================================================
---  labki_content_repo: top-level content repository
+--  labki_content_repo: top-level content repository (bare clone)
 -- ===========================================================
-CREATE TABLE IF NOT EXISTS labki_content_repo (
-  content_repo_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content_repo_url TEXT NOT NULL,
-  content_repo_name TEXT,
-  default_ref TEXT,
-  created_at INTEGER,
-  updated_at INTEGER,
-  UNIQUE (content_repo_url)
+CREATE TABLE labki_content_repo (
+  content_repo_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_repo_url    TEXT NOT NULL UNIQUE,   -- canonical repository URL (e.g., https://github.com/Aharoni-Lab/labki-packs)
+  default_ref         TEXT DEFAULT 'main',    -- repo’s default branch
+  bare_path           TEXT,                   -- filesystem path to the bare clone
+  last_fetched        INTEGER,                -- timestamp of last git fetch
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL
 );
 
 -- ===========================================================
---  labki_pack: per-pack info within a content repo
+--  labki_content_ref: per-branch/tag/commit (worktree level)
+-- ===========================================================
+CREATE TABLE labki_content_ref (
+  content_ref_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_repo_id         INTEGER NOT NULL,
+  source_ref              TEXT NOT NULL,         -- canonical Git ref (branch/tag/commit)
+  content_ref_name        TEXT,                  -- optional descriptive name
+  last_commit             TEXT,                  -- HEAD commit hash
+  manifest_hash           TEXT,                  -- hash of manifest contents
+  manifest_last_parsed    INTEGER,               -- timestamp of last manifest parse
+  worktree_path           TEXT,                  -- filesystem path to worktree
+  created_at              INTEGER NOT NULL,
+  updated_at              INTEGER NOT NULL,
+  UNIQUE (content_repo_id, source_ref),
+  FOREIGN KEY (content_repo_id)
+    REFERENCES labki_content_repo (content_repo_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+
+-- ===========================================================
+--  labki_pack: per-pack info within a specific content repo ref
 -- ===========================================================
 CREATE TABLE IF NOT EXISTS labki_pack (
   pack_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content_repo_id INTEGER NOT NULL,
+  content_ref_id INTEGER NOT NULL,
   name TEXT NOT NULL,
   version TEXT,
-  source_ref TEXT,
   source_commit TEXT,
   installed_at INTEGER,
   installed_by INTEGER,
   updated_at INTEGER,
   status TEXT CHECK(status IN ('installed','pending','removed','error')) DEFAULT 'installed',
-  UNIQUE (content_repo_id, name),
-  FOREIGN KEY (content_repo_id) REFERENCES labki_content_repo (content_repo_id)
+  UNIQUE (content_ref_id, name),
+  FOREIGN KEY (content_ref_id) REFERENCES labki_content_ref (content_ref_id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   FOREIGN KEY (installed_by) REFERENCES user (user_id)
@@ -58,14 +84,19 @@ CREATE TABLE IF NOT EXISTS labki_page (
 -- ===========================================================
 --  Helpful indexes
 -- ===========================================================
-CREATE INDEX IF NOT EXISTS idx_labki_pack_repo
-  ON labki_pack (content_repo_id);
 
-CREATE INDEX IF NOT EXISTS idx_labki_page_pack
-  ON labki_page (pack_id);
+-- Core relational indexes
+CREATE INDEX idx_labki_ref_repo            ON labki_content_ref (content_repo_id);
+CREATE INDEX idx_labki_pack_ref            ON labki_pack (content_ref_id);
+CREATE INDEX idx_labki_page_pack           ON labki_page (pack_id);
+CREATE INDEX idx_labki_page_final_title    ON labki_page (final_title);
+CREATE INDEX idx_labki_page_wiki_page_id   ON labki_page (wiki_page_id);
 
-CREATE INDEX IF NOT EXISTS idx_labki_page_final_title
-  ON labki_page (final_title);
+-- Performance and metadata indexes
+CREATE INDEX idx_labki_repo_url            ON labki_content_repo (content_repo_url);
+CREATE INDEX idx_labki_ref_name            ON labki_content_ref (content_ref_name);
+CREATE INDEX idx_labki_repo_last_fetched   ON labki_content_repo (last_fetched);
 
-CREATE INDEX IF NOT EXISTS idx_labki_page_wiki_page_id
-  ON labki_page (wiki_page_id);
+CREATE INDEX idx_labki_ref_source_ref      ON labki_content_ref (source_ref);
+CREATE INDEX idx_labki_ref_last_commit     ON labki_content_ref (last_commit);
+CREATE INDEX idx_labki_ref_manifest_hash   ON labki_content_ref (manifest_hash);

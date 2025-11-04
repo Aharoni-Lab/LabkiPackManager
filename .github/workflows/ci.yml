@@ -75,25 +75,26 @@ jobs:
 
       - name: Enable extension
         run: |
+          mkdir -p mediawiki/extensions
+          ln -s "$(pwd)/extension" "mediawiki/extensions/LabkiPackManager"
           echo "wfLoadExtension( 'LabkiPackManager' );" >> mediawiki/LocalSettings.php
-          ln -s "$GITHUB_WORKSPACE/extension" mediawiki/extensions/LabkiPackManager
+          echo "\$wgCacheDirectory = \"\$IP/cache\";" >> mediawiki/LocalSettings.php
 
-      - name: Update DB schema (run extension schema updates)
+
+      - name: Update DB schema
         working-directory: mediawiki
         run: php maintenance/update.php --quick
 
-      - name: Verify labki table columns
+      - name: Verify labki tables
         working-directory: mediawiki
         run: |
           php maintenance/sql.php --query="SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'labki_%';"
-          php maintenance/sql.php --query="PRAGMA table_info(labki_pack_pages);"
 
       - name: PHPUnit unit
         working-directory: mediawiki
         run: |
           if [ -d "extensions/LabkiPackManager/tests/phpunit/unit" ]; then
-
-          composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit
+            composer phpunit:entrypoint -- extensions/LabkiPackManager/tests/phpunit/unit
           else
             echo "No unit tests directory found; skipping."
           fi
@@ -109,4 +110,46 @@ jobs:
             echo "No integration tests directory found; skipping."
           fi
 
+      - name: Generate coverage report
+        if: success()
+        working-directory: mediawiki
+        run: |
+          mkdir -p build/logs
+          EXT_PATH="$(pwd)/extensions/LabkiPackManager"
+          echo "wfLoadExtension( 'LabkiPackManager' );" >> LocalSettings.php
 
+          cat > "$EXT_PATH/tests/phpunit/coverage.xml" <<XML
+          <?xml version="1.0" encoding="UTF-8"?>
+          <phpunit bootstrap="tests/phpunit/bootstrap.php">
+            <coverage>
+              <include>
+                <directory suffix=".php">$EXT_PATH/includes</directory>
+                <directory suffix=".php">$EXT_PATH/maintenance</directory>
+              </include>
+            </coverage>
+          </phpunit>
+          XML
+
+          php tests/phpunit/phpunit.php \
+            --configuration "$EXT_PATH/tests/phpunit/coverage.xml" \
+            --coverage-clover=build/logs/clover.xml \
+            "$EXT_PATH/tests/phpunit"
+  
+      - name: Inspect coverage report contents
+        working-directory: mediawiki
+        run: |
+          echo "Clover report size:"
+          wc -l build/logs/clover.xml
+          echo "First 20 filenames referenced:"
+          grep -oP 'filename="\K[^"]+' build/logs/clover.xml | head -n 20
+  
+  
+        
+      - name: Upload coverage to Codecov
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          files: mediawiki/build/logs/clover.xml
+          flags: phpunit
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}

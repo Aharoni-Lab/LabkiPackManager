@@ -2,7 +2,7 @@
   "name": "aharoni-lab/labkipackmanager",
   "description": "MediaWiki extension to import Labki content packs from YAML manifests",
   "type": "mediawiki-extension",
-  "license": "GPL-2.0-or-later",
+  "license": "EUPL-1.2",
   "require": {
     "php": ">=8.1",
     "symfony/yaml": "^5.4 || ^6.0"
@@ -12,8 +12,28 @@
       "LabkiPackManager\\": "includes/"
     }
   },
-  "autoload-dev": {},
-  "require-dev": {},
-  "scripts": {}
+  "autoload-dev": {
+    "psr-4": {
+      "LabkiPackManager\\Tests\\": "tests/phpunit/"
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6",
+    "phpunit/php-code-coverage": "^9.2",
+    "mediawiki/mediawiki-codesniffer": "^43.0"
+  },
+  "scripts": {
+    "test": [
+      "phpunit --colors=always"
+    ],
+    "phpunit:entrypoint": [
+      "php -d display_errors=1 vendor/bin/phpunit --configuration tests/phpunit.xml.dist"
+    ],
+    "fix": [
+      "vendor/bin/phpcbf"
+    ],
+    "lint": [
+      "vendor/bin/phpcs"
+    ]
+  }
 }
-

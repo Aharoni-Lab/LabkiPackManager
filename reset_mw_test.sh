@@ -30,6 +30,7 @@ if [ ! -d "$MW_DIR/.git" ]; then
   mkdir -p "$(dirname "$MW_DIR")"
   git clone https://gerrit.wikimedia.org/r/mediawiki/core.git "$MW_DIR"
 fi
+
 cd "$MW_DIR"
 git fetch --all
 git checkout "$MW_BRANCH"
