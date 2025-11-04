@@ -93,237 +93,432 @@ h3[data-v-04226ecd] {
 }
 
 
+/*
+  ============================================================================
+  CSS CLASSES - SUPPLEMENTARY ONLY
+  ============================================================================
+  
+  ⚠️ IMPORTANT: These CSS classes are NOT used for layout or visual styling!
+  
+  WHY: MediaWiki and Codex have extremely high CSS specificity that overrides
+       our stylesheet classes. Inline styles (in the template above) have
+       the highest specificity and cannot be overridden.
+  
+  WHAT THIS SECTION DOES:
+  - Provides fallback styles for browsers without JS
+  - Defines animation/transition effects
+  - Sets display modes (flex, inline-flex, etc.) as base rules
+  - Provides semantic class names for debugging
+  
+  WHAT THIS SECTION DOES NOT DO:
+  - Control layout (padding, margin, borders) - use inline styles
+  - Control colors (background, border-color) - use inline styles
+  - Control visibility (shadows, opacity) - use inline styles
+  
+  IF YOU NEED TO CHANGE VISUAL APPEARANCE:
+  1. Update the :style="" bindings in the <template> section above
+  2. Do NOT add new CSS classes here expecting them to work
+  3. Test by inspecting element in browser DevTools to verify inline styles
+  
+  ============================================================================
+*/
 
-/* Indent nested node groups visually */
-.labki-tree .children[data-v-6225b7c8] {
-  margin-left: calc(1.5rem) !important;
-  border-left: 1px solid #eaecf0 !important;
-  padding-left: 0.75rem !important;
-}
-.labki-tree .tree-node[data-type="pack"] .node-row[data-v-6225b7c8]:hover { background: #f8f9fa;
-}
-.labki-tree .tree-node[data-action="install"] .node-row[data-v-6225b7c8] { background: #e8f5e9;
-}
-.labki-tree .tree-node[data-action="update"]  .node-row[data-v-6225b7c8] { background: #fff3e0;
-}
-.labki-tree .tree-node[data-action="remove"]  .node-row[data-v-6225b7c8] { background: #ffebee;
-}
-
-/* Pin grid cells */
-.labki-tree .toggle[data-v-6225b7c8], .labki-tree .toggle-spacer[data-v-6225b7c8] {
-  background: none; border: none; cursor: pointer;
-  padding: 2px 4px; font-size: 12px; color: #72777d;
-  flex-shrink: 0;
-}
-.labki-tree .toggle[data-v-6225b7c8]:hover { color: #202122;
-}
-.labki-tree .toggle-spacer[data-v-6225b7c8] { width: 16px;
-}
-.labki-tree .node-icon[data-v-6225b7c8] { 
-  font-size: 16px; line-height: 1.4; align-self: center;
-  flex-shrink: 0;
-}
-
-/* Main content uses flex */
-.labki-tree .main[data-v-6225b7c8] {
-  flex: 1 !important;
-  display: block !important;
-  min-width: 0;
+/* ==================== TREE NODE BASE ==================== */
+.labki-tree .tree-node {
+  margin-bottom: 0 !important;
 }
 
-/* Title line: flex to keep on one line */
-.labki-tree .title-line[data-v-6225b7c8] {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  flex-wrap: wrap !important;
-  margin-bottom: 4px !important;
-}
-.labki-tree .label[data-v-6225b7c8] {
-  margin: 0 !important;
-  font-size: 1em !important;
-  word-break: break-word !important;
-}
-
-/* Badges */
-.labki-tree .badge[data-v-6225b7c8] {
-  display: inline-block !important;
-  font-size: 0.75em !important;
-  padding: 2px 8px !important;
-  border-radius: 3px !important;
-  white-space: nowrap !important;
-  font-weight: normal !important;
-  flex-shrink: 0 !important;
-}
-.labki-tree .badge.manual[data-v-6225b7c8] { background: #eaf3ff !important; color: #36c !important;
-}
-.labki-tree .badge.auto[data-v-6225b7c8] { background: #fef6e7 !important; color: #ac6600 !important;
-}
-.labki-tree .badge.version[data-v-6225b7c8] { background: #f0f0f0 !important; color: #72777d !important;
-}
-.labki-tree .badge.update[data-v-6225b7c8] { background: #fff3e0 !important; color: #ac6600 !important;
-}
-.labki-tree .desc[data-v-6225b7c8] {
-  font-size: 0.9em !important;
-  color: #54595d !important;
-  margin: 4px 0 !important;
-}
-.labki-tree .depends[data-v-6225b7c8] {
-  font-size: 0.85em !important;
-  color: #72777d !important;
-  margin: 4px 0 !important;
-}
-.labki-tree .depends small[data-v-6225b7c8] {
-  margin: 0 !important;
-  display: block !important;
-}
-
-/* Inline editors */
-.labki-tree .inline-editor[data-v-6225b7c8] {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 6px 8px !important;
-  border-radius: 4px !important;
-  background: #f8f9fa !important;
-  margin-top: 6px !important;
-}
-.labki-tree .inline-editor.pack[data-v-6225b7c8] {
-  background: #eaf3ff !important;
-}
-.labki-tree .inline-editor.readonly[data-v-6225b7c8] {
-  background: #f0f0f0 !important;
-  opacity: 0.8 !important;
-}
-.labki-tree .inline-label[data-v-6225b7c8] {
-  font-weight: 600 !important;
-  font-size: 0.9em !important;
-  white-space: nowrap !important;
-  margin: 0 !important;
-  flex-shrink: 0 !important;
-}
-.labki-tree .inline-editor.pack .inline-label[data-v-6225b7c8] {
-  color: #36c !important;
-}
-.labki-tree .inline-editor.page .inline-label[data-v-6225b7c8] {
-  color: #54595d !important;
-}
-.labki-tree .input[data-v-6225b7c8] {
-  flex: 1 !important;
-  min-width: 150px !important;
-  padding: 6px 8px !important;
+/* ==================== PACK CARD - PROPER NESTING ==================== */
+.labki-tree .pack-card {
   border: 1px solid #c8ccd1 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  padding: 12px !important;
+  margin-bottom: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Shadow hierarchy - deeper = lighter shadow */
+.labki-tree .pack-card[data-depth="0"] {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+.labki-tree .pack-card[data-depth="1"] {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+}
+.labki-tree .pack-card[data-depth="2"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+.labki-tree .pack-card[data-depth="3"],
+.labki-tree .pack-card[data-depth="4"],
+.labki-tree .pack-card[data-depth="5"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Subtle installed state */
+.labki-tree .tree-node[data-installed="true"] .pack-card {
+  background: #f8f9fa !important;
+  border-color: #a2a9b1 !important;
+}
+
+/* Subtle action state overlays */
+.labki-tree .tree-node[data-action="install"] .pack-card {
+  background: linear-gradient(to right, #e8f5e9 0%, #ffffff 100%) !important;
+  border-left: 3px solid #36c !important;
+}
+.labki-tree .tree-node[data-action="remove"] .pack-card {
+  background: linear-gradient(to right, #ffebee 0%, #ffffff 100%) !important;
+  border-left: 3px solid #d33 !important;
+}
+.labki-tree .tree-node[data-action="update"] .pack-card {
+  background: linear-gradient(to right, #fff8e1 0%, #ffffff 100%) !important;
+  border-left: 3px solid #fc3 !important;
+}
+.labki-tree .pack-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* ==================== NODE ROW - HORIZONTAL LAYOUT ==================== */
+.labki-tree .pack-card .node-row {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  min-height: 40px !important;
+}
+.labki-tree .name-section {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap !important;
+}
+.labki-tree .spacer {
+  display: inline-block !important;
+  flex-grow: 1 !important;
+  min-width: 12px !important;
+}
+
+/* ==================== TOGGLE & ICON ==================== */
+.labki-tree .toggle {
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  font-size: 12px !important;
+  color: #72777d !important;
+  flex-shrink: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   border-radius: 4px !important;
-  font-size: 0.9em !important;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Verdana, sans-serif !important;
-  background: white !important;
+  transition: all 0.15s ease !important;
+}
+.labki-tree .toggle:hover {
+  background: #eaecf0 !important;
   color: #202122 !important;
 }
-.labki-tree .input[data-v-6225b7c8]:focus {
+.labki-tree .toggle-spacer {
+  width: 24px !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+}
+.labki-tree .node-icon {
+  font-size: 20px !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+.labki-tree .label {
+  font-size: 1em !important;
+  font-weight: 600 !important;
+  color: #202122 !important;
+  white-space: nowrap !important;
+}
+
+/* ==================== BADGES ==================== */
+.labki-tree .badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 0.75em !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  white-space: nowrap !important;
+  font-weight: 500 !important;
+  flex-shrink: 0 !important;
+}
+.labki-tree .badge.manual {
+  background: #eaf3ff !important;
+  color: #36c !important;
+  border: 1px solid #b8d4ff !important;
+}
+.labki-tree .badge.auto {
+  background: #fef6e7 !important;
+  color: #ac6600 !important;
+  border: 1px solid #fce29f !important;
+}
+.labki-tree .badge.version {
+  background: #f0f0f0 !important;
+  color: #54595d !important;
+  border: 1px solid #c8ccd1 !important;
+}
+.labki-tree .badge.update {
+  background: #fff3cd !important;
+  color: #8a6d3b !important;
+  border: 1px solid #fce29f !important;
+  animation: pulse 2s infinite !important;
+}
+@keyframes pulse {
+0%, 100% { opacity: 1;
+}
+50% { opacity: 0.7;
+}
+}
+
+/* ==================== INLINE EDITORS ==================== */
+.labki-tree .prefix-editor-inline {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-left: 8px !important;
+  flex-wrap: nowrap !important;
+  flex-shrink: 0 !important;
+}
+.labki-tree .arrow {
+  color: #72777d !important;
+  font-size: 1.1em !important;
+  flex-shrink: 0 !important;
+}
+.labki-tree .prefix-label {
+  font-size: 0.85em !important;
+  color: #54595d !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  font-weight: 500 !important;
+}
+.labki-tree .prefix-input {
+  padding: 6px 10px !important;
+  border: 1px solid #c8ccd1 !important;
+  border-radius: 4px !important;
+  font-size: 0.85em !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
+  background: white !important;
+  color: #202122 !important;
+  width: 180px !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+}
+.labki-tree .prefix-input:focus {
   outline: none !important;
   border-color: #36c !important;
-  box-shadow: inset 0 0 0 1px #36c !important;
+  box-shadow: 0 0 0 1px #36c !important;
 }
-.labki-tree .input[data-v-6225b7c8]:disabled,
-.labki-tree .input[readonly][data-v-6225b7c8] {
+.labki-tree .prefix-input:disabled,
+.labki-tree .prefix-input[readonly] {
   background: #f8f9fa !important;
   color: #72777d !important;
   cursor: not-allowed !important;
-  border-color: #dcdfe2 !important;
-}
-.labki-tree .input.has-collision[data-v-6225b7c8] {
-  border-color: #d33 !important;
-  background-color: #fff5f5 !important;
-}
-.labki-tree .input.has-collision[data-v-6225b7c8]:focus {
-  border-color: #d33 !important;
-  box-shadow: inset 0 0 0 1px #d33 !important;
 }
 
-/* Page editor with prefix chip */
-.labki-tree .page-editor[data-v-6225b7c8] {
+/* ==================== META ROW ==================== */
+.labki-tree .meta-row {
+  margin-top: 8px !important;
+  padding-left: 32px !important;
+  border-top: 1px solid #eaecf0 !important;
+  padding-top: 8px !important;
+}
+.labki-tree .meta-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+.labki-tree .desc {
+  font-size: 0.9em !important;
+  color: #54595d !important;
+  line-height: 1.5 !important;
+}
+.labki-tree .depends {
+  font-size: 0.85em !important;
+  color: #72777d !important;
+}
+
+/* ==================== CHILDREN CONTAINER (INSIDE CARD) ==================== */
+.labki-tree .children {
+  margin-top: 12px !important;
+  padding-left: 20px !important;
+  border-left: 2px solid #eaecf0 !important;
+  padding-top: 8px !important;
+  overflow: hidden !important;
+}
+
+/* Smooth transitions */
+.labki-tree .children-enter-active,
+.labki-tree .children-leave-active {
+  transition: all 0.3s ease !important;
+}
+.labki-tree .children-enter-from,
+.labki-tree .children-leave-to {
+  opacity: 0 !important;
+  height: 0 !important;
+}
+
+/* ==================== PAGE ROW ==================== */
+.labki-tree .page-row {
   display: flex !important;
   align-items: center !important;
-  gap: 4px !important;
-  flex: 1 !important;
-  min-width: 0 !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  padding: 8px 12px !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-radius: 6px !important;
+  margin-bottom: 6px !important;
+  transition: all 0.15s ease !important;
+  min-height: 36px !important;
 }
-.labki-tree .prefix-chip[data-v-6225b7c8] {
-  display: inline-block !important;
-  padding: 6px 8px !important;
+.labki-tree .page-row:hover {
+  background: #f8f9fa !important;
+}
+.labki-tree .tree-node[data-installed="true"] .page-row {
+  background: rgba(232, 240, 248, 0.4) !important;
+}
+.labki-tree .tree-node[data-action="install"] .page-row {
+  background: rgba(232, 245, 233, 0.6) !important;
+}
+.labki-tree .tree-node[data-action="remove"] .page-row {
+  background: rgba(255, 235, 238, 0.6) !important;
+}
+
+/* Page rename editor */
+.labki-tree .page-rename-inline {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin-left: 8px !important;
+  flex-wrap: nowrap !important;
+  flex-shrink: 0 !important;
+}
+.labki-tree .prefix-chip-inline {
+  padding: 6px 10px !important;
   background: #f0f0f0 !important;
   border: 1px solid #c8ccd1 !important;
+  border-right: none !important;
   border-radius: 4px 0 0 4px !important;
-  font-size: 0.9em !important;
-  font-family: monospace !important;
+  font-size: 0.85em !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
   color: #54595d !important;
   white-space: nowrap !important;
-  flex-shrink: 0 !important;
-  border-right: 2px solid #36c !important;
 }
-.labki-tree .page-title[data-v-6225b7c8] {
+.labki-tree .page-input {
+  padding: 6px 10px !important;
+  border: 1px solid #c8ccd1 !important;
+  border-radius: 4px !important;
+  font-size: 0.85em !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
+  background: white !important;
+  color: #202122 !important;
+  width: 160px !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+}
+.labki-tree .prefix-chip-inline + .page-input {
   border-radius: 0 4px 4px 0 !important;
 }
-.labki-tree .collision[data-v-6225b7c8] {
+.labki-tree .page-input:focus {
+  outline: none !important;
+  border-color: #36c !important;
+  box-shadow: 0 0 0 1px #36c !important;
+}
+.labki-tree .page-input:disabled,
+.labki-tree .page-input[readonly] {
+  background: #f8f9fa !important;
+  color: #72777d !important;
+  cursor: not-allowed !important;
+}
+.labki-tree .page-input.has-collision {
+  border-color: #d33 !important;
+  background: #fff5f5 !important;
+}
+.labki-tree .collision-icon {
   font-size: 1.1em !important;
   cursor: help !important;
-  padding: 2px 4px !important;
-  flex-shrink: 0 !important;
+  margin-left: 4px !important;
 }
 
-/* Actions column */
-.labki-tree .actions[data-v-6225b7c8] {
+/* ==================== ACTION BUTTONS ==================== */
+.labki-tree .actions {
   display: inline-flex !important;
-  flex-wrap: wrap;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap !important;
+}
+.labki-tree .action-item {
+  display: inline-flex !important;
   flex-shrink: 0 !important;
 }
-.labki-tree .action-item[data-v-6225b7c8] { display: inline-flex !important;
-}
-.labki-tree .action-item[data-v-6225b7c8] .cdx-button { display: inline-flex !important; white-space: nowrap;
-}
-
-/* Highlights for active buttons */
-.labki-tree[data-v-6225b7c8] .cdx-button.active {
-  outline: 2px solid #36c;
-  box-shadow: inset 0 0 4px rgba(0, 0, 0, .15);
-  font-weight: 600;
+.labki-tree :deep(.cdx-button) {
+  display: inline-flex !important;
+  font-size: 0.9em !important;
+  padding: 8px 16px !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  border-radius: 6px !important;
 }
 
-/* --- VISUAL INDENTATION GUIDES FOR NESTED NODES --- */
-.labki-tree .children[data-v-6225b7c8] {
-  position: relative;
-  margin-left: 1.5rem !important;
-  padding-left: 0.75rem !important;
+/* Active state styling */
+.labki-tree :deep(.cdx-button.active[action="progressive"]) {
+  background-color: #2a4b8d !important;
+  border-color: #2a4b8d !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 3px rgba(54, 108, 204, 0.2) !important;
+  transform: scale(1.02) !important;
 }
-.labki-tree .children[data-v-6225b7c8]::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 1px;
-  background-color: #dcdfe2;
-  opacity: 0.8;
+.labki-tree :deep(.cdx-button.active[action="destructive"]) {
+  background-color: #d73333 !important;
+  border-color: #d73333 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 3px rgba(215, 51, 51, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+.labki-tree :deep(.cdx-button.active:not([action="progressive"]):not([action="destructive"])) {
+  background-color: #fc3 !important;
+  border-color: #fc3 !important;
+  color: #202122 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 3px rgba(255, 204, 51, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+.labki-tree :deep(.cdx-button:hover) {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+.labki-tree :deep(.cdx-button:active) {
+  transform: translateY(0) !important;
 }
 
-/* Horizontal connector for each node */
-.labki-tree .node-row[data-v-6225b7c8] {
-  position: relative;
-  z-index: 1;
+/* ==================== RESPONSIVE ADJUSTMENTS ==================== */
+@media (max-width: 768px) {
+.labki-tree .pack-card {
+    padding: 10px !important;
 }
-.labki-tree .node-row[data-v-6225b7c8]::before {
-  content: '';
-  position: absolute;
-  left: -0.75rem;
-  top: 1.2rem;
-  width: 0.75rem;
-  height: 1px;
-  background-color: #dcdfe2;
-  opacity: 0.8;
+.labki-tree .node-row {
+    flex-wrap: wrap !important;
 }
-
+.labki-tree .actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    margin-top: 8px !important;
+}
+.labki-tree .prefix-editor-inline,
+  .labki-tree .page-rename-inline {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-top: 8px !important;
+}
+}
 
 
 .hierarchy-tree-container[data-v-adb05fca] {

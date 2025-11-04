@@ -93,10 +93,7 @@ final class ApplyHandler extends BasePackHandler {
 			} elseif ( $action === 'remove' ) {
 				// Remove operations for packs marked for removal
 				// We need the pack_id from the registry
-				$packRegistry = $services->getService( 'LabkiPackManager.PackRegistry' );
-				if ( !$packRegistry ) {
-					throw new \RuntimeException( 'ApplyHandler: PackRegistry service not found' );
-				}
+				$packRegistry = new \LabkiPackManager\Services\LabkiPackRegistry();
 
 				$packId = $packRegistry->getPackIdByName( $refId, $packName );
 				if ( $packId !== null ) {

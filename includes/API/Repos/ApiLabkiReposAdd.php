@@ -81,20 +81,22 @@ final class ApiLabkiReposAdd extends RepoApiBase {
 			$this->dieWithError( 'labkipackmanager-error-unreachable-repo', 'unreachable_repo' );
 		}
 
-		// Handle refs and defaultRef parameters with fallback
-		$refs = $params['refs'] ?? null;
-		if ( $refs === null ) {
-			// If refs not set, use defaultRef if present, otherwise 'main'
-			$defaultRef = $defaultRef ?? 'main';
-			$refs = [ $defaultRef ];
-		} else {
-			// If defaultRef is missing, use first item from $refs.
-			$defaultRef = $defaultRef ?? $refs[0];
-			// Ensure defaultRef is in refs
-			if ( !in_array( $defaultRef, $refs ) ) {
-				$refs[] = $defaultRef;
-			}
+	// Handle refs and defaultRef parameters with fallback
+	$refs = $params['refs'] ?? null;
+	$defaultRef = $params['default_ref'] ?? null;
+	
+	if ( $refs === null ) {
+		// If refs not set, use defaultRef if present, otherwise 'main'
+		$defaultRef = $defaultRef ?? 'main';
+		$refs = [ $defaultRef ];
+	} else {
+		// If defaultRef is missing, use first item from $refs.
+		$defaultRef = $defaultRef ?? $refs[0];
+		// Ensure defaultRef is in refs
+		if ( !in_array( $defaultRef, $refs ) ) {
+			$refs[] = $defaultRef;
 		}
+	}
 
 		wfDebugLog( 'labkipack', "ApiLabkiReposAdd::execute() repoUrl={$repoUrl}, default_ref={$defaultRef}" );
 

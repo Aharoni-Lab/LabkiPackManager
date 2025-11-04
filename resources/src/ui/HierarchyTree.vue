@@ -12,7 +12,7 @@
         <span>{{ $t('labkipackmanager-page-count') }}: {{ hierarchy.meta.page_count }}</span>
       </div>
       
-      <div class="tree-nodes">
+      <div class="tree-nodes labki-tree">
         <tree-node
           v-for="node in hierarchy.root_nodes"
           :key="node.id"

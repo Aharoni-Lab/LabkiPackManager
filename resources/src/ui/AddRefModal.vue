@@ -30,6 +30,14 @@
       </cdx-field>
 
       <cdx-message
+        v-if="statusMessage && !error"
+        type="notice"
+        :inline="true"
+      >
+        {{ statusMessage }}
+      </cdx-message>
+
+      <cdx-message
         v-if="error"
         type="error"
         :inline="true"
@@ -43,7 +51,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { CdxDialog, CdxField, CdxTextInput, CdxMessage } from '@wikimedia/codex';
-import { reposAdd } from '../api/endpoints';
+import { reposAdd, pollOperation } from '../api/endpoints';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -60,6 +68,7 @@ const isOpen = computed({
 const refName = ref('');
 const error = ref('');
 const busy = ref(false);
+const statusMessage = ref('');
 
 const isValid = computed(() => {
   return refName.value.trim() !== '';
@@ -74,12 +83,59 @@ async function onSubmit() {
   error.value = '';
 
   try {
-    // Add the same repo with a new ref
-    await reposAdd(props.repoUrl, refName.value.trim());
-    emit('added', refName.value.trim());
-    onCancel(); // Close and reset
+    const refNameValue = refName.value.trim();
+    
+    // Step 1: Queue the job
+    statusMessage.value = 'Queueing ref initialization...';
+    const response = await reposAdd(props.repoUrl, refNameValue);
+    
+    console.log('[AddRefModal] reposAdd response:', response);
+    console.log('[AddRefModal] Response keys:', Object.keys(response || {}));
+    console.log('[AddRefModal] operation_id:', response?.operation_id);
+    console.log('[AddRefModal] labkiReposAdd:', response?.labkiReposAdd);
+    
+    // Step 2: If we got an operation_id, wait for the background job to complete
+    if (response?.operation_id) {
+      console.log(`[AddRefModal] Polling operation ${response.operation_id}...`);
+      
+      // Poll with status updates
+      await pollOperation(
+        response.operation_id, 
+        60, 
+        1000,
+        (status) => {
+          // Update modal message based on operation status
+          if (status.message) {
+            statusMessage.value = status.message;
+          } else if (status.status === 'queued') {
+            statusMessage.value = 'Waiting for job to start...';
+          } else if (status.status === 'running') {
+            statusMessage.value = `Creating worktree... (${status.progress || 0}%)`;
+          }
+        }
+      );
+      
+      console.log('[AddRefModal] Operation completed successfully');
+      statusMessage.value = 'Ref initialized successfully!';
+    } else {
+      // Ref already existed
+      console.log('[AddRefModal] No operation_id, ref may already exist');
+      statusMessage.value = 'Ref already exists';
+    }
+    
+    // Step 3: Notify parent that everything is ready
+    emit('added', {
+      refName: refNameValue,
+      operationId: response?.operation_id || null
+    });
+    
+    // Close after a brief moment to show success message
+    await new Promise(resolve => setTimeout(resolve, 500));
+    onCancel();
   } catch (e) {
+    console.error('[AddRefModal] Error adding ref:', e);
     error.value = e instanceof Error ? e.message : String(e);
+    statusMessage.value = '';
   } finally {
     busy.value = false;
   }
@@ -88,6 +144,7 @@ async function onSubmit() {
 function onCancel() {
   refName.value = '';
   error.value = '';
+  statusMessage.value = '';
   isOpen.value = false;
 }
 

@@ -63,13 +63,23 @@ export async function reposAdd(
 ): Promise<ReposAddResponse> {
   return apiCall(async () => {
     const api = getApi();
+    console.log('[reposAdd] Sending request:', { repo_url: repoUrl, default_ref: defaultRef });
+    
     const response = await api.post({
       action: 'labkiReposAdd',
       format: 'json',
       repo_url: repoUrl,
       default_ref: defaultRef,
     });
-    return response.labkiReposAdd as ReposAddResponse;
+    
+    console.log('[reposAdd] Raw API response:', response);
+    console.log('[reposAdd] Response keys:', Object.keys(response));
+    
+    // MediaWiki might wrap or not wrap depending on context
+    const data = response.labkiReposAdd || response;
+    console.log('[reposAdd] Returning data:', data);
+    
+    return data as ReposAddResponse;
   });
 }
 
@@ -173,5 +183,74 @@ export async function packsAction(
     console.log('[packsAction] Returning:', data);
     return data as PacksActionResponse;
   });
+}
+
+/**
+ * Get status of a background operation.
+ * 
+ * @param operationId - Operation ID to check
+ */
+export async function operationStatus(operationId: string) {
+  return apiCall(async () => {
+    const api = getApi();
+    const response = await api.get({
+      action: 'labkiOperationsStatus',
+      format: 'json',
+      operation_id: operationId,
+    });
+    
+    console.log('[operationStatus] Raw response:', response);
+    console.log('[operationStatus] Response keys:', Object.keys(response));
+    console.log('[operationStatus] status field:', response?.status);
+    console.log('[operationStatus] operation_id field:', response?.operation_id);
+    return response;
+  });
+}
+
+/**
+ * Poll an operation until it completes (success or failure).
+ * 
+ * @param operationId - Operation ID to poll
+ * @param maxAttempts - Maximum number of polling attempts (default: 60)
+ * @param intervalMs - Polling interval in milliseconds (default: 1000)
+ * @param onProgress - Optional callback called on each poll with status
+ * @returns Promise that resolves when operation completes
+ * @throws Error if operation fails or times out
+ */
+export async function pollOperation(
+  operationId: string,
+  maxAttempts: number = 60,
+  intervalMs: number = 1000,
+  onProgress?: (status: any) => void
+): Promise<any> {
+  console.log(`[pollOperation] Starting poll for ${operationId}`);
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const status = await operationStatus(operationId);
+    
+    console.log(`[pollOperation] Attempt ${attempt + 1}/${maxAttempts}, status: ${status.status}, progress: ${status.progress}%, message: ${status.message}`);
+    
+    // Call progress callback if provided
+    if (onProgress) {
+      onProgress(status);
+    }
+    
+    if (status.status === 'success') {
+      console.log('[pollOperation] Operation completed successfully:', status);
+      return status;
+    }
+    
+    if (status.status === 'failed') {
+      console.error('[pollOperation] Operation failed:', status.message);
+      throw new Error(`Operation failed: ${status.message}`);
+    }
+    
+    // Status is 'queued' or 'running' - continue polling
+    if (attempt < maxAttempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+  }
+  
+  throw new Error(`Operation timed out after ${maxAttempts} attempts`);
 }
 

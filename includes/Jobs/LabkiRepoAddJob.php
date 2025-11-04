@@ -41,7 +41,7 @@ final class LabkiRepoAddJob extends Job {
 	/**
 	 * @param Title $title Title context (unused but required)
 	 * @param array $params Job parameters:
-	 *  - url: string (repository URL)
+	 *  - repo_url: string (repository URL)
 	 *  - refs: string[] (refs to initialize)
 	 *  - default_ref: string
 	 *  - operation_id: string
@@ -53,7 +53,7 @@ final class LabkiRepoAddJob extends Job {
 
 	/** Execute the background job. */
 	public function run(): bool {
-		$url = trim( (string)( $this->params['url'] ?? '' ) );
+		$url = trim( (string)( $this->params['repo_url'] ?? '' ) );
 		$refs = $this->params['refs'] ?? [];
 		$defaultRef = trim( (string)( $this->params['default_ref'] ?? '' ) );
 		$operationIdStr = $this->params['operation_id'] ?? ('repo_add_' . uniqid());

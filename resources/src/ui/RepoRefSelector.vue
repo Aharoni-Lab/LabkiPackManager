@@ -54,7 +54,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { CdxField, CdxSelect, CdxMessage } from '@wikimedia/codex';
 import { store } from '../state/store';
-import { reposList, graphGet, hierarchyGet, packsAction } from '../api/endpoints';
+import { reposList, graphGet, hierarchyGet, packsAction, pollOperation } from '../api/endpoints';
 import AddRepoModal from './AddRepoModal.vue';
 import AddRefModal from './AddRefModal.vue';
 
@@ -260,16 +260,63 @@ async function selectRef(refName) {
   }
 }
 
-async function onRepoAdded(repoUrl) {
-  await loadRepos();
-  await selectRepo(repoUrl);
+async function onRepoAdded(eventData) {
+  // The repo was added and the modal already waited for completion
+  // Now we just need to reload and select it
+  try {
+    store.busy = true;
+    error.value = '';
+    
+    const { repoUrl } = eventData;
+    
+    console.log(`[onRepoAdded] Repo '${repoUrl}' initialized, reloading repos and selecting...`);
+    
+    // Reload repos to get the updated repo list
+    await loadRepos();
+    
+    // Select the newly added repo
+    await selectRepo(repoUrl);
+    
+    console.log('[onRepoAdded] Repo selected successfully');
+    
+  } catch (e) {
+    console.error('[onRepoAdded] Error:', e);
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    store.busy = false;
+  }
 }
 
-async function onRefAdded(refName) {
-  // Reload the current repo to get updated refs
-  if (selectedRepoUrl.value) {
+async function onRefAdded(eventData) {
+  // The ref was added and the modal already waited for completion
+  // Now we just need to reload and select it
+  try {
+    store.busy = true;
+    error.value = '';
+    
+    const { refName } = eventData;
+    
+    console.log(`[onRefAdded] Ref '${refName}' initialized, reloading repos and selecting...`);
+    
+    // Reload repos to get the updated ref list
     await loadRepos();
+    
+    // Re-select the current repo to refresh store.selectedRepo with the new ref
+    // This is needed because store.selectedRepo still points to the old repo object
+    if (selectedRepoUrl.value) {
+      await selectRepo(selectedRepoUrl.value);
+    }
+    
+    // Select the newly added ref
     await selectRef(refName);
+    
+    console.log('[onRefAdded] Ref selected successfully');
+    
+  } catch (e) {
+    console.error('[onRefAdded] Error:', e);
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    store.busy = false;
   }
 }
 

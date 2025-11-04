@@ -1,187 +1,262 @@
 <template>
-  <div class="labki-tree">
-    <div
-      class="tree-node"
-      :data-type="node.type"
-      :data-action="packState?.action || 'unchanged'"
-      :style="{ marginLeft: `${depth * 1.5}rem` }"
-    >
+  <!--
+    ============================================================================
+    TREE NODE LAYOUT - CARD-BASED NESTING WITH INLINE STYLES
+    ============================================================================
+    
+    🎯 CRITICAL SUCCESS FACTORS - WHY THIS WORKS:
+    
+    1. **INLINE STYLES ARE REQUIRED** - CSS classes were NOT working due to:
+       - MediaWiki/Codex CSS has extremely high specificity
+       - External stylesheets were being overridden
+       - Inline styles have highest specificity and can't be overridden
+       - ✅ Use :style="" binding in template for all visual styling
+       - ❌ DO NOT rely on CSS classes alone for layout/colors
+    
+    2. **CHILDREN MUST BE INSIDE PACK-CARD** - This creates true nesting:
+       - The .pack-card div wraps the entire pack (row + meta + children)
+       - Children render INSIDE their parent's card, not as siblings
+       - This creates the "recursive card nesting" visual effect
+       - Each nested pack gets its own card INSIDE the parent card
+    
+    3. **INDENTATION** - Applied via inline paddingLeft on .node-row:
+       - Formula: `paddingLeft: ${depth * 24}px`
+       - depth=0: 0px, depth=1: 24px, depth=2: 48px, etc.
+       - Applied to .node-row, NOT the .pack-card wrapper
+    
+    4. **COLOR CODING** - Inline background colors based on state:
+       - Installed: #e8f0f8 (blue)
+       - Install action: #e8f5e9 (green)
+       - Remove action: #ffebee (red)
+       - Update action: #fff8e1 (yellow)
+       - Default: #ffffff (white)
+    
+    5. **VISUAL HIERARCHY**:
+       - Border: 2px solid creates clear card boundaries
+       - Border-radius: 8px for rounded corners
+       - Box-shadow: 0 2px 4px rgba() for depth
+       - Padding: 12px inside cards for breathing room
+       - Margin-bottom: 12px between cards
+    
+    ⚠️ MAINTENANCE NOTES:
+    - If visual changes don't appear, check if inline styles are present
+    - CSS classes are kept for semantic purposes but don't control layout
+    - Any layout-critical styling MUST be in :style="" bindings
+    - Test changes by checking if inline styles render in browser DevTools
+    
+    ============================================================================
+  -->
+  <div
+    class="tree-node"
+    :class="{ 'is-pack': node.type === 'pack', 'is-page': node.type === 'page' }"
+    :data-type="node.type"
+    :data-action="packState?.action || pageParentAction"
+    :data-installed="node.type === 'pack' ? packState?.installed : pageState?.installed"
+  >
+      <!-- 
+        PACK CARD WRAPPER - Creates rounded rectangle container
+        ⚠️ INLINE STYLES REQUIRED: CSS classes don't work due to MW/Codex specificity
+        - Border creates card boundary
+        - Background color shows state: blue=installed, green=install, red=remove, yellow=update
+        - Children render INSIDE this div for proper nesting
+      -->
+      <div 
+        v-if="node.type === 'pack'" 
+        class="pack-card" 
+        :data-depth="depth"
+        :style="{
+          border: '2px solid #c8ccd1',           /* Card boundary */
+          borderRadius: '8px',                   /* Rounded corners */
+          padding: '12px',                       /* Breathing room inside card */
+          marginBottom: '12px',                  /* Space between cards */
+          background: packState?.installed ? '#e8f0f8' :        /* Blue = installed */
+                      packState?.action === 'install' ? '#e8f5e9' :  /* Green = install */
+                      packState?.action === 'remove' ? '#ffebee' :   /* Red = remove */
+                      packState?.action === 'update' ? '#fff8e1' :   /* Yellow = update */
+                      '#ffffff',                                      /* White = default */
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)' /* Depth/elevation effect */
+        }"
+      >
+        <!-- 
+          NODE ROW - Horizontal flexbox containing pack name, badges, editor, buttons
+          ⚠️ INDENTATION via inline paddingLeft: depth * 24px
+          - depth=0: 0px, depth=1: 24px, depth=2: 48px, etc.
+        -->
+        <div class="node-row" :style="{ paddingLeft: `${depth * 24}px` }">
+          <!-- Toggle arrow -->
+          <button
+            v-if="hasChildren"
+            class="toggle"
+            :aria-expanded="expanded.toString()"
+            :aria-label="expanded ? $t('labkipackmanager-collapse') : $t('labkipackmanager-expand')"
+            @click="toggleExpanded"
+          >
+            {{ expanded ? '▼' : '▶' }}
+          </button>
+          <span v-else class="toggle-spacer"></span>
 
-      <div class="node-row" :style="{ '--indent': depth }">
-        <!-- Toggle -->
-        <button
-          v-if="hasChildren"
-          class="toggle"
-          :aria-expanded="expanded.toString()"
-          :aria-label="expanded ? $t('labkipackmanager-collapse') : $t('labkipackmanager-expand')"
-          @click="toggleExpanded"
-        >
-          {{ expanded ? '▼' : '▶' }}
-        </button>
-        <span v-else class="toggle-spacer" aria-hidden="true"></span>
-
-        <!-- Icon -->
-        <span class="node-icon" aria-hidden="true">
-          {{ node.type === 'pack' ? '📦' : '📄' }}
-        </span>
-
-        <!-- Main -->
-        <div class="main">
-          <div class="title-line">
+          <!-- Icon -->
+          <span class="node-icon">📦</span>
+          
+          <!-- Name and badges -->
+          <span class="name-section">
             <strong class="label" :title="node.label">{{ node.label }}</strong>
-
+            
             <span v-if="node.version" class="badge version">v{{ node.version }}</span>
-
+            
             <span
               v-if="packState && packState.action && packState.action !== 'unchanged'"
               class="badge"
               :class="packState.auto_selected_reason ? 'auto' : 'manual'"
               :title="packState.auto_selected_reason || ''"
             >
-              {{
-                packState.auto_selected_reason
-                  ? $t('labkipackmanager-auto-selected')
-                  : $t('labkipackmanager-manually-selected')
-              }}
+              {{ packState.auto_selected_reason ? 'Auto' : 'Manual' }}
             </span>
+            
+            <span v-if="canUpdate" class="badge update">Update Available</span>
+          </span>
 
-            <span v-if="canUpdate" class="badge update">
-              {{ $t('labkipackmanager-update-available') }}
-            </span>
-          </div>
-
-          <div v-if="node.description" class="desc">
-            {{ node.description }}
-          </div>
-
-          <div v-if="node.depends_on?.length" class="depends">
-            <small
-              >{{ $t('labkipackmanager-depends-on') }}:
-              {{ node.depends_on.join(', ') }}</small
-            >
-          </div>
-
-          <!-- Pack prefix editor -->
-          <div
-            v-if="node.type === 'pack' && showPackEditor"
-            class="inline-editor pack"
-            :class="{ readonly: !isPackEditable }"
-          >
-            <label class="inline-label">{{
-              $t('labkipackmanager-pack-prefix')
-            }}</label>
+          <!-- Pack: Inline prefix editor -->
+          <span v-if="showPackEditor" class="prefix-editor-inline">
+            <span class="arrow">→</span>
+            <span class="prefix-label">Prefix:</span>
             <input
-              class="input"
+              class="prefix-input"
               type="text"
               :value="prefixInputValue"
-              :placeholder="
-                $t('labkipackmanager-pack-prefix-placeholder') ||
-                'MyNamespace/MyPack'
-              "
+              :placeholder="$t('labkipackmanager-pack-prefix-placeholder') || 'MyNamespace/MyPack'"
               :disabled="!isPackEditable"
               :readonly="!isPackEditable"
               @input="onPrefixChange"
             />
-          </div>
+          </span>
 
-          <!-- Page title editor -->
-          <div
-            v-if="node.type === 'page' && showPageEditor"
-            class="inline-editor page"
-            :class="{ readonly: !isPageEditable }"
-          >
-            <label class="inline-label">{{
-              $t('labkipackmanager-page-title')
-            }}</label>
-            <div class="page-editor">
-              <span
-                v-if="displayPrefix"
-                class="prefix-chip"
-                :title="displayPrefixWithSlash"
+          <!-- Spacer to push actions to the right -->
+          <span class="spacer"></span>
+
+          <!-- Actions (for packs only) -->
+          <div class="actions">
+            <div class="action-item" v-if="packState && packState.current_version === null">
+              <cdx-button
+                action="progressive"
+                :weight="packState.action === 'install' ? 'primary' : 'normal'"
+                :class="{ active: packState.action === 'install' }"
+                @click="toggleInstall"
               >
-                {{ displayPrefixWithSlash }}
-              </span>
-              <input
-                class="input page-title"
-                :class="{ 'has-collision': pageHasCollision }"
-                type="text"
-                :value="pageEditableTitle"
-                :placeholder="
-                  $t('labkipackmanager-page-title-placeholder') || 'PageTitle'
-                "
-                :disabled="!isPageEditable"
-                :readonly="!isPageEditable"
-                @input="onPageTitleChange"
-                :aria-invalid="pageHasCollision ? 'true' : 'false'"
-                :aria-describedby="pageHasCollision ? collisionId : undefined"
-              />
-              <span
-                v-if="pageHasCollision"
-                class="collision"
-                :id="collisionId"
-                :title="collisionTooltip"
-                aria-live="polite"
-                >⚠️</span
+                {{ packState.action === 'install' ? '✓ ' : '' }}{{ $t('labkipackmanager-select') }}
+              </cdx-button>
+            </div>
+
+            <div class="action-item" v-if="canUpdate">
+              <cdx-button
+                :weight="packState?.action === 'update' ? 'primary' : 'normal'"
+                :class="{ active: packState?.action === 'update' }"
+                @click="toggleUpdate"
               >
+                {{ packState?.action === 'update' ? '✓ ' : '' }}{{ $t('labkipackmanager-update') }}
+              </cdx-button>
+            </div>
+
+            <div class="action-item" v-if="packState && packState.current_version !== null">
+              <cdx-button
+                action="destructive"
+                :weight="packState.action === 'remove' ? 'primary' : 'normal'"
+                :class="{ active: packState.action === 'remove' }"
+                @click="toggleRemove"
+              >
+                {{ packState.action === 'remove' ? '✓ ' : '' }}{{ $t('labkipackmanager-remove') }}
+              </cdx-button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Description and dependencies on second row if present -->
+        <div v-if="node.description || node.depends_on?.length" class="meta-row">
+          <div class="meta-content">
+            <div v-if="node.description" class="desc">{{ node.description }}</div>
+            <div v-if="node.depends_on?.length" class="depends">
+              <small>{{ $t('labkipackmanager-depends-on') }}: {{ node.depends_on.join(', ') }}</small>
             </div>
           </div>
         </div>
 
-        <!-- Actions -->
-        <div class="actions" v-if="node.type === 'pack'">
+        <!-- 
+          CHILDREN CONTAINER - CRITICAL: Nested packs/pages render INSIDE parent card
+          ⚠️ This is what creates the "recursive card nesting" effect
+          - Children are inside the .pack-card div, not siblings
+          - Each child pack creates its own card, nested inside this one
+          - Visual indentation via left border + paddingLeft
+        -->
+        <transition
+          name="children"
+          @enter="onChildrenEnter"
+          @leave="onChildrenLeave"
+        >
           <div
-            class="action-item"
-            v-if="packState && packState.current_version === null"
+            v-if="expanded && hasChildren"
+            class="children"
+            :style="{
+              marginTop: '12px',            /* Space from parent content */
+              paddingLeft: '20px',          /* Indent nested items */
+              borderLeft: '2px solid #eaecf0',  /* Visual nesting indicator */
+              paddingTop: '8px'             /* Top spacing */
+            }"
           >
-            <cdx-button
-              action="progressive"
-              :class="{ active: packState.action === 'install' }"
-              @click="toggleInstall"
-            >
-              {{ $t('labkipackmanager-select') }}
-            </cdx-button>
+            <tree-node
+              v-for="child in sortedChildren"
+              :key="child.id"
+              :node="child"
+              :depth="depth + 1"
+              :parent-pack-name="nodePackName"
+              @set-pack-action="$emit('set-pack-action', $event)"
+            />
           </div>
-
-          <div class="action-item" v-if="canUpdate">
-            <cdx-button
-              :class="{ active: packState?.action === 'update' }"
-              @click="toggleUpdate"
-            >
-              {{ $t('labkipackmanager-update') }}
-            </cdx-button>
-          </div>
-
-          <div
-            class="action-item"
-            v-if="packState && packState.current_version !== null"
-          >
-            <cdx-button
-              action="destructive"
-              :class="{ active: packState.action === 'remove' }"
-              @click="toggleRemove"
-            >
-              {{ $t('labkipackmanager-remove') }}
-            </cdx-button>
-          </div>
-        </div>
+        </transition>
       </div>
 
-      <transition-group
-        name="children"
-        tag="div"
-        class="children"
-        v-if="expanded && hasChildren"
+      <!-- 
+        PAGE ROW - Simple horizontal layout for pages (no card wrapper)
+        ⚠️ INLINE STYLES REQUIRED for background colors
+        - Color matches parent pack's action state
+        - Renders inside parent's .children container
+        - No nested children (pages don't contain other items)
+      -->
+      <div 
+        v-else 
+        class="page-row"
+        :style="{
+          padding: '8px 12px',
+          background: pageState?.installed ? 'rgba(232, 240, 248, 0.4)' :          /* Blue if installed */
+                      pageParentAction === 'install' ? 'rgba(232, 245, 233, 0.6)' : /* Green if installing */
+                      pageParentAction === 'remove' ? 'rgba(255, 235, 238, 0.6)' :  /* Red if removing */
+                      'rgba(255, 255, 255, 0.5)',                                    /* Transparent white */
+          borderRadius: '6px',      /* Slightly rounded */
+          marginBottom: '6px'       /* Space between pages */
+        }"
       >
-        <tree-node
-          v-for="child in sortedChildren"
-          :key="child.id"
-          :node="child"
-          :depth="depth + 1"
-          :parent-pack-name="nodePackName"
-          @set-pack-action="$emit('set-pack-action', $event)"
-        />
-      </transition-group>
-    </div>
+        <span class="toggle-spacer"></span>
+        <span class="node-icon">📄</span>
+        <strong class="label">{{ node.label }}</strong>
+        
+        <!-- Page rename editor -->
+        <span v-if="showPageEditor" class="page-rename-inline">
+          <span class="arrow">→</span>
+          <span v-if="displayPrefix" class="prefix-chip-inline">{{ displayPrefixWithSlash }}</span>
+          <input
+            class="page-input"
+            :class="{ 'has-collision': pageHasCollision }"
+            type="text"
+            :value="pageEditableTitle"
+            :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
+            :disabled="!isPageEditable"
+            :readonly="!isPageEditable"
+            @input="onPageTitleChange"
+            :aria-invalid="pageHasCollision ? 'true' : 'false'"
+            :aria-describedby="pageHasCollision ? collisionId : undefined"
+          />
+          <span v-if="pageHasCollision" class="collision-icon" :id="collisionId" :title="collisionTooltip">⚠️</span>
+        </span>
+      </div>
   </div>
 </template>
 
@@ -210,18 +285,15 @@ const packState = computed(() =>
   props.node.type === 'pack' ? store.packs[props.node.label] || null : null
 )
 const isPackSelected = computed(() => {
-  // Pack is "selected" if it has any action set (install, update, remove)
   const action = packState.value?.action
   return action && action !== 'unchanged'
 })
 const isPackEditable = computed(() => {
-  // Only allow editing prefix for packs being newly installed
   const action = packState.value?.action
   const installed = packState.value?.installed
   return action === 'install' && !installed
 })
 const showPackEditor = computed(() => {
-  // Show editor if pack has install/update action OR is already installed
   const action = packState.value?.action
   const installed = packState.value?.installed
   return (action === 'install' || action === 'update') || installed
@@ -242,22 +314,20 @@ const pageState = computed(() =>
     : null
 )
 const isPageParentSelected = computed(() => {
-  // Parent is "selected" if it has install or update action set
   const action = parentPackState.value?.action
   return action === 'install' || action === 'update'
 })
 const isPageEditable = computed(() => {
-  // Only allow editing page title for pages being newly installed
   const action = parentPackState.value?.action
   const installed = pageState.value?.installed
   return action === 'install' && !installed
 })
 const showPageEditor = computed(() => {
-  // Show editor if parent has install/update action OR page is already installed
   const action = parentPackState.value?.action
   const installed = pageState.value?.installed
   return (action === 'install' || action === 'update') || installed
 })
+const pageParentAction = computed(() => parentPackState.value?.action || 'unchanged')
 const displayPrefix = computed(() => parentPackState.value?.prefix || '')
 const displayPrefixWithSlash = computed(() =>
   displayPrefix.value
@@ -296,14 +366,12 @@ const canUpdate = computed(() => {
   return ps.target_version > ps.current_version
 })
 
-/* Debug watcher */
 if (props.node.type === 'pack') {
   watch(() => packState.value?.action, (newAction, oldAction) => {
     console.log(`[TreeNode:${props.node.label}] packState.action changed: "${oldAction}" -> "${newAction}"`)
   })
 }
 
-/* auto-expand */
 const subtreeHasAction = computed(() => {
   store.stateHash
   const check = (n) => {
@@ -322,7 +390,6 @@ expanded.value = props.depth < 2 || subtreeHasAction.value
 function toggleExpanded() { expanded.value = !expanded.value }
 
 function toggleAction(action) {
-  // Toggle the action - if already set, clear it; otherwise set it
   const current = packState.value?.action
   const next = current === action ? 'unchanged' : action
   console.log(`[TreeNode:${props.node.label}] toggleAction: current="${current}", requested="${action}", next="${next}"`)
@@ -331,34 +398,26 @@ function toggleAction(action) {
 }
 
 function toggleInstall() {
-  // For uninstalled packs, just toggle install on/off
   toggleAction('install')
 }
 
 function toggleRemove() {
-  // For installed packs, toggle remove on/off
-  // If update is active, this will deactivate it and activate remove
   toggleAction('remove')
 }
 
 function toggleUpdate() {
-  // For installed packs, toggle update on/off  
-  // If remove is active, this will deactivate it and activate update
   toggleAction('update')
 }
 
 function onPrefixChange(e) {
-  // Don't allow changes for installed packs
   if (!isPackEditable.value) return
-  
   const val = e.target.value
   if (prefixTimer) clearTimeout(prefixTimer)
   prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 400)
 }
+
 function onPageTitleChange(e) {
-  // Don't allow changes for installed pages
   if (!isPageEditable.value) return
-  
   const editable = e.target.value
   if (pageTimer) clearTimeout(pageTimer)
   pageTimer = setTimeout(() => {
@@ -388,6 +447,7 @@ async function sendSetPackPrefixCommand(prefix) {
     store.busy = false
   }
 }
+
 async function sendRenamePageCommand(newTitle) {
   if (store.busy || !parentName.value) return
   try {
@@ -411,10 +471,12 @@ async function sendRenamePageCommand(newTitle) {
     store.busy = false
   }
 }
+
 onBeforeUnmount(() => {
   if (prefixTimer) clearTimeout(prefixTimer)
   if (pageTimer) clearTimeout(pageTimer)
 })
+
 function $t(k) { return mw.msg(k) }
 
 const sortedChildren = computed(() => {
@@ -432,248 +494,506 @@ const sortedChildren = computed(() => {
   })
   return arr
 })
+
+// Smooth expand/collapse animations
+function onChildrenEnter(el) {
+  el.style.height = '0'
+  el.style.opacity = '0'
+  el.offsetHeight // Force reflow
+  el.style.transition = 'height 0.3s ease, opacity 0.3s ease'
+  el.style.height = el.scrollHeight + 'px'
+  el.style.opacity = '1'
+}
+
+function onChildrenLeave(el) {
+  el.style.height = el.scrollHeight + 'px'
+  el.offsetHeight // Force reflow
+  el.style.transition = 'height 0.3s ease, opacity 0.3s ease'
+  el.style.height = '0'
+  el.style.opacity = '0'
+}
 </script>
 
-<style scoped>
+<style>
+/*
+  ============================================================================
+  CSS CLASSES - SUPPLEMENTARY ONLY
+  ============================================================================
+  
+  ⚠️ IMPORTANT: These CSS classes are NOT used for layout or visual styling!
+  
+  WHY: MediaWiki and Codex have extremely high CSS specificity that overrides
+       our stylesheet classes. Inline styles (in the template above) have
+       the highest specificity and cannot be overridden.
+  
+  WHAT THIS SECTION DOES:
+  - Provides fallback styles for browsers without JS
+  - Defines animation/transition effects
+  - Sets display modes (flex, inline-flex, etc.) as base rules
+  - Provides semantic class names for debugging
+  
+  WHAT THIS SECTION DOES NOT DO:
+  - Control layout (padding, margin, borders) - use inline styles
+  - Control colors (background, border-color) - use inline styles
+  - Control visibility (shadows, opacity) - use inline styles
+  
+  IF YOU NEED TO CHANGE VISUAL APPEARANCE:
+  1. Update the :style="" bindings in the <template> section above
+  2. Do NOT add new CSS classes here expecting them to work
+  3. Test by inspecting element in browser DevTools to verify inline styles
+  
+  ============================================================================
+*/
 
-/* Indent nested node groups visually */
-.labki-tree .children {
-  margin-left: calc(1.5rem) !important;
-  border-left: 1px solid #eaecf0 !important;
-  padding-left: 0.75rem !important;
+/* ==================== TREE NODE BASE ==================== */
+
+.labki-tree .tree-node {
+  margin-bottom: 0 !important;
 }
 
-.labki-tree .tree-node[data-type="pack"] .node-row:hover { background: #f8f9fa; }
-.labki-tree .tree-node[data-action="install"] .node-row { background: #e8f5e9; }
-.labki-tree .tree-node[data-action="update"]  .node-row { background: #fff3e0; }
-.labki-tree .tree-node[data-action="remove"]  .node-row { background: #ffebee; }
+/* ==================== PACK CARD - PROPER NESTING ==================== */
 
-/* Pin grid cells */
-.labki-tree .toggle, .labki-tree .toggle-spacer {
-  background: none; border: none; cursor: pointer;
-  padding: 2px 4px; font-size: 12px; color: #72777d;
-  flex-shrink: 0;
-}
-.labki-tree .toggle:hover { color: #202122; }
-.labki-tree .toggle-spacer { width: 16px; }
-.labki-tree .node-icon { 
-  font-size: 16px; line-height: 1.4; align-self: center;
-  flex-shrink: 0;
+.labki-tree .pack-card {
+  border: 1px solid #c8ccd1 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  padding: 12px !important;
+  margin-bottom: 12px !important;
+  transition: all 0.2s ease !important;
 }
 
-/* Main content uses flex */
-.labki-tree .main {
-  flex: 1 !important;
-  display: block !important;
-  min-width: 0;
+/* Shadow hierarchy - deeper = lighter shadow */
+.labki-tree .pack-card[data-depth="0"] {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Title line: flex to keep on one line */
-.labki-tree .title-line {
+.labki-tree .pack-card[data-depth="1"] {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+.labki-tree .pack-card[data-depth="2"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+.labki-tree .pack-card[data-depth="3"],
+.labki-tree .pack-card[data-depth="4"],
+.labki-tree .pack-card[data-depth="5"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Subtle installed state */
+.labki-tree .tree-node[data-installed="true"] .pack-card {
+  background: #f8f9fa !important;
+  border-color: #a2a9b1 !important;
+}
+
+/* Subtle action state overlays */
+.labki-tree .tree-node[data-action="install"] .pack-card {
+  background: linear-gradient(to right, #e8f5e9 0%, #ffffff 100%) !important;
+  border-left: 3px solid #36c !important;
+}
+
+.labki-tree .tree-node[data-action="remove"] .pack-card {
+  background: linear-gradient(to right, #ffebee 0%, #ffffff 100%) !important;
+  border-left: 3px solid #d33 !important;
+}
+
+.labki-tree .tree-node[data-action="update"] .pack-card {
+  background: linear-gradient(to right, #fff8e1 0%, #ffffff 100%) !important;
+  border-left: 3px solid #fc3 !important;
+}
+
+.labki-tree .pack-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* ==================== NODE ROW - HORIZONTAL LAYOUT ==================== */
+
+.labki-tree .pack-card .node-row {
   display: flex !important;
   align-items: center !important;
+  flex-wrap: nowrap !important;
   gap: 8px !important;
-  flex-wrap: wrap !important;
-  margin-bottom: 4px !important;
+  min-height: 40px !important;
 }
 
-.labki-tree .label {
-  margin: 0 !important;
-  font-size: 1em !important;
-  word-break: break-word !important;
+.labki-tree .name-section {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap !important;
 }
 
-/* Badges */
-.labki-tree .badge {
+.labki-tree .spacer {
   display: inline-block !important;
-  font-size: 0.75em !important;
-  padding: 2px 8px !important;
-  border-radius: 3px !important;
-  white-space: nowrap !important;
-  font-weight: normal !important;
+  flex-grow: 1 !important;
+  min-width: 12px !important;
+}
+
+/* ==================== TOGGLE & ICON ==================== */
+
+.labki-tree .toggle {
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  font-size: 12px !important;
+  color: #72777d !important;
+  flex-shrink: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 4px !important;
+  transition: all 0.15s ease !important;
+}
+
+.labki-tree .toggle:hover {
+  background: #eaecf0 !important;
+  color: #202122 !important;
+}
+
+.labki-tree .toggle-spacer {
+  width: 24px !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+}
+
+.labki-tree .node-icon {
+  font-size: 20px !important;
+  line-height: 1 !important;
   flex-shrink: 0 !important;
 }
 
-.labki-tree .badge.manual { background: #eaf3ff !important; color: #36c !important; }
-.labki-tree .badge.auto { background: #fef6e7 !important; color: #ac6600 !important; }
-.labki-tree .badge.version { background: #f0f0f0 !important; color: #72777d !important; }
-.labki-tree .badge.update { background: #fff3e0 !important; color: #ac6600 !important; }
+.labki-tree .label {
+  font-size: 1em !important;
+  font-weight: 600 !important;
+  color: #202122 !important;
+  white-space: nowrap !important;
+}
+
+/* ==================== BADGES ==================== */
+
+.labki-tree .badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 0.75em !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  white-space: nowrap !important;
+  font-weight: 500 !important;
+  flex-shrink: 0 !important;
+}
+
+.labki-tree .badge.manual {
+  background: #eaf3ff !important;
+  color: #36c !important;
+  border: 1px solid #b8d4ff !important;
+}
+
+.labki-tree .badge.auto {
+  background: #fef6e7 !important;
+  color: #ac6600 !important;
+  border: 1px solid #fce29f !important;
+}
+
+.labki-tree .badge.version {
+  background: #f0f0f0 !important;
+  color: #54595d !important;
+  border: 1px solid #c8ccd1 !important;
+}
+
+.labki-tree .badge.update {
+  background: #fff3cd !important;
+  color: #8a6d3b !important;
+  border: 1px solid #fce29f !important;
+  animation: pulse 2s infinite !important;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ==================== INLINE EDITORS ==================== */
+
+.labki-tree .prefix-editor-inline {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-left: 8px !important;
+  flex-wrap: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+.labki-tree .arrow {
+  color: #72777d !important;
+  font-size: 1.1em !important;
+  flex-shrink: 0 !important;
+}
+
+.labki-tree .prefix-label {
+  font-size: 0.85em !important;
+  color: #54595d !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  font-weight: 500 !important;
+}
+
+.labki-tree .prefix-input {
+  padding: 6px 10px !important;
+  border: 1px solid #c8ccd1 !important;
+  border-radius: 4px !important;
+  font-size: 0.85em !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
+  background: white !important;
+  color: #202122 !important;
+  width: 180px !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.labki-tree .prefix-input:focus {
+  outline: none !important;
+  border-color: #36c !important;
+  box-shadow: 0 0 0 1px #36c !important;
+}
+
+.labki-tree .prefix-input:disabled,
+.labki-tree .prefix-input[readonly] {
+  background: #f8f9fa !important;
+  color: #72777d !important;
+  cursor: not-allowed !important;
+}
+
+/* ==================== META ROW ==================== */
+
+.labki-tree .meta-row {
+  margin-top: 8px !important;
+  padding-left: 32px !important;
+  border-top: 1px solid #eaecf0 !important;
+  padding-top: 8px !important;
+}
+
+.labki-tree .meta-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
 
 .labki-tree .desc {
   font-size: 0.9em !important;
   color: #54595d !important;
-  margin: 4px 0 !important;
+  line-height: 1.5 !important;
 }
 
 .labki-tree .depends {
   font-size: 0.85em !important;
   color: #72777d !important;
-  margin: 4px 0 !important;
 }
 
-.labki-tree .depends small {
-  margin: 0 !important;
-  display: block !important;
+/* ==================== CHILDREN CONTAINER (INSIDE CARD) ==================== */
+
+.labki-tree .children {
+  margin-top: 12px !important;
+  padding-left: 20px !important;
+  border-left: 2px solid #eaecf0 !important;
+  padding-top: 8px !important;
+  overflow: hidden !important;
 }
 
-/* Inline editors */
-.labki-tree .inline-editor {
+/* Smooth transitions */
+.labki-tree .children-enter-active,
+.labki-tree .children-leave-active {
+  transition: all 0.3s ease !important;
+}
+
+.labki-tree .children-enter-from,
+.labki-tree .children-leave-to {
+  opacity: 0 !important;
+  height: 0 !important;
+}
+
+/* ==================== PAGE ROW ==================== */
+
+.labki-tree .page-row {
   display: flex !important;
   align-items: center !important;
+  flex-wrap: nowrap !important;
   gap: 8px !important;
-  padding: 6px 8px !important;
-  border-radius: 4px !important;
+  padding: 8px 12px !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-radius: 6px !important;
+  margin-bottom: 6px !important;
+  transition: all 0.15s ease !important;
+  min-height: 36px !important;
+}
+
+.labki-tree .page-row:hover {
   background: #f8f9fa !important;
-  margin-top: 6px !important;
 }
 
-.labki-tree .inline-editor.pack {
-  background: #eaf3ff !important;
+.labki-tree .tree-node[data-installed="true"] .page-row {
+  background: rgba(232, 240, 248, 0.4) !important;
 }
 
-.labki-tree .inline-editor.readonly {
-  background: #f0f0f0 !important;
-  opacity: 0.8 !important;
+.labki-tree .tree-node[data-action="install"] .page-row {
+  background: rgba(232, 245, 233, 0.6) !important;
 }
 
-.labki-tree .inline-label {
-  font-weight: 600 !important;
-  font-size: 0.9em !important;
-  white-space: nowrap !important;
-  margin: 0 !important;
+.labki-tree .tree-node[data-action="remove"] .page-row {
+  background: rgba(255, 235, 238, 0.6) !important;
+}
+
+/* Page rename editor */
+.labki-tree .page-rename-inline {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin-left: 8px !important;
+  flex-wrap: nowrap !important;
   flex-shrink: 0 !important;
 }
 
-.labki-tree .inline-editor.pack .inline-label {
-  color: #36c !important;
-}
-
-.labki-tree .inline-editor.page .inline-label {
+.labki-tree .prefix-chip-inline {
+  padding: 6px 10px !important;
+  background: #f0f0f0 !important;
+  border: 1px solid #c8ccd1 !important;
+  border-right: none !important;
+  border-radius: 4px 0 0 4px !important;
+  font-size: 0.85em !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
   color: #54595d !important;
+  white-space: nowrap !important;
 }
 
-.labki-tree .input {
-  flex: 1 !important;
-  min-width: 150px !important;
-  padding: 6px 8px !important;
+.labki-tree .page-input {
+  padding: 6px 10px !important;
   border: 1px solid #c8ccd1 !important;
   border-radius: 4px !important;
-  font-size: 0.9em !important;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Verdana, sans-serif !important;
+  font-size: 0.85em !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
   background: white !important;
   color: #202122 !important;
-}
-
-.labki-tree .input:focus {
-  outline: none !important;
-  border-color: #36c !important;
-  box-shadow: inset 0 0 0 1px #36c !important;
-}
-
-.labki-tree .input:disabled,
-.labki-tree .input[readonly] {
-  background: #f8f9fa !important;
-  color: #72777d !important;
-  cursor: not-allowed !important;
-  border-color: #dcdfe2 !important;
-}
-
-.labki-tree .input.has-collision {
-  border-color: #d33 !important;
-  background-color: #fff5f5 !important;
-}
-
-.labki-tree .input.has-collision:focus {
-  border-color: #d33 !important;
-  box-shadow: inset 0 0 0 1px #d33 !important;
-}
-
-/* Page editor with prefix chip */
-.labki-tree .page-editor {
-  display: flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  flex: 1 !important;
-  min-width: 0 !important;
-}
-
-.labki-tree .prefix-chip {
-  display: inline-block !important;
-  padding: 6px 8px !important;
-  background: #f0f0f0 !important;
-  border: 1px solid #c8ccd1 !important;
-  border-radius: 4px 0 0 4px !important;
-  font-size: 0.9em !important;
-  font-family: monospace !important;
-  color: #54595d !important;
-  white-space: nowrap !important;
+  width: 160px !important;
   flex-shrink: 0 !important;
-  border-right: 2px solid #36c !important;
+  transition: all 0.15s ease !important;
 }
 
-.labki-tree .page-title {
+.labki-tree .prefix-chip-inline + .page-input {
   border-radius: 0 4px 4px 0 !important;
 }
 
-.labki-tree .collision {
+.labki-tree .page-input:focus {
+  outline: none !important;
+  border-color: #36c !important;
+  box-shadow: 0 0 0 1px #36c !important;
+}
+
+.labki-tree .page-input:disabled,
+.labki-tree .page-input[readonly] {
+  background: #f8f9fa !important;
+  color: #72777d !important;
+  cursor: not-allowed !important;
+}
+
+.labki-tree .page-input.has-collision {
+  border-color: #d33 !important;
+  background: #fff5f5 !important;
+}
+
+.labki-tree .collision-icon {
   font-size: 1.1em !important;
   cursor: help !important;
-  padding: 2px 4px !important;
-  flex-shrink: 0 !important;
+  margin-left: 4px !important;
 }
 
-/* Actions column */
+/* ==================== ACTION BUTTONS ==================== */
+
 .labki-tree .actions {
   display: inline-flex !important;
-  flex-wrap: wrap;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap !important;
+}
+
+.labki-tree .action-item {
+  display: inline-flex !important;
   flex-shrink: 0 !important;
 }
 
-.labki-tree .action-item { display: inline-flex !important; }
-.labki-tree .action-item :deep(.cdx-button) { display: inline-flex !important; white-space: nowrap; }
-
-/* Highlights for active buttons */
-.labki-tree :deep(.cdx-button.active) {
-  outline: 2px solid #36c;
-  box-shadow: inset 0 0 4px rgba(0, 0, 0, .15);
-  font-weight: 600;
+.labki-tree :deep(.cdx-button) {
+  display: inline-flex !important;
+  font-size: 0.9em !important;
+  padding: 8px 16px !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  border-radius: 6px !important;
 }
 
-/* --- VISUAL INDENTATION GUIDES FOR NESTED NODES --- */
-.labki-tree .children {
-  position: relative;
-  margin-left: 1.5rem !important;
-  padding-left: 0.75rem !important;
+/* Active state styling */
+.labki-tree :deep(.cdx-button.active[action="progressive"]) {
+  background-color: #2a4b8d !important;
+  border-color: #2a4b8d !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 3px rgba(54, 108, 204, 0.2) !important;
+  transform: scale(1.02) !important;
 }
 
-.labki-tree .children::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 1px;
-  background-color: #dcdfe2;
-  opacity: 0.8;
+.labki-tree :deep(.cdx-button.active[action="destructive"]) {
+  background-color: #d73333 !important;
+  border-color: #d73333 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 3px rgba(215, 51, 51, 0.2) !important;
+  transform: scale(1.02) !important;
 }
 
-/* Horizontal connector for each node */
-.labki-tree .node-row {
-  position: relative;
-  z-index: 1;
+.labki-tree :deep(.cdx-button.active:not([action="progressive"]):not([action="destructive"])) {
+  background-color: #fc3 !important;
+  border-color: #fc3 !important;
+  color: #202122 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 3px rgba(255, 204, 51, 0.2) !important;
+  transform: scale(1.02) !important;
 }
 
-.labki-tree .node-row::before {
-  content: '';
-  position: absolute;
-  left: -0.75rem;
-  top: 1.2rem;
-  width: 0.75rem;
-  height: 1px;
-  background-color: #dcdfe2;
-  opacity: 0.8;
+.labki-tree :deep(.cdx-button:hover) {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
+.labki-tree :deep(.cdx-button:active) {
+  transform: translateY(0) !important;
+}
+
+/* ==================== RESPONSIVE ADJUSTMENTS ==================== */
+
+@media (max-width: 768px) {
+  .labki-tree .pack-card {
+    padding: 10px !important;
+  }
+  
+  .labki-tree .node-row {
+    flex-wrap: wrap !important;
+  }
+  
+  .labki-tree .actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    margin-top: 8px !important;
+  }
+  
+  .labki-tree .prefix-editor-inline,
+  .labki-tree .page-rename-inline {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-top: 8px !important;
+  }
+}
 </style>
