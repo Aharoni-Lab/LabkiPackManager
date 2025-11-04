@@ -31,7 +31,7 @@ When you **restart** the jobrunner:
 
 ## The Fix
 
-### In `reset_mw_test.sh`
+### In `setup_mw_test_env.sh`
 
 Added an explicit jobrunner restart after all configuration is complete:
 
@@ -146,7 +146,7 @@ docker compose up -d mediawiki-jobrunner
 
 ## Verification After Fix
 
-After running the updated `reset_mw_test.sh`, you should see:
+After running the updated `setup_mw_test_env.sh`, you should see:
 
 1. **Jobrunner restarts**: 
    ```
@@ -180,8 +180,8 @@ After running the updated `reset_mw_test.sh`, you should see:
 ✅ **Issue**: Jobrunner doesn't auto-process jobs on first startup  
 ✅ **Cause**: Timing issue - starts before MediaWiki fully initialized  
 ✅ **Fix**: Restart jobrunner after configuration is complete  
-✅ **Implementation**: Added to `reset_mw_test.sh` lines 180-182  
+✅ **Implementation**: Added to `setup_mw_test_env.sh` (see lines ~205-207)  
 ✅ **Verification**: Shows process and recent activity  
 
-**The reset script now ensures the jobrunner is working on first run!**
+**The setup script now ensures the jobrunner is working on first run!**
 
