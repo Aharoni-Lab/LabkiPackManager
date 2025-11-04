@@ -83,7 +83,7 @@ final class GitContentManager {
             wfDebugLog('labkipack', "Registering new repo {$repoUrl}");
             $repoId = $this->repoRegistry->ensureRepoEntry($repoUrl, [
                 'bare_path' => $barePath,
-                'last_fetched' => \wfTimestampNow(),
+                'last_fetched' => $this->repoRegistry->now(),
             ]);
         } else {
             // Repository exists, check if we need to update it
@@ -105,8 +105,8 @@ final class GitContentManager {
                     $this->runGit(['-C', $barePath, 'fetch', '--all', '--tags', '--prune']);
                     // Update the repository entry in the database
                     $this->repoRegistry->updateRepoEntry($repoId, [
-                        'last_fetched' => \wfTimestampNow(),
-                        'updated_at'   => \wfTimestampNow(),
+                        'last_fetched' => $this->repoRegistry->now(),
+                        'updated_at'   => $this->repoRegistry->now(),
                     ]);
                 } catch (\Exception $e) {
                     wfDebugLog('labkipack', "Fetch failed for {$repoUrl}: " . $e->getMessage());
@@ -174,7 +174,7 @@ final class GitContentManager {
         $refId = $this->refRegistry->ensureRefEntry($repoUrl, $ref, [
             'last_commit'   => $commit,
             'worktree_path' => $worktreePath,
-            'updated_at'    => \wfTimestampNow(),
+            'updated_at'    => $this->refRegistry->now(),
             
         ]);
 
@@ -188,7 +188,7 @@ final class GitContentManager {
             'content_ref_name' => $manifest['manifest']['name'],
             'manifest_hash' => $manifest['hash'],
             'manifest_last_parsed' => $manifest['last_parsed_at'],
-            'updated_at'    => \wfTimestampNow(),
+            'updated_at'    => $this->refRegistry->now(),
         ]);
 
         wfDebugLog('labkipack', "Ref {$ref} registered (commit {$commit}, refID={$refId->toInt()}, repoID={$repoUrl})");

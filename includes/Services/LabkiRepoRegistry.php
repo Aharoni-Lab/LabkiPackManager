@@ -8,6 +8,7 @@ use LabkiPackManager\Domain\ContentRepo;
 use LabkiPackManager\Domain\ContentRepoId;
 use MediaWiki\MediaWikiServices;
 use RuntimeException;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * LabkiRepoRegistry
@@ -36,6 +37,16 @@ class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
     /**
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
+     */
+    public function now(): string {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        return $dbw->timestamp( \wfTimestampNow() );
+    }
+
+    /**
      * Ensure a repository entry exists (create or update) and return its ID.
      *
      * If a repository with the given URL already exists, it will be updated with
@@ -52,8 +63,6 @@ class LabkiRepoRegistry {
         string $contentRepoUrl,
         array $extraFields = []
     ): ContentRepoId {
-        $now = \wfTimestampNow();
-
         wfDebugLog('labkipack', "ensureRepoEntry() called for {$contentRepoUrl}");
 
         // Check if repo already exists
@@ -90,8 +99,6 @@ class LabkiRepoRegistry {
         string $contentRepoUrl,
         array $extraFields = []
     ): ContentRepoId {
-        $now = \wfTimestampNow();
-
         wfDebugLog('labkipack', "addRepoEntry() inserting {$contentRepoUrl}");
 
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
@@ -101,8 +108,8 @@ class LabkiRepoRegistry {
             'default_ref'       => 'main',
             'bare_path'         => null,
             'last_fetched'      => null,
-            'created_at'        => $now,
-            'updated_at'        => $now,
+            'created_at'        => $this->now(),
+            'updated_at'        => $this->now(),
         ], $extraFields);
 
         try {
@@ -140,7 +147,7 @@ class LabkiRepoRegistry {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
-        $fields['updated_at'] = $fields['updated_at'] ?? \wfTimestampNow();
+        $fields['updated_at'] = $fields['updated_at'] ?? $this->now();
 
         $dbw->newUpdateQueryBuilder()
             ->update(self::TABLE)
@@ -163,7 +170,6 @@ class LabkiRepoRegistry {
      */
     public function getRepoId(string $contentRepoUrl): ?ContentRepoId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
-
         $row = $dbr->newSelectQueryBuilder()
             ->select('content_repo_id')
             ->from(self::TABLE)

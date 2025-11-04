@@ -54,6 +54,15 @@ final class LabkiOperationRegistry {
     }
 
     /**
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
+     */
+    public function now(): string {
+        return $this->dbw->timestamp( wfTimestampNow() );
+    }
+
+    /**
      * Create a new operation record
      *
      * Inserts a new operation into the tracking table. The operation is created with
@@ -73,15 +82,14 @@ final class LabkiOperationRegistry {
         string $status = Operation::STATUS_QUEUED,
         string $message = ''
     ): void {
-        $now = wfTimestampNow();
         $this->dbw->insert( Operation::TABLE, [
             'operation_id' => $operationId->toString(),
             'operation_type' => $type,
             'status' => $status,
             'message' => $message,
             'user_id' => $userId,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => $this->now(),
+            'updated_at' => $this->now(),
         ], __METHOD__ );
     }
 
@@ -107,7 +115,7 @@ final class LabkiOperationRegistry {
     ): void {
         $row = [
             'status' => $status,
-            'updated_at' => wfTimestampNow(),
+            'updated_at' => $this->now(),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
@@ -118,6 +126,7 @@ final class LabkiOperationRegistry {
         if ( $resultData !== null ) {
             $row['result_data'] = $resultData;
         }
+        
         $this->dbw->update(
             Operation::TABLE,
             $row,
@@ -139,12 +148,13 @@ final class LabkiOperationRegistry {
     public function startOperation( OperationId $operationId, ?string $message = null ): void {
         $row = [
             'status' => Operation::STATUS_RUNNING,
-            'started_at' => wfTimestampNow(),
-            'updated_at' => wfTimestampNow(),
+            'started_at' => $this->now(),
+            'updated_at' => $this->now(),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
         }
+        
         $this->dbw->update(
             Operation::TABLE,
             $row,

@@ -8,6 +8,7 @@ use LabkiPackManager\Domain\Page as DomainPage;
 use LabkiPackManager\Domain\PageId;
 use LabkiPackManager\Domain\PackId;
 use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * LabkiPageRegistry
@@ -35,6 +36,16 @@ use MediaWiki\MediaWikiServices;
  */
 class LabkiPageRegistry {
     private const TABLE = 'labki_page';
+
+    /**
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
+     */
+    public function now(): string {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        return $dbw->timestamp( \wfTimestampNow() );
+    }
 
     /**
      * Add a page to a pack and return page_id.
@@ -65,7 +76,6 @@ class LabkiPageRegistry {
 
         // Note: This persists registry state for an installed page. Caller must ensure
         // the corresponding MW page exists/was modified successfully before calling this.
-        $now = \wfTimestampNow();
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $row = [
             'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
@@ -75,9 +85,10 @@ class LabkiPageRegistry {
             'wiki_page_id' => $pageData['wiki_page_id'] ?? null,
             'last_rev_id' => $pageData['last_rev_id'] ?? null,
             'content_hash' => $pageData['content_hash'] ?? null,
-            'created_at' => $pageData['created_at'] ?? $now,
-            'updated_at' => $now,
+            'created_at' => $pageData['created_at'] ?? $this->now(),
+            'updated_at' => $this->now(),
         ];
+        
         $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
             ->row( $row )
@@ -175,8 +186,9 @@ class LabkiPageRegistry {
     public function updatePage( int|PageId $pageId, array $fields ): void {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = \wfTimestampNow();
+            $fields['updated_at'] = $this->now();
         }
+        
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
@@ -303,8 +315,7 @@ class LabkiPageRegistry {
     public function getRewriteMapForRepo( int $repoId ): array {
         wfDebugLog( 'labkipack', 'getRewriteMapForRepo() called with repo_id=' . $repoId );
     
-        $dbr = \MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
-    
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $res = $dbr->newSelectQueryBuilder()
             ->select( [ 'lp.name', 'lp.final_title' ] )
             ->from( self::TABLE, 'lp' )

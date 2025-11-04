@@ -8,6 +8,7 @@ use LabkiPackManager\Domain\Pack;
 use LabkiPackManager\Domain\PackId;
 use LabkiPackManager\Domain\ContentRefId;
 use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * LabkiPackRegistry
@@ -36,6 +37,16 @@ class LabkiPackRegistry {
     private const TABLE = 'labki_pack';
 
     /**
+     * Get current timestamp in DB-specific format.
+     * Can be called by external code to get properly formatted timestamps.
+     * @return string Formatted timestamp for database insertion
+     */
+    public function now(): string {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        return $dbw->timestamp( \wfTimestampNow() );
+    }
+
+    /**
      * Insert a pack if not present and return pack_id.
      * Uniqueness is by (content_ref_id, name), regardless of version.
      * @param array{version?:?string,source_commit?:?string,installed_at?:?int,installed_by?:?int,status?:?string} $meta
@@ -48,16 +59,15 @@ class LabkiPackRegistry {
             return $existing;
         }
 
-        $now = \wfTimestampNow();
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $row = [
             'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId,
             'name' => $name,
             'version' => $meta['version'] ?? null,
             'source_commit' => $meta['source_commit'] ?? null,
-            'installed_at' => $meta['installed_at'] ?? $now,
+            'installed_at' => $meta['installed_at'] ?? $this->now(),
             'installed_by' => $meta['installed_by'] ?? null,
-            'updated_at' => $now,
+            'updated_at' => $this->now(),
             'status' => $meta['status'] ?? 'installed',
         ];
 
@@ -138,7 +148,7 @@ class LabkiPackRegistry {
         $existing = $this->getPackIdByName( $refId, $name );
         if ( $existing !== null ) {
             $this->updatePack( $existing, [
-                'installed_at' => \wfTimestampNow(),
+                'installed_at' => $this->now(),
                 'installed_by' => $installedBy,
                 'status' => 'installed',
                 'version' => $version,
@@ -168,8 +178,9 @@ class LabkiPackRegistry {
         // Note: Only persists metadata changes. Caller ensures MW changes are applied first.
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
-            $fields['updated_at'] = \wfTimestampNow();
+            $fields['updated_at'] = $this->now();
         }
+        
         $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
@@ -209,7 +220,6 @@ class LabkiPackRegistry {
         }
 
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        $now = \wfTimestampNow();
         $packIdInt = $packId instanceof PackId ? $packId->toInt() : $packId;
         
         $rows = [];
@@ -217,7 +227,7 @@ class LabkiPackRegistry {
             $rows[] = [
                 'pack_id' => $packIdInt,
                 'depends_on_pack_id' => $depPackId instanceof PackId ? $depPackId->toInt() : $depPackId,
-                'created_at' => $now,
+                'created_at' => $this->now(),
             ];
         }
 
@@ -239,7 +249,6 @@ class LabkiPackRegistry {
      */
     public function getDependencies( int|PackId $packId ): array {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
-        
         $res = $dbr->newSelectQueryBuilder()
             ->select( 'depends_on_pack_id' )
             ->from( 'labki_pack_dependency' )
@@ -264,7 +273,6 @@ class LabkiPackRegistry {
 	 */
 	public function getPacksDependingOn( ContentRefId $refId, int|PackId $packId ): array {
 		$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
-		
 		// Qualify Pack::FIELDS with table alias to avoid ambiguity
 		$qualifiedFields = array_map( fn( $field ) => "p.{$field}", Pack::FIELDS );
 		
@@ -295,7 +303,6 @@ class LabkiPackRegistry {
      */
     public function removeDependencies( int|PackId $packId ): void {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( 'labki_pack_dependency' )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
