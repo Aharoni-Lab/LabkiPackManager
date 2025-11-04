@@ -37,25 +37,17 @@ use Wikimedia\Rdbms\IDatabase;
 class LabkiPageRegistry {
     private const TABLE = 'labki_page';
 
-    private IDatabase $dbw;
-    private IDatabase $dbr;
-
-    public function __construct() {
-        $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
-        $this->dbw = $lb->getConnection( DB_PRIMARY );
-        $this->dbr = $lb->getConnection( DB_REPLICA );
-    }
-
     /**
      * Convert timestamp fields to database format.
+     * @param IDatabase $dbw Database connection
      * @param array<string,mixed> $fields
      * @return array<string,mixed>
      */
-    private function convertTimestamps( array $fields ): array {
+    private function convertTimestamps( IDatabase $dbw, array $fields ): array {
         $timestampFields = [ 'created_at', 'updated_at' ];
         foreach ( $timestampFields as $field ) {
             if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $this->dbw->timestamp( $fields[$field] );
+                $fields[$field] = $dbw->timestamp( $fields[$field] );
             }
         }
         return $fields;
@@ -90,6 +82,7 @@ class LabkiPageRegistry {
 
         // Note: This persists registry state for an installed page. Caller must ensure
         // the corresponding MW page exists/was modified successfully before calling this.
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $now = \wfTimestampNow();
         $row = [
             'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
@@ -104,14 +97,14 @@ class LabkiPageRegistry {
         ];
         
         // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $row );
+        $row = $this->convertTimestamps( $dbw, $row );
         
-        $this->dbw->newInsertQueryBuilder()
+        $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
             ->row( $row )
             ->caller( __METHOD__ )
             ->execute();
-        $id = (int)$this->dbw->insertId();
+        $id = (int)$dbw->insertId();
         wfDebugLog( 'labkipack', 'Added page ' . $pageData['final_title'] . ' (page_id=' . $id . ', pack_id=' . $packId . ')' );
         return new PageId( $id );
     }
@@ -121,7 +114,8 @@ class LabkiPageRegistry {
      * @return DomainPage|null
      */
     public function getPageByTitle( string $finalTitle ): ?DomainPage {
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
             ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'final_title' => $finalTitle ] )
@@ -135,7 +129,8 @@ class LabkiPageRegistry {
 
     /** Convenience for API: get page by pack and name */
     public function getPageByName( int|PackId $packId, string $name ): ?DomainPage {
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
             ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId, 'name' => $name ] )
@@ -152,7 +147,8 @@ class LabkiPageRegistry {
      * @return array<int,DomainPage>
      */
     public function listPagesByPack( int|PackId $packId ): array {
-        $res = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $res = $dbr->newSelectQueryBuilder()
             ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
@@ -168,7 +164,8 @@ class LabkiPageRegistry {
 
     /** Fetch a page by its internal page_id */
     public function getPageById( int|PageId $pageId ): ?DomainPage {
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
             ->select( DomainPage::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
@@ -182,7 +179,8 @@ class LabkiPageRegistry {
 
     /** Count pages for a given pack_id */
     public function countPagesByPack( int|PackId $packId ): int {
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
             ->select( 'COUNT(*) AS cnt' )
             ->from( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
@@ -196,14 +194,15 @@ class LabkiPageRegistry {
      * @param array<string,mixed> $fields
      */
     public function updatePage( int|PageId $pageId, array $fields ): void {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
             $fields['updated_at'] = \wfTimestampNow();
         }
         
         // Convert timestamps to DB format
-        $fields = $this->convertTimestamps( $fields );
+        $fields = $this->convertTimestamps( $dbw, $fields );
         
-        $this->dbw->newUpdateQueryBuilder()
+        $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
@@ -217,7 +216,8 @@ class LabkiPageRegistry {
      */
     public function removePagesByPack( int|PackId $packId ): void {
         // Note: Caller should first remove MW pages. This only clears registry records.
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )
@@ -227,7 +227,8 @@ class LabkiPageRegistry {
 
     /** Remove a single page by its internal page_id */
     public function removePageById( int|PageId $pageId ): bool {
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'page_id' => $pageId instanceof PageId ? $pageId->toInt() : $pageId ] )
             ->caller( __METHOD__ )
@@ -238,7 +239,8 @@ class LabkiPageRegistry {
 
     /** Remove a single page by (pack_id, name) */
     public function removePageByName( int|PackId $packId, string $name ): bool {
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [
                 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId,
@@ -252,7 +254,8 @@ class LabkiPageRegistry {
 
     /** Remove a single page by its recorded final title */
     public function removePageByFinalTitle( string $finalTitle ): bool {
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'final_title' => $finalTitle ] )
             ->caller( __METHOD__ )
@@ -271,9 +274,10 @@ class LabkiPageRegistry {
         if ( $titles === [] ) {
             return [];
         }
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         // Query core page table; title is stored as page_namespace + page_title
         // We'll check for any final_title collisions ignoring namespace differences only when titles include namespace.
-        $res = $this->dbr->newSelectQueryBuilder()
+        $res = $dbr->newSelectQueryBuilder()
             ->select( [ 'page_id', 'page_namespace', 'page_title' ] )
             ->from( 'page' )
             ->where( [ 'page_title' => array_map( [ self::class, 'titleToDBKey' ], $this->stripNamespaces( $titles ) ) ] )
@@ -324,7 +328,8 @@ class LabkiPageRegistry {
     public function getRewriteMapForRepo( int $repoId ): array {
         wfDebugLog( 'labkipack', 'getRewriteMapForRepo() called with repo_id=' . $repoId );
     
-        $res = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $res = $dbr->newSelectQueryBuilder()
             ->select( [ 'lp.name', 'lp.final_title' ] )
             ->from( self::TABLE, 'lp' )
             ->join( 'labki_pack', 'pack', 'lp.pack_id = pack.pack_id' )  // ✅ FIXED

@@ -36,25 +36,17 @@ use Wikimedia\Rdbms\IDatabase;
 class LabkiPackRegistry {
     private const TABLE = 'labki_pack';
 
-    private IDatabase $dbw;
-    private IDatabase $dbr;
-
-    public function __construct() {
-        $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
-        $this->dbw = $lb->getConnection( DB_PRIMARY );
-        $this->dbr = $lb->getConnection( DB_REPLICA );
-    }
-
     /**
      * Convert timestamp fields to database format.
+     * @param IDatabase $dbw Database connection
      * @param array<string,mixed> $fields
      * @return array<string,mixed>
      */
-    private function convertTimestamps( array $fields ): array {
+    private function convertTimestamps( IDatabase $dbw, array $fields ): array {
         $timestampFields = [ 'created_at', 'updated_at', 'installed_at' ];
         foreach ( $timestampFields as $field ) {
             if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $this->dbw->timestamp( $fields[$field] );
+                $fields[$field] = $dbw->timestamp( $fields[$field] );
             }
         }
         return $fields;
@@ -73,6 +65,7 @@ class LabkiPackRegistry {
             return $existing;
         }
 
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $now = \wfTimestampNow();
         $row = [
             'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId,
@@ -86,15 +79,15 @@ class LabkiPackRegistry {
         ];
         
         // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $row );
+        $row = $this->convertTimestamps( $dbw, $row );
 
-        $this->dbw->newInsertQueryBuilder()
+        $dbw->newInsertQueryBuilder()
             ->insertInto( self::TABLE )
             ->row( $row )
             ->caller( __METHOD__ )
             ->execute();
 
-        $id = (int)$this->dbw->insertId();
+        $id = (int)$dbw->insertId();
         wfDebugLog( 'Labki', 'Added pack ' . $name . ' (pack_id=' . $id . ', ref_id=' . $refId . ')' );
         return new PackId( $id );
     }
@@ -103,8 +96,9 @@ class LabkiPackRegistry {
      * Fetch pack_id by ref/name (version is ignored for uniqueness).
      */
     public function getPackIdByName( int|ContentRefId $refId, string $name, ?string $version = null ): ?PackId {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $conds = [ 'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId, 'name' => $name ];
-        $row = $this->dbr->newSelectQueryBuilder()
+        $row = $dbr->newSelectQueryBuilder()
             ->select( 'pack_id' )
             ->from( self::TABLE )
             ->where( $conds )
@@ -121,7 +115,8 @@ class LabkiPackRegistry {
      * @return Pack|null
      */
     public function getPack( int|PackId $packId ): ?Pack {
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
             ->select( Pack::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
@@ -138,7 +133,8 @@ class LabkiPackRegistry {
      * @return array<int,Pack>
      */
     public function listPacksByRef( int|ContentRefId $refId ): array {
-        $res = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $res = $dbr->newSelectQueryBuilder()
             ->select( Pack::FIELDS )
             ->from( self::TABLE )
             ->where( [ 'content_ref_id' => $refId instanceof ContentRefId ? $refId->toInt() : $refId ] )
@@ -190,14 +186,15 @@ class LabkiPackRegistry {
      */
     public function updatePack( int|PackId $packId, array $fields ): void {
         // Note: Only persists metadata changes. Caller ensures MW changes are applied first.
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         if ( !array_key_exists( 'updated_at', $fields ) ) {
             $fields['updated_at'] = \wfTimestampNow();
         }
         
         // Convert timestamps to DB format
-        $fields = $this->convertTimestamps( $fields );
+        $fields = $this->convertTimestamps( $dbw, $fields );
         
-        $this->dbw->newUpdateQueryBuilder()
+        $dbw->newUpdateQueryBuilder()
             ->update( self::TABLE )
             ->set( $fields )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
@@ -211,7 +208,8 @@ class LabkiPackRegistry {
      */
     public function removePack( int|PackId $packId ): void {
         // Note: Caller must have removed MW pages first; this only deletes registry row (pages cascade).
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )
@@ -234,6 +232,7 @@ class LabkiPackRegistry {
             return; // No dependencies to store
         }
 
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
         $now = \wfTimestampNow();
         $packIdInt = $packId instanceof PackId ? $packId->toInt() : $packId;
         
@@ -244,10 +243,10 @@ class LabkiPackRegistry {
                 'depends_on_pack_id' => $depPackId instanceof PackId ? $depPackId->toInt() : $depPackId,
                 'created_at' => $now,
             ];
-            $rows[] = $this->convertTimestamps( $row );
+            $rows[] = $this->convertTimestamps( $dbw, $row );
         }
 
-        $this->dbw->newInsertQueryBuilder()
+        $dbw->newInsertQueryBuilder()
             ->insertInto( 'labki_pack_dependency' )
             ->ignore()  // Skip if dependency already exists
             ->rows( $rows )
@@ -264,7 +263,8 @@ class LabkiPackRegistry {
      * @return array<PackId> Array of pack IDs this pack depends on
      */
     public function getDependencies( int|PackId $packId ): array {
-        $res = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $res = $dbr->newSelectQueryBuilder()
             ->select( 'depends_on_pack_id' )
             ->from( 'labki_pack_dependency' )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
@@ -287,10 +287,11 @@ class LabkiPackRegistry {
 	 * @return array<Pack> Array of Pack objects that depend on the given pack
 	 */
 	public function getPacksDependingOn( ContentRefId $refId, int|PackId $packId ): array {
+		$dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
 		// Qualify Pack::FIELDS with table alias to avoid ambiguity
 		$qualifiedFields = array_map( fn( $field ) => "p.{$field}", Pack::FIELDS );
 		
-		$res = $this->dbr->newSelectQueryBuilder()
+		$res = $dbr->newSelectQueryBuilder()
 			->select( $qualifiedFields )
 			->from( 'labki_pack_dependency', 'd' )
 			->join( 'labki_pack', 'p', 'p.pack_id = d.pack_id' )
@@ -316,7 +317,8 @@ class LabkiPackRegistry {
      * @param int|PackId $packId
      */
     public function removeDependencies( int|PackId $packId ): void {
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom( 'labki_pack_dependency' )
             ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
             ->caller( __METHOD__ )

@@ -36,25 +36,17 @@ use Wikimedia\Rdbms\IDatabase;
 class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
-    private IDatabase $dbw;
-    private IDatabase $dbr;
-
-    public function __construct() {
-        $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
-        $this->dbw = $lb->getConnection( DB_PRIMARY );
-        $this->dbr = $lb->getConnection( DB_REPLICA );
-    }
-
     /**
      * Convert timestamp fields to database format.
+     * @param IDatabase $dbw Database connection
      * @param array<string,mixed> $fields
      * @return array<string,mixed>
      */
-    private function convertTimestamps( array $fields ): array {
+    private function convertTimestamps( IDatabase $dbw, array $fields ): array {
         $timestampFields = [ 'created_at', 'updated_at', 'last_fetched' ];
         foreach ( $timestampFields as $field ) {
             if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
-                $fields[$field] = $this->dbw->timestamp( $fields[$field] );
+                $fields[$field] = $dbw->timestamp( $fields[$field] );
             }
         }
         return $fields;
@@ -115,6 +107,7 @@ class LabkiRepoRegistry {
     ): ContentRepoId {
         wfDebugLog('labkipack', "addRepoEntry() inserting {$contentRepoUrl}");
 
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $now = \wfTimestampNow();
 
         $row = array_merge([
@@ -127,16 +120,16 @@ class LabkiRepoRegistry {
         ], $extraFields);
         
         // Convert timestamps to DB format
-        $row = $this->convertTimestamps( $row );
+        $row = $this->convertTimestamps( $dbw, $row );
 
         try {
-            $this->dbw->newInsertQueryBuilder()
+            $dbw->newInsertQueryBuilder()
                 ->insertInto(self::TABLE)
                 ->row($row)
                 ->caller(__METHOD__)
                 ->execute();
 
-            $newId = (int)$this->dbw->insertId();
+            $newId = (int)$dbw->insertId();
             wfDebugLog('labkipack', "addRepoEntry(): created new repo entry (ID={$newId}) for {$contentRepoUrl}");
             return new ContentRepoId($newId);
 
@@ -161,14 +154,15 @@ class LabkiRepoRegistry {
             return; // nothing to update
         }
 
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
         $fields['updated_at'] = $fields['updated_at'] ?? \wfTimestampNow();
         
         // Convert timestamps to DB format
-        $fields = $this->convertTimestamps( $fields );
+        $fields = $this->convertTimestamps( $dbw, $fields );
 
-        $this->dbw->newUpdateQueryBuilder()
+        $dbw->newUpdateQueryBuilder()
             ->update(self::TABLE)
             ->set($fields)
             ->where(['content_repo_id' => $id])
@@ -188,7 +182,8 @@ class LabkiRepoRegistry {
      * @return ContentRepoId|null Repository ID if found, null otherwise
      */
     public function getRepoId(string $contentRepoUrl): ?ContentRepoId {
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
+        $row = $dbr->newSelectQueryBuilder()
             ->select('content_repo_id')
             ->from(self::TABLE)
             ->where(['content_repo_url' => $contentRepoUrl])
@@ -227,7 +222,8 @@ class LabkiRepoRegistry {
         }
 
         // Now we have either int or ContentRepoId - fetch the record
-        $row = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
+        $row = $dbr->newSelectQueryBuilder()
             ->select(ContentRepo::FIELDS)
             ->from(self::TABLE)
             ->where([
@@ -247,7 +243,8 @@ class LabkiRepoRegistry {
      * @return array<int,ContentRepo> Array of ContentRepo objects
      */
     public function listRepos(): array {
-        $res = $this->dbr->newSelectQueryBuilder()
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
+        $res = $dbr->newSelectQueryBuilder()
             ->select(ContentRepo::FIELDS)
             ->from(self::TABLE)
             ->orderBy('content_repo_id')
@@ -274,9 +271,10 @@ class LabkiRepoRegistry {
      * @return void
      */
     public function deleteRepo(int|ContentRepoId $repoId): void {
+        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
-        $this->dbw->newDeleteQueryBuilder()
+        $dbw->newDeleteQueryBuilder()
             ->deleteFrom(self::TABLE)
             ->where(['content_repo_id' => $id])
             ->caller(__METHOD__)
