@@ -10,136 +10,203 @@ use WANObjectCache;
 use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Services\HierarchyBuilder;
 use LabkiPackManager\Services\GraphBuilder;
-use LabkiPackManager\Services\LabkiRepoRegistry;
+use LabkiPackManager\Services\ManifestFetcher;
 
 /**
  * ManifestStore
  *
- * Caches full structured manifest data (parsed, hierarchy, and graph) from local worktrees.
- * Cache is retained indefinitely and refreshed only when explicitly requested.
- * Git synchronization is handled by GitContentManager.
+ * Central cache and access layer for parsed manifest data and its derived views.
  *
- * Cached payload structure:
+ * Each ManifestStore instance corresponds to a specific repository URL + ref.
+ * It fetches manifest.yml from the local worktree, parses it, constructs
+ * hierarchy and graph representations, and caches the result indefinitely.
+ *
+ * Cached structure schema (v1):
  * [
- *   'hash' => string,              // SHA1 of manifest.yml contents
- *   'content_repo_url' => string,  // Repository URL
- *   'content_ref' => string,       // Git ref (branch/tag/commit)
- *   'content_ref_name' => string,  // Descriptive name from manifest
- *   'last_parsed_at' => int,       // Timestamp of last parse
- *   'manifest' => array,           // Full parsed manifest data
- *   'pages' => array,              // Page definitions
- *   'hierarchy' => array,          // Pack hierarchy view model
- *   'graph' => array,              // Dependency graph
+ *   'meta' => [
+ *     'schema_version' => 1,
+ *     'hash' => string,
+ *     'repo_url' => string,
+ *     'ref' => string,
+ *     'ref_name' => ?string,
+ *     'parsed_at' => int
+ *   ],
+ *   'manifest' => array,
+ *   'derived' => [
+ *     'hierarchy' => array,
+ *     'graph' => array,
+ *     'stats' => [
+ *        'pack_count' => int,
+ *        'page_count' => int
+ *     ]
+ *   ]
  * ]
  */
-final class ManifestStore {
+class ManifestStore {
 
-    private string $repoUrl;
-    private string $ref;
-    private string $cacheKey;
-    private $cache;
-    private ManifestFetcher $fetcher;
+	private const STORE_SCHEMA_VERSION = 1;
 
-    public function __construct(
-        string $repoUrl,
-        string $ref,
-        ?WANObjectCache $wanObjectCache = null,
-        ?ManifestFetcher $fetcher = null
-    ) {
-        $this->repoUrl = $repoUrl;
-        $this->ref = $ref;
-        $this->cacheKey = 'labki:manifest:' . sha1($repoUrl . ':' . $ref);
-        $this->cache = $wanObjectCache ?? $this->resolveCache();
-        $this->fetcher = $fetcher ?? new ManifestFetcher();
-    }
+	private string $repoUrl;
+	private string $ref;
+	private string $cacheKey;
+	private $cache;
+	private ManifestFetcher $fetcher;
 
-    /**
-     * Retrieve structured manifest data from cache or by parsing the local worktree manifest.
-     *
-     * Git synchronization (fetch/checkout) is handled by GitContentManager before calling this.
-     * This method only handles parsing and caching of the manifest.yml file.
-     *
-     * @param bool $forceRefresh If true, bypass cache and re-parse from disk
-     * @return Status containing structured manifest data or error
-     */
-    public function get(bool $forceRefresh = false): Status {
-        $cached = $this->getCached();
+	public function __construct(
+		string $repoUrl,
+		string $ref,
+		?WANObjectCache $wanObjectCache = null,
+		?ManifestFetcher $fetcher = null
+	) {
+		$this->repoUrl = $repoUrl;
+		$this->ref = $ref;
+		$this->cacheKey = 'labki:manifest:' . sha1($repoUrl . ':' . $ref);
+		$this->cache = $wanObjectCache ?? $this->resolveCache();
+		$this->fetcher = $fetcher ?? new ManifestFetcher();
+	}
 
-        // Return cached data unless refresh is forced
-        if (!$forceRefresh && $cached !== null) {
-            return Status::newGood($cached + ['from_cache' => true]);
-        }
+	/**
+	 * Retrieve or rebuild the structured manifest record.
+	 *
+	 * @param bool $refresh If true, bypass cache and rebuild manifest
+	 * @return Status Structured manifest data or fatal error
+	 */
+	public function get(bool $refresh = false): Status {
+        
+		if (!$refresh) {
+			$cached = $this->cache->get($this->cacheKey);
+			if (is_array($cached) && isset($cached['meta']['schema_version'])) {
+				return Status::newGood($cached + ['from_cache' => true]);
+			}
+		}
 
-        // --- Fetch raw manifest from local worktree ---
-        $fetched = $this->fetcher->fetch($this->repoUrl, $this->ref);
-        if (!$fetched->isOK()) {
-            // Return stale cache if available
-            if ($cached !== null) {
-                wfDebugLog('labkipack', "ManifestStore: fetch failed, returning stale cache for {$this->repoUrl}@{$this->ref}");
-                return Status::newGood($cached + ['stale' => true]);
-            }
-            return $fetched;
-        }
+		// --- Fetch manifest.yml from local worktree ---
+		$fetched = $this->fetcher->fetch($this->repoUrl, $this->ref);
+		if (!$fetched->isOK()) {
+			return $fetched;
+		}
 
-        $manifestYaml = $fetched->getValue();
-        $manifestHash = sha1($manifestYaml);
+		$manifestYaml = $fetched->getValue();
+		$hash = sha1($manifestYaml);
 
-        // --- Parse and structure ---
-        $parser = new ManifestParser();
-        try {
-            $manifestData = $parser->parse($manifestYaml);
-        } catch (\Throwable $e) {
-            wfDebugLog('labkipack', "ManifestStore: parse failed for {$this->repoUrl}@{$this->ref}: " . $e->getMessage());
-            return Status::newFatal('labkipackmanager-error-parse');
-        }
+		// --- Parse and build ---
+		try {
+			$parser = new ManifestParser();
+			$manifest = $parser->parse($manifestYaml);
+		} catch (\Throwable $e) {
+			wfDebugLog('labkipack', "ManifestStore: parse failed for {$this->repoUrl}@{$this->ref}: " . $e->getMessage());
+			return Status::newFatal('labkipackmanager-error-parse');
+		}
 
-        $packs = $manifestData['packs'] ?? [];
-        $pages = $manifestData['pages'] ?? [];
-        $hierarchy = (new HierarchyBuilder())->buildViewModel($packs);
-        $graph = (new GraphBuilder())->build($packs);
+		$packs = $manifest['packs'] ?? [];
+		$pages = $manifest['pages'] ?? [];
 
-        $name = isset($manifestData['name']) && is_string($manifestData['name']) ? $manifestData['name'] : null;
+		$hierarchy = (new HierarchyBuilder())->build($manifest);
+		$graph = (new GraphBuilder())->build($packs);
 
-        $data = [
-            'hash' => $manifestHash,
-            'content_repo_url' => $this->repoUrl,
-            'content_ref' => $this->ref,
-            'last_parsed_at' => \wfTimestampNow(),
-            'content_ref_name' => $name,
-            'manifest' => $manifestData,
-            'pages' => $pages,
-            'hierarchy' => $hierarchy,
-            'graph' => $graph,
-        ];
+		$data = [
+			'meta' => [
+				'schema_version' => self::STORE_SCHEMA_VERSION,
+				'hash' => $hash,
+				'repo_url' => $this->repoUrl,
+				'ref' => $this->ref,
+				'ref_name' => $manifest['name'] ?? null,
+				'parsed_at' => wfTimestampNow()
+			],
+			'manifest' => $manifest,
+			'derived' => [
+				'hierarchy' => $hierarchy,
+				'graph' => $graph,
+				'stats' => [
+					'pack_count' => count($packs),
+					'page_count' => count($pages)
+				]
+			]
+		];
 
-        $this->save($data);
-        wfDebugLog('labkipack', "ManifestStore: cached new manifest for {$this->repoUrl}@{$this->ref} (hash={$manifestHash})");
-        return Status::newGood($data + ['from_cache' => false]);
-    }
+		$this->cache->set($this->cacheKey, $data, WANObjectCache::TTL_INDEFINITE);
+		wfDebugLog('labkipack', "ManifestStore: cached new manifest for {$this->repoUrl}@{$this->ref} (hash={$hash})");
 
-    private function getCached(): ?array {
-        $val = $this->cache->get($this->cacheKey);
-        return is_array($val) && isset($val['manifest']) ? $val : null;
-    }
+		return Status::newGood($data + ['from_cache' => false]);
+	}
 
-    private function save(array $data): void {
-        $this->cache->set($this->cacheKey, $data, WANObjectCache::TTL_INDEFINITE);
-    }
+	/**
+	 * Get manifest data + meta.
+	 *
+	 * @param bool $refresh If true, rebuild before returning
+	 * @return Status Manifest data or fatal error
+	 */
+	public function getManifest(bool $refresh = false): Status {
+		$status = $this->get($refresh);
+		if (!$status->isOK()) {
+			return $status;
+		}
+		$data = $status->getValue();
+		return Status::newGood([
+			'meta' => $data['meta'],
+			'manifest' => $data['manifest'],
+			'from_cache' => $data['from_cache']
+		]);
+	}
 
-    public function clear(): void {
-        $this->cache->delete($this->cacheKey);
-    }
+	/**
+	 * Get hierarchy data + meta.
+	 *
+	 * @param bool $refresh If true, rebuild before returning
+	 * @return Status Hierarchy data or fatal error
+	 */
+	public function getHierarchy(bool $refresh = false): Status {
+		$status = $this->get($refresh);
+		if (!$status->isOK()) {
+			return $status;
+		}
+		$data = $status->getValue();
+		return Status::newGood([
+			'meta' => $data['meta'],
+			'hierarchy' => $data['derived']['hierarchy'],
+			'from_cache' => $data['from_cache']
+		]);
+	}
 
-    private function resolveCache() {
-        try {
-            return MediaWikiServices::getInstance()->getMainWANObjectCache();
-        } catch (\Throwable $e) {
-            return new class() {
-                private array $store = [];
-                public function get(string $key) { return $this->store[$key] ?? null; }
-                public function set(string $key, $value, int $ttl): void { $this->store[$key] = $value; }
-                public function delete(string $key): void { unset($this->store[$key]); }
-            };
-        }
-    }
+	/**
+	 * Get graph data + meta.
+	 *
+	 * @param bool $refresh If true, rebuild before returning
+	 * @return Status Graph data or fatal error
+	 */
+	public function getGraph(bool $refresh = false): Status {
+		$status = $this->get($refresh);
+		if (!$status->isOK()) {
+			return $status;
+		}
+		$data = $status->getValue();
+		return Status::newGood([
+			'meta' => $data['meta'],
+			'graph' => $data['derived']['graph'],
+			'from_cache' => $data['from_cache']
+		]);
+	}
+
+	/**
+	 * Clear cached manifest.
+	 */
+	public function clear(): void {
+		$this->cache->delete($this->cacheKey);
+	}
+
+	/**
+	 * Resolve a WANObjectCache or use lightweight fallback.
+	 */
+	private function resolveCache() {
+		try {
+			return MediaWikiServices::getInstance()->getMainWANObjectCache();
+		} catch (\Throwable $e) {
+			return new class() {
+				private array $store = [];
+				public function get(string $key) { return $this->store[$key] ?? null; }
+				public function set(string $key, $value, int $ttl): void { $this->store[$key] = $value; }
+				public function delete(string $key): void { unset($this->store[$key]); }
+			};
+		}
+	}
 }

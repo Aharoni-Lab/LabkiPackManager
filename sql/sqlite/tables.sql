@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS labki_page (
 );
 
 -- ===========================================================
+--  labki_pack_dependency: track pack dependencies as installed
+-- ===========================================================
+CREATE TABLE IF NOT EXISTS labki_pack_dependency (
+  pack_id INTEGER NOT NULL,              -- The dependent pack
+  depends_on_pack_id INTEGER NOT NULL,   -- The pack it depends on
+  created_at INTEGER NOT NULL,           -- When this dependency was recorded
+  PRIMARY KEY (pack_id, depends_on_pack_id),
+  FOREIGN KEY (pack_id) 
+    REFERENCES labki_pack (pack_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  FOREIGN KEY (depends_on_pack_id) 
+    REFERENCES labki_pack (pack_id)
+    ON DELETE RESTRICT  -- Prevents deletion if other packs depend on it
+    ON UPDATE CASCADE
+);
+
+-- ===========================================================
 --  Helpful indexes
 -- ===========================================================
 
@@ -91,6 +109,7 @@ CREATE INDEX idx_labki_pack_ref            ON labki_pack (content_ref_id);
 CREATE INDEX idx_labki_page_pack           ON labki_page (pack_id);
 CREATE INDEX idx_labki_page_final_title    ON labki_page (final_title);
 CREATE INDEX idx_labki_page_wiki_page_id   ON labki_page (wiki_page_id);
+CREATE INDEX idx_labki_pack_dependency_depends_on ON labki_pack_dependency (depends_on_pack_id);
 
 -- Performance and metadata indexes
 CREATE INDEX idx_labki_repo_url            ON labki_content_repo (content_repo_url);
@@ -100,3 +119,33 @@ CREATE INDEX idx_labki_repo_last_fetched   ON labki_content_repo (last_fetched);
 CREATE INDEX idx_labki_ref_source_ref      ON labki_content_ref (source_ref);
 CREATE INDEX idx_labki_ref_last_commit     ON labki_content_ref (last_commit);
 CREATE INDEX idx_labki_ref_manifest_hash   ON labki_content_ref (manifest_hash);
+
+-- ===========================================================
+--  labki_operations: track background job and API operations
+--  Domain: Operation (OperationId)
+-- ===========================================================
+CREATE TABLE IF NOT EXISTS labki_operations (
+  operation_id     TEXT PRIMARY KEY,                  -- unique identifier (e.g., repo_add_abc123)
+  operation_type   TEXT NOT NULL,                     -- e.g., 'repo_add', 'repo_sync'
+  status           TEXT NOT NULL DEFAULT 'queued',    -- queued | running | success | failed
+  progress         INTEGER DEFAULT 0,                 -- optional percentage 0–100
+  message          TEXT DEFAULT '',                   -- short human-readable message
+  result_data      TEXT DEFAULT NULL,                 -- optional JSON payload or result metadata
+  user_id          INTEGER DEFAULT 0,                 -- initiator user
+  created_at       INTEGER NOT NULL,                  -- when operation was created
+  started_at       INTEGER,                           -- when operation started executing
+  updated_at       INTEGER NOT NULL,                  -- last update timestamp
+  FOREIGN KEY (user_id) REFERENCES user (user_id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE
+);
+
+-- Helpful indexes
+CREATE INDEX IF NOT EXISTS idx_labki_operations_status
+  ON labki_operations (status);
+CREATE INDEX IF NOT EXISTS idx_labki_operations_type
+  ON labki_operations (operation_type);
+CREATE INDEX IF NOT EXISTS idx_labki_operations_user
+  ON labki_operations (user_id);
+CREATE INDEX IF NOT EXISTS idx_labki_operations_updated
+  ON labki_operations (updated_at);

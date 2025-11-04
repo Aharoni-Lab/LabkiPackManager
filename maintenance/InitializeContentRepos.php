@@ -131,7 +131,7 @@ class InitializeContentRepos extends Maintenance {
                 wfDebugLog('labkipack', "Bare repo ready at {$barePath}");
 
                 // Verify repository was registered
-                $repoId = $repoRegistry->getRepoIdByUrl($repoUrl);
+                $repoId = $repoRegistry->getRepoId($repoUrl);
                 if ($repoId === null) {
                     throw new \RuntimeException("Repository not found in DB after ensureBareRepo");
                 }

@@ -3,7 +3,7 @@ set -euo pipefail
 
 #
 # LabkiPackManager — MediaWiki test environment reset script (SQLite)
-# with working log mount and verified debug log output
+# with working log mount, dedicated jobrunner, and verified debug log output
 #
 
 # --- CONFIG ---
@@ -75,11 +75,20 @@ echo "==> Preparing host log directory..."
 mkdir -p "$LOG_DIR"
 chmod 777 "$LOG_DIR"
 
-echo "==> Setting up docker-compose.override.yml for extension + logs..."
+echo "==> Setting up docker-compose.override.yml for extension + logs + jobrunner..."
 cat > "$MW_DIR/docker-compose.override.yml" <<EOF
 services:
   mediawiki:
     user: "$(id -u):$(id -g)"
+    volumes:
+      - $EXT_DIR:/var/www/html/w/extensions/LabkiPackManager:cached
+      - $LOG_DIR:$CONTAINER_LOG_PATH
+
+  mediawiki-jobrunner:
+    # Don't override image - use base docker-compose.yml's jobrunner image
+    user: "$(id -u):$(id -g)"
+    # Restrict to only LabkiPackManager jobs
+    command: ["php", "maintenance/runJobs.php", "--wait", "--type=labkiRepoAdd", "--type=labkiRepoSync", "--type=labkiRepoRemove", "--type=labkiPackApply"]
     volumes:
       - $EXT_DIR:/var/www/html/w/extensions/LabkiPackManager:cached
       - $LOG_DIR:$CONTAINER_LOG_PATH
@@ -117,11 +126,42 @@ docker compose exec -T mediawiki bash -lc "
     echo 'wfLoadExtension( \"Mermaid\" );'
     echo '\$wgLabkiEnableDBViewer = true;'
     echo '\$wgDebugLogGroups[\"labkipack\"] = \"$CONTAINER_LOG_FILE\";'
+    echo ''
+    echo '// Set cache directory to shared volume (accessible to jobrunner)'
+    echo '\$wgCacheDirectory = \"\$IP/cache\";'
+  } >> $CONTAINER_WIKI_PATH/LocalSettings.php
+"
+
+echo "==> Configuring job queue for LabkiPackManager..."
+docker compose exec -T mediawiki bash -lc "
+  {
+    echo ''
+    echo '// === Job Queue Configuration ==='
+    echo '// Disable job execution on web requests - jobs only run via maintenance/run.php (jobrunner)'
+    echo '\$wgJobRunRate = 0;'
+    echo ''
+    echo '// Optional: Enable job queue logging for debugging'
+    echo '\$wgDebugLogGroups[\"jobqueue\"] = \"$CONTAINER_LOG_PATH/jobqueue.log\";'
+    echo '\$wgDebugLogGroups[\"runJobs\"] = \"$CONTAINER_LOG_PATH/runJobs.log\";'
   } >> $CONTAINER_WIKI_PATH/LocalSettings.php
 "
 
 echo "==> Running updater..."
 docker compose exec -T mediawiki php maintenance/update.php --quick
+
+echo "==> Migrating labki repos to shared cache directory..."
+docker compose exec -T mediawiki bash -lc "
+  # Move any existing repos from /tmp to shared cache
+  if [ -d /tmp/my_wiki/labki-content-repos ]; then
+    echo 'Found repos in /tmp, moving to shared cache...'
+    mkdir -p $CONTAINER_WIKI_PATH/cache/labki-content-repos
+    cp -r /tmp/my_wiki/labki-content-repos/* $CONTAINER_WIKI_PATH/cache/labki-content-repos/ 2>/dev/null || true
+    rm -rf /tmp/my_wiki/labki-content-repos
+    echo 'Migration complete'
+  else
+    echo 'No repos to migrate'
+  fi
+"
 
 echo "==> Sanity check..."
 docker compose exec -T mediawiki tail -n 5 $CONTAINER_WIKI_PATH/LocalSettings.php
@@ -135,12 +175,36 @@ define('MW_INSTALL_PATH', '/var/www/html/w');
 \$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 require_once MW_INSTALL_PATH . '/includes/WebStart.php';
 wfDebugLog('labkipack', 'Reset complete – test entry at ' . date('H:i:s'));
-echo \"OK\n\";
-"
+echo \"OK\n\";"
 docker compose exec -T mediawiki tail -n 5 $CONTAINER_LOG_FILE || true
 
+echo
+echo "==> Restarting jobrunner to ensure it picks up configuration..."
+docker compose restart mediawiki-jobrunner
+sleep 3
+
+echo
+echo "==> Verifying jobrunner is running..."
+docker compose ps mediawiki-jobrunner
+docker compose top mediawiki-jobrunner | grep runJobs || echo "Warning: runJobs process not found"
+
+echo
+echo "==> Verifying jobrunner can access repos..."
+if docker compose exec -T mediawiki-jobrunner test -d /var/www/html/w/cache/labki-content-repos 2>/dev/null; then
+  echo "✓ Jobrunner can access labki-content-repos"
+  docker compose exec -T mediawiki-jobrunner ls -la /var/www/html/w/cache/labki-content-repos/ 2>/dev/null || true
+else
+  echo "✓ No repos yet (will be created on first use)"
+fi
+
+echo
+echo "==> Checking recent jobrunner activity..."
+docker compose logs --tail 10 mediawiki-jobrunner
 
 echo
 echo "==> All done!"
 echo "Visit: http://localhost:$MW_PORT/w"
-echo "Logs:  $LOG_DIR/labkipack.log (auto-updating via Docker volume)"
+echo "Logs:  $LOG_DIR/labkipack.log"
+echo "Monitor jobrunner: docker compose logs -f mediawiki-jobrunner"
+echo
+echo "Note: Git repos are now stored in cache/labki-content-repos/ (shared with jobrunner)"

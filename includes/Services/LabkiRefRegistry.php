@@ -217,17 +217,17 @@ class LabkiRefRegistry {
     /**
      * List all refs for a given repository.
      *
-     * @param int|ContentRepoId $repoId Parent repository ID
+     * @param int|string|ContentRepoId|ContentRepo $identifier Parent repository ID, URL, or ContentRepo object
      * @return array<int,ContentRef>
      */
-    public function listRefsForRepo(int|ContentRepoId $repoId): array {
+    public function listRefsForRepo(int|string|ContentRepoId|ContentRepo $identifier): array {
+        $repoId = $this->resolveRepoId($identifier);
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
-        $repoIdInt = $repoId instanceof ContentRepoId ? $repoId->toInt() : (int) $repoId;
 
         $res = $dbr->newSelectQueryBuilder()
             ->select(ContentRef::FIELDS)
             ->from(self::TABLE)
-            ->where(['content_repo_id' => $repoIdInt])
+            ->where(['content_repo_id' => $repoId])
             ->orderBy('source_ref')
             ->caller(__METHOD__)
             ->fetchResultSet();
@@ -275,24 +275,17 @@ class LabkiRefRegistry {
      * @return int Repo ID
      * @throws RuntimeException if repo cannot be resolved
      */
-    private function resolveRepoId(int|string|ContentRepoId $contentRepoIdentifier): int {
-        if ($contentRepoIdentifier instanceof ContentRepoId) {
-            return $contentRepoIdentifier->toInt();
+    private function resolveRepoId(int|string|ContentRepoId|ContentRepo $identifier): int {
+        $repoId = match(true) {
+            $identifier instanceof ContentRepo => $identifier->id()->toInt(),
+            $identifier instanceof ContentRepoId => $identifier->toInt(),
+            is_int($identifier) => $identifier,
+            is_string($identifier) => $this->repoRegistry->getRepoId($identifier)->toInt(),
+        };
+        if ($repoId === null) {
+            throw new \RuntimeException("Repository not found for identifier: {$identifier}");
         }
-
-        if (is_int($contentRepoIdentifier)) {
-            return $contentRepoIdentifier;
-        }
-
-        if (is_string($contentRepoIdentifier)) {
-            $repoId = $this->repoRegistry->getRepoIdByUrl($contentRepoIdentifier)->toInt();
-            if ($repoId === null) {
-                throw new \RuntimeException("Repository not found for URL: {$contentRepoIdentifier}");
-            }
-            return $repoId;
-        }
-
-        throw new \InvalidArgumentException('Invalid contentRepoIdentifier type.');
+        return $repoId;
     }
 
 }

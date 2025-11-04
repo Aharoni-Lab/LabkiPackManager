@@ -37,7 +37,7 @@ YAML;
         $parser = new ManifestParser();
         $parsed = $parser->parse($yaml);
 
-        // Top-level structure
+        // Top-level checks
         $this->assertIsArray($parsed);
         $this->assertArrayHasKey('schema_version', $parsed);
         $this->assertArrayHasKey('packs', $parsed);
@@ -45,21 +45,25 @@ YAML;
 
         $packs = $parsed['packs'];
         $this->assertCount(2, $packs);
+        $this->assertArrayHasKey('publication', $packs);
+        $this->assertArrayHasKey('onboarding', $packs);
 
-        // First pack
-        $this->assertSame('publication', $packs[0]['id']);
-        $this->assertSame('1.0.0', $packs[0]['version']);
-        $this->assertSame('Templates and forms for managing publications', $packs[0]['description']);
-        $this->assertSame(['MainPage', 'SubPage'], $packs[0]['pages']);
-        $this->assertSame(2, $packs[0]['page_count']);
-        $this->assertSame(['core'], $packs[0]['depends_on']);
-        $this->assertSame(['standard', 'forms'], $packs[0]['tags']);
+        // publication pack
+        $pub = $packs['publication'];
+        $this->assertSame('publication', $pub['id']);
+        $this->assertSame('1.0.0', $pub['version']);
+        $this->assertSame('Templates and forms for managing publications', $pub['description']);
+        $this->assertSame(['MainPage', 'SubPage'], $pub['pages']);
+        $this->assertSame(2, $pub['page_count']);
+        $this->assertSame(['core'], $pub['depends_on']);
+        $this->assertSame(['standard', 'forms'], $pub['tags']);
 
-        // Second pack
-        $this->assertSame('onboarding', $packs[1]['id']);
-        $this->assertSame('1.1.0', $packs[1]['version']);
-        $this->assertSame(['Intro', 'Checklist'], $packs[1]['pages']);
-        $this->assertSame(2, $packs[1]['page_count']);
+        // onboarding pack
+        $onboard = $packs['onboarding'];
+        $this->assertSame('onboarding', $onboard['id']);
+        $this->assertSame('1.1.0', $onboard['version']);
+        $this->assertSame(['Intro', 'Checklist'], $onboard['pages']);
+        $this->assertSame(2, $onboard['page_count']);
     }
 
     /**
@@ -74,7 +78,7 @@ YAML;
 
         $parser = new ManifestParser();
         $parsed = $parser->parse($yaml);
-        $pack = $parsed['packs'][0];
+        $pack = $parsed['packs']['empty-pack'];
 
         $this->assertSame('empty-pack', $pack['id']);
         $this->assertSame('', $pack['version']);
@@ -129,8 +133,9 @@ YAML;
         $packs = $parsed['packs'];
 
         $this->assertCount(1, $packs);
-        $this->assertSame('good-pack', $packs[0]['id']);
-        $this->assertSame('0.1.0', $packs[0]['version']);
+        $this->assertArrayHasKey('good-pack', $packs);
+        $this->assertSame('good-pack', $packs['good-pack']['id']);
+        $this->assertSame('0.1.0', $packs['good-pack']['version']);
     }
 
     /**
@@ -148,12 +153,11 @@ YAML;
 
         $parser = new ManifestParser();
         $parsed = $parser->parse($yaml);
-        $pack = $parsed['packs'][0];
+        $pack = $parsed['packs']['test'];
 
         $this->assertSame(['A', 'B'], $pack['pages']);
         $this->assertSame(['X', 'Y'], $pack['depends_on']);
         $this->assertSame([], $pack['tags']);
-        // page_count reflects normalized page list length
         $this->assertSame(2, $pack['page_count']);
     }
 
@@ -169,10 +173,12 @@ YAML;
 
         $parser = new ManifestParser();
         $parsed = $parser->parse($yaml);
+
         $this->assertArrayHasKey('schema_version', $parsed);
         $this->assertSame('', $parsed['schema_version']);
         $this->assertCount(1, $parsed['packs']);
-        $this->assertSame('only-pack', $parsed['packs'][0]['id']);
+        $this->assertArrayHasKey('only-pack', $parsed['packs']);
+        $this->assertSame('only-pack', $parsed['packs']['only-pack']['id']);
     }
 
     /**
@@ -200,8 +206,10 @@ YAML;
         $parser = new ManifestParser();
         $parsed = $parser->parse($yaml);
         $packs = $parsed['packs'];
+
         $this->assertCount(1, $packs);
-        $this->assertSame('valid', $packs[0]['id']);
-        $this->assertSame('0.2.0', $packs[0]['version']);
+        $this->assertArrayHasKey('valid', $packs);
+        $this->assertSame('valid', $packs['valid']['id']);
+        $this->assertSame('0.2.0', $packs['valid']['version']);
     }
 }

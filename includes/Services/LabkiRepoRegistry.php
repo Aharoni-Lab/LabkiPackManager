@@ -57,7 +57,7 @@ class LabkiRepoRegistry {
         wfDebugLog('labkipack', "ensureRepoEntry() called for {$contentRepoUrl}");
 
         // Check if repo already exists
-        $existingId = $this->getRepoIdByUrl($contentRepoUrl);
+        $existingId = $this->getRepoId($contentRepoUrl);
         if ($existingId !== null) {
             wfDebugLog('labkipack', "ensureRepoEntry(): found existing repo (ID={$existingId->toInt()}) → updating");
             $this->updateRepoEntry($existingId, $extraFields);
@@ -161,7 +161,7 @@ class LabkiRepoRegistry {
      * @param string $contentRepoUrl Repository URL to look up
      * @return ContentRepoId|null Repository ID if found, null otherwise
      */
-    public function getRepoIdByUrl(string $contentRepoUrl): ?ContentRepoId {
+    public function getRepoId(string $contentRepoUrl): ?ContentRepoId {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
 
         $row = $dbr->newSelectQueryBuilder()
@@ -175,20 +175,40 @@ class LabkiRepoRegistry {
     }
 
     /**
-     * Fetch a complete repository record by ID.
+     * Fetch a complete repository record by ID, URL, or ContentRepoId object.
      *
-     * Returns a ContentRepo domain object with all repository metadata.
+     * This is a flexible lookup method that accepts multiple identifier types:
+     * - int: Treated as repository ID
+     * - ContentRepoId: Treated as repository ID
+     * - string: Treated as repository URL (should be normalized)
      *
-     * @param int|ContentRepoId $repoId Repository ID to fetch
+     * Examples:
+     * ```php
+     * $repo = $registry->getRepo(1);                                    // By int ID
+     * $repo = $registry->getRepo(new ContentRepoId(1));                 // By ContentRepoId
+     * $repo = $registry->getRepo('https://github.com/user/repo');       // By URL
+     * ```
+     *
+     * @param int|ContentRepoId|string $identifier Repository identifier (ID or URL)
      * @return ContentRepo|null Repository object if found, null otherwise
      */
-    public function getRepoById(int|ContentRepoId $repoId): ?ContentRepo {
+    public function getRepo(int|ContentRepoId|string $identifier): ?ContentRepo {
+        // Handle string (URL) - look up ID first
+        if (is_string($identifier)) {
+            $repoId = $this->getRepoId($identifier);
+            if ($repoId === null) {
+                return null;
+            }
+            $identifier = $repoId;
+        }
+
+        // Now we have either int or ContentRepoId - fetch the record
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
         $row = $dbr->newSelectQueryBuilder()
             ->select(ContentRepo::FIELDS)
             ->from(self::TABLE)
             ->where([
-                'content_repo_id' => $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId,
+                'content_repo_id' => $identifier instanceof ContentRepoId ? $identifier->toInt() : $identifier,
             ])
             ->caller(__METHOD__)
             ->fetchRow();
