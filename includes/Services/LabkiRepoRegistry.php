@@ -8,6 +8,7 @@ use LabkiPackManager\Domain\ContentRepo;
 use LabkiPackManager\Domain\ContentRepoId;
 use MediaWiki\MediaWikiServices;
 use RuntimeException;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * LabkiRepoRegistry
@@ -35,6 +36,30 @@ use RuntimeException;
 class LabkiRepoRegistry {
     private const TABLE = 'labki_content_repo';
 
+    private IDatabase $dbw;
+    private IDatabase $dbr;
+
+    public function __construct() {
+        $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
+        $this->dbw = $lb->getConnection( DB_PRIMARY );
+        $this->dbr = $lb->getConnection( DB_REPLICA );
+    }
+
+    /**
+     * Convert timestamp fields to database format.
+     * @param array<string,mixed> $fields
+     * @return array<string,mixed>
+     */
+    private function convertTimestamps( array $fields ): array {
+        $timestampFields = [ 'created_at', 'updated_at', 'last_fetched' ];
+        foreach ( $timestampFields as $field ) {
+            if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
+                $fields[$field] = $this->dbw->timestamp( $fields[$field] );
+            }
+        }
+        return $fields;
+    }
+
     /**
      * Ensure a repository entry exists (create or update) and return its ID.
      *
@@ -52,8 +77,6 @@ class LabkiRepoRegistry {
         string $contentRepoUrl,
         array $extraFields = []
     ): ContentRepoId {
-        $now = \wfTimestampNow();
-
         wfDebugLog('labkipack', "ensureRepoEntry() called for {$contentRepoUrl}");
 
         // Check if repo already exists
@@ -90,11 +113,9 @@ class LabkiRepoRegistry {
         string $contentRepoUrl,
         array $extraFields = []
     ): ContentRepoId {
-        $now = \wfTimestampNow();
-
         wfDebugLog('labkipack', "addRepoEntry() inserting {$contentRepoUrl}");
 
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
+        $now = \wfTimestampNow();
 
         $row = array_merge([
             'content_repo_url'  => $contentRepoUrl,
@@ -104,15 +125,18 @@ class LabkiRepoRegistry {
             'created_at'        => $now,
             'updated_at'        => $now,
         ], $extraFields);
+        
+        // Convert timestamps to DB format
+        $row = $this->convertTimestamps( $row );
 
         try {
-            $dbw->newInsertQueryBuilder()
+            $this->dbw->newInsertQueryBuilder()
                 ->insertInto(self::TABLE)
                 ->row($row)
                 ->caller(__METHOD__)
                 ->execute();
 
-            $newId = (int)$dbw->insertId();
+            $newId = (int)$this->dbw->insertId();
             wfDebugLog('labkipack', "addRepoEntry(): created new repo entry (ID={$newId}) for {$contentRepoUrl}");
             return new ContentRepoId($newId);
 
@@ -137,12 +161,14 @@ class LabkiRepoRegistry {
             return; // nothing to update
         }
 
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
         $fields['updated_at'] = $fields['updated_at'] ?? \wfTimestampNow();
+        
+        // Convert timestamps to DB format
+        $fields = $this->convertTimestamps( $fields );
 
-        $dbw->newUpdateQueryBuilder()
+        $this->dbw->newUpdateQueryBuilder()
             ->update(self::TABLE)
             ->set($fields)
             ->where(['content_repo_id' => $id])
@@ -162,9 +188,7 @@ class LabkiRepoRegistry {
      * @return ContentRepoId|null Repository ID if found, null otherwise
      */
     public function getRepoId(string $contentRepoUrl): ?ContentRepoId {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
-
-        $row = $dbr->newSelectQueryBuilder()
+        $row = $this->dbr->newSelectQueryBuilder()
             ->select('content_repo_id')
             ->from(self::TABLE)
             ->where(['content_repo_url' => $contentRepoUrl])
@@ -203,8 +227,7 @@ class LabkiRepoRegistry {
         }
 
         // Now we have either int or ContentRepoId - fetch the record
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
-        $row = $dbr->newSelectQueryBuilder()
+        $row = $this->dbr->newSelectQueryBuilder()
             ->select(ContentRepo::FIELDS)
             ->from(self::TABLE)
             ->where([
@@ -224,8 +247,7 @@ class LabkiRepoRegistry {
      * @return array<int,ContentRepo> Array of ContentRepo objects
      */
     public function listRepos(): array {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
-        $res = $dbr->newSelectQueryBuilder()
+        $res = $this->dbr->newSelectQueryBuilder()
             ->select(ContentRepo::FIELDS)
             ->from(self::TABLE)
             ->orderBy('content_repo_id')
@@ -252,10 +274,9 @@ class LabkiRepoRegistry {
      * @return void
      */
     public function deleteRepo(int|ContentRepoId $repoId): void {
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
-        $dbw->newDeleteQueryBuilder()
+        $this->dbw->newDeleteQueryBuilder()
             ->deleteFrom(self::TABLE)
             ->where(['content_repo_id' => $id])
             ->caller(__METHOD__)

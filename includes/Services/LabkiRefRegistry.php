@@ -6,9 +6,11 @@ namespace LabkiPackManager\Services;
 
 use LabkiPackManager\Domain\ContentRef;
 use LabkiPackManager\Domain\ContentRefId;
+use LabkiPackManager\Domain\ContentRepo;
 use LabkiPackManager\Domain\ContentRepoId;
 use MediaWiki\MediaWikiServices;
 use LabkiPackManager\Services\LabkiRepoRegistry;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * LabkiRefRegistry
@@ -36,11 +38,33 @@ use LabkiPackManager\Services\LabkiRepoRegistry;
  */
 class LabkiRefRegistry {
     private const TABLE = 'labki_content_ref';
+
+    private IDatabase $dbw;
+    private IDatabase $dbr;
     private LabkiRepoRegistry $repoRegistry;
 
     public function __construct(?LabkiRepoRegistry $repoRegistry = null) {
+        $lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
+        $this->dbw = $lb->getConnection( DB_PRIMARY );
+        $this->dbr = $lb->getConnection( DB_REPLICA );
         $this->repoRegistry = $repoRegistry ?? new LabkiRepoRegistry();
     }
+
+    /**
+     * Convert timestamp fields to database format.
+     * @param array<string,mixed> $fields
+     * @return array<string,mixed>
+     */
+    private function convertTimestamps( array $fields ): array {
+        $timestampFields = [ 'created_at', 'updated_at', 'manifest_last_parsed' ];
+        foreach ( $timestampFields as $field ) {
+            if ( isset( $fields[$field] ) && $fields[$field] !== null ) {
+                $fields[$field] = $this->dbw->timestamp( $fields[$field] );
+            }
+        }
+        return $fields;
+    }
+
     /**
      * Ensure a ref entry exists (create or update) for a given repo + ref.
      *
@@ -62,8 +86,6 @@ class LabkiRefRegistry {
     ): ContentRefId {
 
         $repoId = $this->resolveRepoId($contentRepoIdentifier);
-
-        $now = \wfTimestampNow();
 
         wfDebugLog('labkipack', "ensureRefEntry() called for repo={$repoId} ref={$sourceRef}");
 
@@ -104,11 +126,9 @@ class LabkiRefRegistry {
         string $sourceRef,
         array $extraFields = []
     ): ContentRefId {
-        $now = \wfTimestampNow();
-
         wfDebugLog('labkipack', "addRefEntry() inserting repo={$repoId} ref={$sourceRef}");
 
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
+        $now = \wfTimestampNow();
 
         $row = array_merge([
             'content_repo_id'      => $repoId,
@@ -120,15 +140,18 @@ class LabkiRefRegistry {
             'created_at'           => $now,
             'updated_at'           => $now,
         ], $extraFields);
+        
+        // Convert timestamps to DB format
+        $row = $this->convertTimestamps( $row );
 
         try {
-            $dbw->newInsertQueryBuilder()
+            $this->dbw->newInsertQueryBuilder()
                 ->insertInto(self::TABLE)
                 ->row($row)
                 ->caller(__METHOD__)
                 ->execute();
 
-            $newId = (int) $dbw->insertId();
+            $newId = (int) $this->dbw->insertId();
             wfDebugLog('labkipack', "addRefEntry(): created new ref (ID={$newId}) for repo={$repoId}@{$sourceRef}");
             return new ContentRefId($newId);
 
@@ -149,12 +172,14 @@ class LabkiRefRegistry {
             return; // nothing to update
         }
 
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $refId instanceof ContentRefId ? $refId->toInt() : (int) $refId;
 
         $fields['updated_at'] = $fields['updated_at'] ?? \wfTimestampNow();
+        
+        // Convert timestamps to DB format
+        $fields = $this->convertTimestamps( $fields );
 
-        $dbw->newUpdateQueryBuilder()
+        $this->dbw->newUpdateQueryBuilder()
             ->update(self::TABLE)
             ->set($fields)
             ->where(['content_ref_id' => $id])
@@ -176,9 +201,8 @@ class LabkiRefRegistry {
     public function getRefIdByRepoAndRef(int|string|ContentRepoId $contentRepoIdentifier, string $sourceRef): ?ContentRefId {
         $repoId = $this->resolveRepoId($contentRepoIdentifier);
         wfDebugLog('labkipack', "getRefIdByRepoAndRef() repoId={$repoId} ref={$sourceRef}");
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
 
-        $row = $dbr->newSelectQueryBuilder()
+        $row = $this->dbr->newSelectQueryBuilder()
             ->select('content_ref_id')
             ->from(self::TABLE)
             ->where([
@@ -201,10 +225,9 @@ class LabkiRefRegistry {
      * Fetch a ref record by ID.
      */
     public function getRefById(int|ContentRefId $refId): ?ContentRef {
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
         $id = $refId instanceof ContentRefId ? $refId->toInt() : (int) $refId;
 
-        $row = $dbr->newSelectQueryBuilder()
+        $row = $this->dbr->newSelectQueryBuilder()
             ->select(ContentRef::FIELDS)
             ->from(self::TABLE)
             ->where(['content_ref_id' => $id])
@@ -222,9 +245,8 @@ class LabkiRefRegistry {
      */
     public function listRefsForRepo(int|string|ContentRepoId|ContentRepo $identifier): array {
         $repoId = $this->resolveRepoId($identifier);
-        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_REPLICA);
 
-        $res = $dbr->newSelectQueryBuilder()
+        $res = $this->dbr->newSelectQueryBuilder()
             ->select(ContentRef::FIELDS)
             ->from(self::TABLE)
             ->where(['content_repo_id' => $repoId])
@@ -244,10 +266,9 @@ class LabkiRefRegistry {
      * Delete a ref entry (cascade removes packs/pages under it).
      */
     public function deleteRef(int|ContentRefId $refId): void {
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $refId instanceof ContentRefId ? $refId->toInt() : (int) $refId;
 
-        $dbw->newDeleteQueryBuilder()
+        $this->dbw->newDeleteQueryBuilder()
             ->deleteFrom(self::TABLE)
             ->where(['content_ref_id' => $id])
             ->caller(__METHOD__)

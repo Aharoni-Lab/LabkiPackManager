@@ -73,7 +73,7 @@ final class LabkiOperationRegistry {
         string $status = Operation::STATUS_QUEUED,
         string $message = ''
     ): void {
-        $now = wfTimestampNow();
+        $now = $this->dbw->timestamp( wfTimestampNow() );
         $this->dbw->insert( Operation::TABLE, [
             'operation_id' => $operationId->toString(),
             'operation_type' => $type,
@@ -107,7 +107,7 @@ final class LabkiOperationRegistry {
     ): void {
         $row = [
             'status' => $status,
-            'updated_at' => wfTimestampNow(),
+            'updated_at' => $this->dbw->timestamp( wfTimestampNow() ),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
@@ -137,10 +137,11 @@ final class LabkiOperationRegistry {
      * @return void
      */
     public function startOperation( OperationId $operationId, ?string $message = null ): void {
+        $now = $this->dbw->timestamp( wfTimestampNow() );
         $row = [
             'status' => Operation::STATUS_RUNNING,
-            'started_at' => wfTimestampNow(),
-            'updated_at' => wfTimestampNow(),
+            'started_at' => $now,
+            'updated_at' => $now,
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
