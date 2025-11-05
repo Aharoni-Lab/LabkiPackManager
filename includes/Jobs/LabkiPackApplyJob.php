@@ -72,24 +72,38 @@ final class LabkiPackApplyJob extends Job {
 		$operationRegistry = new LabkiOperationRegistry();
 		$packManager = new LabkiPackManager();
 
-		$refIdInt = (int)( $this->params['ref_id']);
+		// Basic validation - all parameters are required
+		if ( !isset( $this->params['ref_id'] ) ) {
+			wfDebugLog( 'labkipack', "LabkiPackApplyJob: missing required parameter 'ref_id'" );
+			return false;
+		}
+		if ( !isset( $this->params['operations'] ) ) {
+			wfDebugLog( 'labkipack', "LabkiPackApplyJob: missing required parameter 'operations'" );
+			return false;
+		}
+		if ( !isset( $this->params['operation_id'] ) ) {
+			wfDebugLog( 'labkipack', "LabkiPackApplyJob: missing required parameter 'operation_id'" );
+			return false;
+		}
+		if ( !isset( $this->params['user_id'] ) ) {
+			wfDebugLog( 'labkipack', "LabkiPackApplyJob: missing required parameter 'user_id'" );
+			return false;
+		}
+
+		$refIdInt = (int)$this->params['ref_id'];
 		$operations = $this->params['operations'];
 		$operationIdStr = $this->params['operation_id'];
-		$userId = (int)( $this->params['user_id']);
+		$userId = (int)$this->params['user_id'];
+
+		if ( $refIdInt === 0 || empty( $operations ) ) {
+			wfDebugLog( 'labkipack', "LabkiPackApplyJob: invalid ref_id or empty operations array" );
+			return false;
+		}
 
 		$refId = new ContentRefId( $refIdInt );
 		$operationId = new OperationId( $operationIdStr );
 
-
-
 		wfDebugLog( 'labkipack', "LabkiPackApplyJob::run() started for refId={$refId->toInt()} with " . count( $operations ) . " operation(s) (operation_id={$operationIdStr})" );
-
-		// Basic validation
-		// TODO: Likely this is validated before the job is called, we should check that.
-		if ( $refIdInt === 0 || empty( $operations ) ) {
-			wfDebugLog( 'labkipack', "LabkiPackApplyJob: missing ref_id or operations" );
-			return false;
-		}
 
 		// Mark operation as started
 		$operationRegistry->startOperation( $operationId, 'Starting pack operations' );
@@ -135,33 +149,46 @@ final class LabkiPackApplyJob extends Job {
 		$currentProgress = 5; // Start after initialization
 
 		try {
-			// Phase 1: REMOVE operations
-			wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 1 - Processing " . count( $removeOps ) . " remove operation(s)" );
-			foreach ( $removeOps as $op ) {
-				$packId = new PackId( (int)$op['pack_id'] );
+		// Phase 1: REMOVE operations
+		wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 1 - Processing " . count( $removeOps ) . " remove operation(s)" );
+		foreach ( $removeOps as $op ) {
+			// Validate required parameters
+			if ( !isset( $op['pack_id'] ) ) {
+				$results['success'] = false;
+				$results['operations_failed']++;
+				$results['removes'][] = [
+					'success' => false,
+					'error' => 'Missing required parameter: pack_id',
+				];
+				$results['errors'][] = 'Remove operation missing required parameter: pack_id';
+				$currentProgress += $progressIncrement;
+				continue;
+			}
 
-				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Removing pack ID {$packId->toInt()}" );
-				
-				try {
-					$removeResult = $packManager->removePack( $packId, $userId );
+			$packId = new PackId( (int)$op['pack_id'] );
+
+			$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Removing pack ID {$packId->toInt()}" );
+			
+			try {
+				$removeResult = $packManager->removePack( $packId, $userId );
 					
-					if ( $removeResult['success'] ) {
-						$results['removes'][] = [
-							'pack_id' => $packId->toInt(),
-							'pack_name' => $removeResult['pack_name'],
-							'pages_deleted' => $removeResult['pages_deleted'],
-							'success' => true,
-						];
+				if ( $removeResult['success'] ) {
+					$results['removes'][] = [
+						'pack_id' => $packId->toInt(),
+						'pack_name' => $removeResult['pack_name'] ?? 'Unknown',
+						'pages_deleted' => $removeResult['pages_deleted'] ?? 0,
+						'success' => true,
+					];
 						$completedOps++;
 						$results['operations_completed']++;
 					} else {
-						$results['success'] = false;
-						$results['operations_failed']++;
-						$results['removes'][] = [
-							'pack_id' => $packId->toInt(),
-							'success' => false,
-							'error' => $removeResult['error'],
-						];
+					$results['success'] = false;
+					$results['operations_failed']++;
+					$results['removes'][] = [
+						'pack_id' => $packId->toInt(),
+						'success' => false,
+						'error' => $removeResult['error'] ?? 'Unknown error',
+					];
 						$results['errors'][] = "Remove pack {$packId->toInt()}: " . ( $removeResult['error'] ?? 'Unknown error' );
 					}
 				} catch ( \Throwable $e ) {
@@ -179,30 +206,61 @@ final class LabkiPackApplyJob extends Job {
 				$currentProgress += $progressIncrement;
 			}
 
-			// Phase 2: INSTALL operations
-			wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 2 - Processing " . count( $installOps ) . " install operation(s)" );
-			foreach ( $installOps as $op ) {
-				$packName = $op['pack_name'];
-				$pages = $op['pages'];
+		// Phase 2: INSTALL operations
+		wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 2 - Processing " . count( $installOps ) . " install operation(s)" );
+		foreach ( $installOps as $op ) {
+			// Validate required parameters
+			$missingParams = [];
+			if ( !isset( $op['pack_name'] ) ) {
+				$missingParams[] = 'pack_name';
+			}
+			if ( !isset( $op['pages'] ) ) {
+				$missingParams[] = 'pages';
+			}
+			if ( !isset( $op['version'] ) && !isset( $op['target_version'] ) ) {
+				$missingParams[] = 'version or target_version';
+			}
 
-				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Installing pack: {$packName}" );
-				
-			try {
-				// Build pack definition from operation
-				$packDef = [
-					'name' => $packName,
-					'version' => $op['target_version'],
-					'pages' => [],
+			if ( !empty( $missingParams ) ) {
+				$results['success'] = false;
+				$results['operations_failed']++;
+				$results['installs'][] = [
+					'success' => false,
+					'error' => 'Missing required parameters: ' . implode( ', ', $missingParams ),
 				];
+				$results['errors'][] = 'Install operation missing required parameters: ' . implode( ', ', $missingParams );
+				$currentProgress += $progressIncrement;
+				continue;
+			}
 
-				// Map pages with their final titles
-				$packDef['pages'] = array_map(
-					fn($page) => [
-						'name' => $page['name'],
-						'final_title' => $page['final_title']
-					],
-					$pages
-				);
+			$packName = $op['pack_name'];
+			$pages = $op['pages'];
+			$version = $op['target_version'] ?? $op['version'];
+
+			$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Installing pack: {$packName}" );
+			
+		try {
+			// Build pack definition from operation
+			$packDef = [
+				'name' => $packName,
+				'version' => $version,
+				'pages' => [],
+			];
+
+			// Map pages with their final titles
+			$packDef['pages'] = [];
+			foreach ( $pages as $page ) {
+				if ( !isset( $page['name'] ) ) {
+					throw new \RuntimeException( "Page missing required 'name' field in install operation for pack {$packName}" );
+				}
+				if ( !isset( $page['final_title'] ) ) {
+					throw new \RuntimeException( "Page '{$page['name']}' missing required 'final_title' field in install operation for pack {$packName}" );
+				}
+				$packDef['pages'][] = [
+					'name' => $page['name'],
+					'final_title' => $page['final_title']
+				];
+			}
 
 					$installResult = $packManager->installSinglePack( $refId, $packDef, $userId );
 					
@@ -240,16 +298,37 @@ final class LabkiPackApplyJob extends Job {
 				$currentProgress += $progressIncrement;
 			}
 
-			// Phase 3: UPDATE operations
-			wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 3 - Processing " . count( $updateOps ) . " update operation(s)" );
-			foreach ( $updateOps as $op ) {
-				$packName = $op['pack_name'];
-				$targetVersion = $op['target_version'];
+		// Phase 3: UPDATE operations
+		wfDebugLog( 'labkipack', "LabkiPackApplyJob: Phase 3 - Processing " . count( $updateOps ) . " update operation(s)" );
+		foreach ( $updateOps as $op ) {
+			// Validate required parameters
+			$missingParams = [];
+			if ( !isset( $op['pack_name'] ) ) {
+				$missingParams[] = 'pack_name';
+			}
+			if ( !isset( $op['target_version'] ) ) {
+				$missingParams[] = 'target_version';
+			}
 
-				$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Updating pack: {$packName}" );
-				
-				try {
-					$updateResult = $packManager->updatePackByName( $refId, $packName, $targetVersion, $userId );
+			if ( !empty( $missingParams ) ) {
+				$results['success'] = false;
+				$results['operations_failed']++;
+				$results['updates'][] = [
+					'success' => false,
+					'error' => 'Missing required parameters: ' . implode( ', ', $missingParams ),
+				];
+				$results['errors'][] = 'Update operation missing required parameters: ' . implode( ', ', $missingParams );
+				$currentProgress += $progressIncrement;
+				continue;
+			}
+
+			$packName = $op['pack_name'];
+			$targetVersion = $op['target_version'];
+
+			$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Updating pack: {$packName}" );
+			
+			try {
+				$updateResult = $packManager->updatePackByName( $refId, $packName, $userId, $targetVersion );
 					
 					if ( $updateResult['success'] ) {
 						$results['updates'][] = [

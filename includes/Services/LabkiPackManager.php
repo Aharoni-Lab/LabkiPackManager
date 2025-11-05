@@ -397,6 +397,13 @@ class LabkiPackManager {
 
 		$packDef = $manifestPacks[$packName];
 		
+		// Get existing pages to preserve their final titles
+		$existingPages = $this->pageRegistry->listPagesByPack( $packId );
+		$existingTitles = [];
+		foreach ( $existingPages as $page ) {
+			$existingTitles[$page->name()] = $page->finalTitle();
+		}
+		
 		// Build pages array for this pack
 		$pageList = $packDef['pages'];
 		$pages = [];
@@ -404,6 +411,7 @@ class LabkiPackManager {
 			$pages[] = [
 				'name' => $pageName,
 				'file' => $manifestPages[$pageName]['file'],
+				'final_title' => $existingTitles[$pageName] ?? $pageName, // Preserve existing or use page name as default
 			];
 		}
 		$packDef['pages'] = $pages;
