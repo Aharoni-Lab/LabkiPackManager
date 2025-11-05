@@ -43,7 +43,7 @@ final class SidebarHookTest extends MediaWikiIntegrationTestCase {
 
         $item = $sidebar['Labki'][0];
         $this->assertSame('Pack Manager', $item['text'], 'Item text should be "Pack Manager"');
-        $this->assertStringContainsString('Special:LabkiPackManager', $item['href'], 'Item should link to Special:LabkiPackManager');
+        $this->assertStringContainsString('Special:LabkiPacksManager', $item['href'], 'Item should link to Special:LabkiPacksManager');
         $this->assertSame('n-labki-pack-manager', $item['id'], 'Item should have correct HTML ID');
         $this->assertFalse($item['active'], 'Item should not be marked as active');
     }

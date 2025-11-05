@@ -21,6 +21,8 @@ use LabkiPackManager\Maintenance\InitializeContentRepos;
  * - labki_content_ref: Git references (branches/tags) for repositories
  * - labki_pack: Content pack metadata
  * - labki_page: Individual page metadata within packs
+ * - labki_pack_dependency: Pack dependency relationships
+ * - labki_operations: Background operation tracking
  */
 final class SchemaHooks {
 
@@ -39,6 +41,8 @@ final class SchemaHooks {
      * - labki_content_ref: Stores Git refs (branches/tags) for each repository
      * - labki_pack: Stores content pack information from manifests
      * - labki_page: Stores individual page information within packs
+     * - labki_pack_dependency: Stores pack dependency relationships
+     * - labki_operations: Stores background operation status and progress
      *
      * Post-update tasks:
      * - InitializeContentRepos: Clones repositories and sets up worktrees
@@ -70,6 +74,8 @@ final class SchemaHooks {
             $updater->addExtensionTable( 'labki_content_ref', $tablesFile );
             $updater->addExtensionTable( 'labki_pack', $tablesFile );
             $updater->addExtensionTable( 'labki_page', $tablesFile );
+            $updater->addExtensionTable( 'labki_pack_dependency', $tablesFile );
+            $updater->addExtensionTable( 'labki_operations', $tablesFile );
         }
         
         // Schedule post-update maintenance task to initialize content repositories
