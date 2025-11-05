@@ -140,7 +140,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 		$this->assertCount( 3, $result[0]['repos'] );
 		
 		// Extract URLs to verify all are present
-		$urls = array_column( $result[0]['repos'], 'url' );
+		$urls = array_column( $result[0]['repos'], 'repo_url' );
 		$this->assertContains( 'https://github.com/test/repo1', $urls );
 		$this->assertContains( 'https://github.com/test/repo2', $urls );
 		$this->assertContains( 'https://github.com/test/repo3', $urls );
@@ -362,7 +362,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 		
 		// Check repo fields
 		$expectedRepoFields = [
-			'repo_id', 'url', 'default_ref', 'last_fetched',
+			'repo_id', 'repo_url', 'default_ref', 'last_fetched',
 			'refs', 'ref_count', 'last_synced', 'created_at', 'updated_at'
 		];
 		foreach ( $expectedRepoFields as $field ) {
