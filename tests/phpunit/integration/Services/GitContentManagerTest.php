@@ -90,9 +90,10 @@ class GitContentManagerTest extends MediaWikiIntegrationTestCase {
 		exec( "cd {$path} && git config user.email 'test@example.com' 2>&1" );
 		exec( "cd {$path} && git config user.name 'Test User' 2>&1" );
 
-		// Create initial commit on main branch
+		// Create initial commit on main branch with fixture manifest
 		file_put_contents( "{$path}/README.md", "# Test Repo\n" );
-		file_put_contents( "{$path}/manifest.yml", "schema_version: 1\npacks: {}\npages: {}\n" );
+		$fixtureManifest = file_get_contents( __DIR__ . '/../../../fixtures/manifest-simple.yml' );
+		file_put_contents( "{$path}/manifest.yml", $fixtureManifest );
 		exec( "cd {$path} && git add . && git commit -m 'Initial commit' 2>&1" );
 
 		// Create a develop branch

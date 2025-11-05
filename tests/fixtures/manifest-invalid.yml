@@ -1,0 +1,5 @@
+schema_version: invalid
+packs:
+  - this is not valid yaml structure
+pages: [nested: broken]
+

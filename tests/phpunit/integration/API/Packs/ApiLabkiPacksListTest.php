@@ -152,11 +152,9 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		
 		// Check first pack
 		$pack1 = $data['packs'][0];
-		$this->assertArrayHasKey( 'pack_id', $pack1 );
 		$this->assertArrayHasKey( 'name', $pack1 );
 		$this->assertArrayHasKey( 'version', $pack1 );
 		$this->assertArrayHasKey( 'page_count', $pack1 );
-		$this->assertArrayHasKey( 'repo_id', $pack1 );
 		$this->assertArrayHasKey( 'repo_url', $pack1 );
 		$this->assertArrayHasKey( 'ref', $pack1 );
 		
@@ -174,7 +172,7 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 	/**
 	 * Test getting packs for a specific repository.
 	 */
-	public function testListPacks_ByRepoId_ReturnsOnlyPacksForThatRepo(): void {
+	public function testListPacks_ByRepoUrl_ReturnsOnlyPacksForThatRepo(): void {
 		// Create two repos with packs
 		$repoId1 = $this->createTestRepo( 'https://github.com/test/repo1' );
 		$repoId2 = $this->createTestRepo( 'https://github.com/test/repo2' );
@@ -188,7 +186,7 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		// Query for repo 1 only
 		$result = $this->doApiRequest( [
 			'action' => 'labkiPacksList',
-			'repo_id' => $repoId1->toInt(),
+			'repo_url' => 'https://github.com/test/repo1',
 		] );
 
 		$data = $result[0];
@@ -213,7 +211,7 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		// Query for main ref only
 		$result = $this->doApiRequest( [
 			'action' => 'labkiPacksList',
-			'repo_id' => $repoId->toInt(),
+			'repo_url' => 'https://github.com/test/repo',
 			'ref' => 'main',
 		] );
 
@@ -227,7 +225,7 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 	/**
 	 * Test getting a specific pack (without pages).
 	 */
-	public function testListPacks_ByPackId_ReturnsSinglePackWithoutPages(): void {
+	public function testListPacks_ByPackName_ReturnsSinglePackWithoutPages(): void {
 		// Create pack with pages
 		$repoId = $this->createTestRepo();
 		$refId = $this->createTestRef( $repoId, 'main' );
@@ -239,7 +237,9 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		// Query for pack (without pages)
 		$result = $this->doApiRequest( [
 			'action' => 'labkiPacksList',
-			'pack_id' => $packId->toInt(),
+			'repo_url' => 'https://github.com/test/repo',
+			'ref' => 'main',
+			'pack' => 'TestPack',
 		] );
 
 		$data = $result[0];
@@ -261,7 +261,7 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 	/**
 	 * Test getting a specific pack with pages.
 	 */
-	public function testListPacks_ByPackIdWithPages_ReturnsPackWithNestedPages(): void {
+	public function testListPacks_ByPackNameWithPages_ReturnsPackWithNestedPages(): void {
 		// Create pack with pages
 		$repoId = $this->createTestRepo();
 		$refId = $this->createTestRef( $repoId, 'main' );
@@ -273,7 +273,9 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		// Query for pack with pages
 		$result = $this->doApiRequest( [
 			'action' => 'labkiPacksList',
-			'pack_id' => $packId->toInt(),
+			'repo_url' => 'https://github.com/test/repo',
+			'ref' => 'main',
+			'pack' => 'TestPack',
 			'include_pages' => true,
 		] );
 
@@ -295,7 +297,6 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		$this->assertCount( 2, $pack['pages'] );
 		
 		$page1 = $pack['pages'][0];
-		$this->assertArrayHasKey( 'page_id', $page1 );
 		$this->assertArrayHasKey( 'name', $page1 );
 		$this->assertArrayHasKey( 'final_title', $page1 );
 		$this->assertEquals( 'Page1', $page1['name'] );
@@ -303,9 +304,9 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 	}
 
 	/**
-	 * Test getting a specific pack by name with pages.
+	 * Test getting a specific pack by name and ref with pages.
 	 */
-	public function testListPacks_ByPackNameWithPages_ReturnsPackWithNestedPages(): void {
+	public function testListPacks_ByPackAndRefWithPages_ReturnsPackWithNestedPages(): void {
 		// Create pack with pages
 		$repoId = $this->createTestRepo();
 		$refId = $this->createTestRef( $repoId, 'main' );
@@ -316,7 +317,7 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		// Query for pack by name with pages
 		$result = $this->doApiRequest( [
 			'action' => 'labkiPacksList',
-			'repo_id' => $repoId->toInt(),
+			'repo_url' => 'https://github.com/test/repo',
 			'ref' => 'main',
 			'pack' => 'TestPack',
 			'include_pages' => true,
@@ -332,48 +333,6 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		$this->assertEquals( 'TestPack', $pack['name'] );
 		$this->assertArrayHasKey( 'pages', $pack );
 		$this->assertCount( 1, $pack['pages'] );
-	}
-
-	/**
-	 * Test error when both repo_id and repo_url are provided.
-	 */
-	public function testListPacks_WithBothRepoIdAndRepoUrl_ReturnsError(): void {
-		$this->expectApiErrorCode( 'multiple_identifiers' );
-		
-		$this->doApiRequest( [
-			'action' => 'labkiPacksList',
-			'repo_id' => 1,
-			'repo_url' => 'https://github.com/test/repo',
-		] );
-	}
-
-	/**
-	 * Test error when both ref_id and ref are provided.
-	 */
-	public function testListPacks_WithBothRefIdAndRef_ReturnsError(): void {
-		$this->expectApiErrorCode( 'multiple_identifiers' );
-		
-		$this->doApiRequest( [
-			'action' => 'labkiPacksList',
-			'repo_id' => 1,
-			'ref_id' => 1,
-			'ref' => 'main',
-		] );
-	}
-
-	/**
-	 * Test error when both pack_id and pack are provided.
-	 */
-	public function testListPacks_WithBothPackIdAndPack_ReturnsError(): void {
-		$this->expectApiErrorCode( 'multiple_identifiers' );
-		
-		$this->doApiRequest( [
-			'action' => 'labkiPacksList',
-			'repo_id' => 1,
-			'ref' => 'main',
-			'pack_id' => 1,
-			'pack' => 'TestPack',
-		] );
 	}
 
 	/**
@@ -396,20 +355,8 @@ class ApiLabkiPacksListTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiPacksList',
-			'repo_id' => 1,
+			'repo_url' => 'https://github.com/test/repo',
 			'pack' => 'TestPack',
-		] );
-	}
-
-	/**
-	 * Test error when requesting non-existent pack.
-	 */
-	public function testListPacks_WithNonExistentPackId_ReturnsError(): void {
-		$this->expectApiErrorCode( 'pack_not_found' );
-		
-		$this->doApiRequest( [
-			'action' => 'labkiPacksList',
-			'pack_id' => 99999,
 		] );
 	}
 

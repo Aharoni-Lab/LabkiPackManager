@@ -91,10 +91,10 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		}
         // ------------------------------------------------------------
         // Validate payload fields
-		$command = $payload['command'];
-		$repoUrl = $payload['repo_url'];
-		$refName = $payload['ref'];
-		$data    = $payload['data'];
+		$command = $payload['command'] ?? null;
+		$repoUrl = $payload['repo_url'] ?? null;
+		$refName = $payload['ref'] ?? null;
+		$data    = $payload['data'] ?? null;
 
 		if ( !is_string( $command ) || $command === '' ) {
 			$this->dieWithError( 'labkipackmanager-error-unknown-command', 'unknown_command' );
