@@ -119,8 +119,10 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 		$result->addValue( null, 'success', true );
 		$result->addValue( null, 'operation_id', $operationIdStr );
 		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
-		$result->addValue( null, 'message', $message);		
-		$result->addValue( null, 'refs', $refs );
+		$result->addValue( null, 'message', $message);
+		if ( $refs !== null ) {
+			$result->addValue( null, 'refs', $refs );
+		}
 		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),
@@ -130,7 +132,7 @@ final class ApiLabkiReposRemove extends RepoApiBase {
 	/** @inheritDoc */
 	public function getAllowedParams(): array {
 		return [
-			'repourl' => [
+			'repo_url' => [
 				ParamValidator::PARAM_TYPE => 'string',
 				ParamValidator::PARAM_REQUIRED => true,
 				self::PARAM_HELP_MSG => 'labkipackmanager-api-repos-remove-param-url',

@@ -118,7 +118,9 @@ final class ApiLabkiReposSync extends RepoApiBase {
 		$result->addValue( null, 'operation_id', $operationIdStr );
 		$result->addValue( null, 'status', LabkiOperationRegistry::STATUS_QUEUED );
 		$result->addValue( null, 'message', $message);
-		$result->addValue( null, 'refs', $refs );
+		if ( $refs !== null ) {
+			$result->addValue( null, 'refs', $refs );
+		}
 		$result->addValue( null, 'meta', [
 			'schemaVersion' => 1,
 			'timestamp' => wfTimestampNow(),

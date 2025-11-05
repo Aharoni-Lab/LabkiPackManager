@@ -184,7 +184,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposList',
-			'repo_id' => $repoId1->toInt(),
+			'repo_url' => 'https://github.com/test/repo1',
 		] );
 
 		$this->assertCount( 1, $result[0]['repos'] );
@@ -241,13 +241,12 @@ class ApiLabkiReposListTest extends ApiTestCase {
 	/**
 	 * Test getting single repository by URL when it doesn't exist.
 	 */
-	public function testGetRepoByUrl_WhenNotExists_ReturnsEmptyArray(): void {
-		$result = $this->doApiRequest( [
+	public function testGetRepoByUrl_WhenNotExists_ReturnsError(): void {
+		$this->expectException( \ApiUsageException::class );
+		$this->doApiRequest( [
 			'action' => 'labkiReposList',
 			'repo_url' => 'https://github.com/nonexistent/repo',
 		] );
-
-		$this->assertCount( 0, $result[0]['repos'] );
 	}
 
 	/**

@@ -201,14 +201,25 @@ class ApiLabkiReposList extends RepoApiBase {
 			$refsData[] = $refData;
 		}
 
+		// Compute last_synced from most recent ref update
+		$lastSynced = null;
+		foreach ( $refsData as $refData ) {
+			if ( $refData['updated_at'] !== null ) {
+				if ( $lastSynced === null || $refData['updated_at'] > $lastSynced ) {
+					$lastSynced = $refData['updated_at'];
+				}
+			}
+		}
+
 		// Build final repository data structure
 		return [
 			'repo_id' => $repoId->toInt(),
-			'repo_url' => $repo->url(),
+			'url' => $repo->url(),
 			'default_ref' => $repo->defaultRef(),
 			'last_fetched' => $repo->lastFetched(),
 			'refs' => $refsData,
 			'ref_count' => count( $refsData ),
+			'last_synced' => $lastSynced,
 			'created_at' => $repo->createdAt(),
 			'updated_at' => $repo->updatedAt(),
 		];
