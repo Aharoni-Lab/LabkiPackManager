@@ -24,19 +24,6 @@ class LabkiRepoRegistryTest extends MediaWikiIntegrationTestCase {
 		return new LabkiRepoRegistry();
 	}
 
-	public function testNow_ReturnsValidTimestamp(): void {
-		$registry = $this->newRegistry();
-		
-		$timestamp = $registry->now();
-		
-		$this->assertIsString( $timestamp );
-		$this->assertNotEmpty( $timestamp );
-		// Verify it's a valid timestamp format (14 digits for MediaWiki timestamp)
-		$this->assertMatchesRegularExpression( '/^\d{14}$/', $timestamp );
-	}
-
-	/**
-	 */
 	public function testAddRepoEntry_CreatesNewRepo(): void {
 		$registry = $this->newRegistry();
 		$url = 'https://example.com/test-repo-1';

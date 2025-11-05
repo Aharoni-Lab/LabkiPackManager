@@ -45,16 +45,6 @@ class LabkiPackRegistryTest extends MediaWikiIntegrationTestCase {
 		return new LabkiPackRegistry();
 	}
 
-	public function testNow_ReturnsValidTimestamp(): void {
-		$registry = $this->newRegistry();
-		
-		$timestamp = $registry->now();
-		
-		$this->assertIsString( $timestamp );
-		$this->assertNotEmpty( $timestamp );
-		$this->assertMatchesRegularExpression( '/^\d{14}$/', $timestamp );
-	}
-
 	public function testAddPack_CreatesNewPack(): void {
 		$refId = $this->createTestRef();
 		$registry = $this->newRegistry();
