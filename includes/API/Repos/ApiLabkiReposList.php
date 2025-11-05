@@ -214,7 +214,7 @@ class ApiLabkiReposList extends RepoApiBase {
 		// Build final repository data structure
 		return [
 			'repo_id' => $repoId->toInt(),
-			'url' => $repo->url(),
+			'repo_url' => $repo->url(),
 			'default_ref' => $repo->defaultRef(),
 			'last_fetched' => $repo->lastFetched(),
 			'refs' => $refsData,

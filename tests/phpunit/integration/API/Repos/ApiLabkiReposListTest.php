@@ -117,7 +117,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 		
 		$repo = $result[0]['repos'][0];
 		$this->assertSame( $repoId->toInt(), $repo['repo_id'] );
-		$this->assertSame( 'https://github.com/test/repo1', $repo['url'] );
+		$this->assertSame( 'https://github.com/test/repo1', $repo['repo_url'] );
 		$this->assertSame( 'main', $repo['default_ref'] );
 		$this->assertArrayHasKey( 'refs', $repo );
 		$this->assertArrayHasKey( 'ref_count', $repo );
@@ -189,7 +189,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 
 		$this->assertCount( 1, $result[0]['repos'] );
 		$this->assertSame( $repoId1->toInt(), $result[0]['repos'][0]['repo_id'] );
-		$this->assertSame( 'https://github.com/test/repo1', $result[0]['repos'][0]['url'] );
+		$this->assertSame( 'https://github.com/test/repo1', $result[0]['repos'][0]['repo_url'] );
 	}
 
 	/**
@@ -218,7 +218,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 
 		$this->assertCount( 1, $result[0]['repos'] );
 		$this->assertSame( $repoId->toInt(), $result[0]['repos'][0]['repo_id'] );
-		$this->assertSame( 'https://github.com/test/repo', $result[0]['repos'][0]['url'] );
+		$this->assertSame( 'https://github.com/test/repo', $result[0]['repos'][0]['repo_url'] );
 	}
 
 	/**

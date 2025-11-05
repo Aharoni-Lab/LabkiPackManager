@@ -188,6 +188,8 @@ export interface Repo {
   refs: Ref[];
   /** Number of refs */
   ref_count: number;
+  /** Last sync timestamp (computed from refs) */
+  last_synced: string | null;
   /** Created timestamp */
   created_at: string;
   /** Updated timestamp */
