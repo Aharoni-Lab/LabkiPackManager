@@ -61,10 +61,11 @@ final class ApiLabkiGraphGetTest extends ApiTestCase {
         $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
         $this->assertNotNull($this->repoRegistry->getRepo($repoId));
 
+        $status = \MediaWiki\Status\Status::newFatal('labkipackmanager-error-fetch');
         $this->manifestStoreMock->expects($this->once())
             ->method('getGraph')
             ->with(false)
-            ->willReturn(null);
+            ->willReturn($status);
 
         $api = $this->makeApi([
             'action' => 'labkiGraphGet',
@@ -107,7 +108,7 @@ final class ApiLabkiGraphGetTest extends ApiTestCase {
         $this->manifestStoreMock->expects($this->once())
             ->method('getGraph')
             ->with(false)
-            ->willReturn($graphData);
+            ->willReturn(\MediaWiki\Status\Status::newGood($graphData));
 
         $api = $this->makeApi([
             'action' => 'labkiGraphGet',
@@ -135,11 +136,16 @@ final class ApiLabkiGraphGetTest extends ApiTestCase {
         $this->manifestStoreMock->expects($this->once())
             ->method('getGraph')
             ->with(true)
-            ->willReturn([
-                'meta' => ['schema_version' => 1],
+            ->willReturn(\MediaWiki\Status\Status::newGood([
+                'meta' => [
+                    'schema_version' => 1,
+                    'repo_url' => 'https://github.com/test/repo',
+                    'ref' => 'main',
+                    'hash' => 'abc123'
+                ],
                 'graph' => [],
                 'from_cache' => false
-            ]);
+            ]));
 
         $api = $this->makeApi([
             'action' => 'labkiGraphGet',

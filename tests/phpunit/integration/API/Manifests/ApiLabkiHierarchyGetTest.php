@@ -61,11 +61,12 @@ final class ApiLabkiHierarchyGetTest extends ApiTestCase {
         $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
         $this->assertNotNull($this->repoRegistry->getRepo($repoId));
 
-        // getHierarchy() returning null should trigger ApiUsageException
+        // getHierarchy() returning error Status should trigger ApiUsageException
+        $status = \MediaWiki\Status\Status::newFatal('labkipackmanager-error-fetch');
         $this->manifestStoreMock->expects($this->once())
             ->method('getHierarchy')
             ->with(false)
-            ->willReturn(null);
+            ->willReturn($status);
 
         $api = $this->makeApi([
             'action' => 'labkiHierarchyGet',
@@ -106,7 +107,7 @@ final class ApiLabkiHierarchyGetTest extends ApiTestCase {
         $this->manifestStoreMock->expects($this->once())
             ->method('getHierarchy')
             ->with(false)
-            ->willReturn($hierarchyData);
+            ->willReturn(\MediaWiki\Status\Status::newGood($hierarchyData));
 
         $api = $this->makeApi([
             'action' => 'labkiHierarchyGet',
@@ -133,11 +134,16 @@ final class ApiLabkiHierarchyGetTest extends ApiTestCase {
         $this->manifestStoreMock->expects($this->once())
             ->method('getHierarchy')
             ->with(true)
-            ->willReturn([
-                'meta' => ['schema_version' => 1],
+            ->willReturn(\MediaWiki\Status\Status::newGood([
+                'meta' => [
+                    'schema_version' => 1,
+                    'repo_url' => 'https://github.com/test/repo',
+                    'ref' => 'main',
+                    'hash' => 'abc123'
+                ],
                 'hierarchy' => [],
                 'from_cache' => false
-            ]);
+            ]));
 
         $api = $this->makeApi([
             'action' => 'labkiHierarchyGet',
