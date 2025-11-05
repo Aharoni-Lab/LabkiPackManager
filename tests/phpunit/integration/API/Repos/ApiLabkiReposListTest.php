@@ -117,7 +117,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 		
 		$repo = $result[0]['repos'][0];
 		$this->assertSame( $repoId->toInt(), $repo['repo_id'] );
-		$this->assertSame( 'https://github.com/test/repo1', $repo['url'] );
+		$this->assertSame( 'https://github.com/test/repo1', $repo['repo_url'] );
 		$this->assertSame( 'main', $repo['default_ref'] );
 		$this->assertArrayHasKey( 'refs', $repo );
 		$this->assertArrayHasKey( 'ref_count', $repo );
@@ -140,7 +140,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 		$this->assertCount( 3, $result[0]['repos'] );
 		
 		// Extract URLs to verify all are present
-		$urls = array_column( $result[0]['repos'], 'url' );
+		$urls = array_column( $result[0]['repos'], 'repo_url' );
 		$this->assertContains( 'https://github.com/test/repo1', $urls );
 		$this->assertContains( 'https://github.com/test/repo2', $urls );
 		$this->assertContains( 'https://github.com/test/repo3', $urls );
@@ -184,12 +184,12 @@ class ApiLabkiReposListTest extends ApiTestCase {
 
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposList',
-			'repo_id' => $repoId1->toInt(),
+			'repo_url' => 'https://github.com/test/repo1',
 		] );
 
 		$this->assertCount( 1, $result[0]['repos'] );
 		$this->assertSame( $repoId1->toInt(), $result[0]['repos'][0]['repo_id'] );
-		$this->assertSame( 'https://github.com/test/repo1', $result[0]['repos'][0]['url'] );
+		$this->assertSame( 'https://github.com/test/repo1', $result[0]['repos'][0]['repo_url'] );
 	}
 
 	/**
@@ -218,7 +218,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 
 		$this->assertCount( 1, $result[0]['repos'] );
 		$this->assertSame( $repoId->toInt(), $result[0]['repos'][0]['repo_id'] );
-		$this->assertSame( 'https://github.com/test/repo', $result[0]['repos'][0]['url'] );
+		$this->assertSame( 'https://github.com/test/repo', $result[0]['repos'][0]['repo_url'] );
 	}
 
 	/**
@@ -241,13 +241,12 @@ class ApiLabkiReposListTest extends ApiTestCase {
 	/**
 	 * Test getting single repository by URL when it doesn't exist.
 	 */
-	public function testGetRepoByUrl_WhenNotExists_ReturnsEmptyArray(): void {
-		$result = $this->doApiRequest( [
+	public function testGetRepoByUrl_WhenNotExists_ReturnsError(): void {
+		$this->expectException( \ApiUsageException::class );
+		$this->doApiRequest( [
 			'action' => 'labkiReposList',
 			'repo_url' => 'https://github.com/nonexistent/repo',
 		] );
-
-		$this->assertCount( 0, $result[0]['repos'] );
 	}
 
 	/**
@@ -363,7 +362,7 @@ class ApiLabkiReposListTest extends ApiTestCase {
 		
 		// Check repo fields
 		$expectedRepoFields = [
-			'repo_id', 'url', 'default_ref', 'last_fetched',
+			'repo_id', 'repo_url', 'default_ref', 'last_fetched',
 			'refs', 'ref_count', 'last_synced', 'created_at', 'updated_at'
 		];
 		foreach ( $expectedRepoFields as $field ) {

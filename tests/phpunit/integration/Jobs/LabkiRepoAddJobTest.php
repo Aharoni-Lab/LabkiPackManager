@@ -71,7 +71,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testRun_WithMissingRefs_ReturnsFalse(): void {
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			// Missing refs parameter
 			'operation_id' => 'test_op_123',
 		] );
@@ -86,7 +86,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testRun_WithEmptyRefs_ReturnsFalse(): void {
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => [], // Empty refs array
 			'operation_id' => 'test_op_123',
 		] );
@@ -104,7 +104,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testRun_WithoutOperationId_CreatesDefaultOperationId(): void {
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			// No operation_id provided
 		] );
@@ -144,7 +144,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 
 		// Create and run job
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			'default_ref' => 'main',
 			'operation_id' => $operationIdStr,
@@ -213,7 +213,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 
 		// Try to add the same repo with an additional ref
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
 			'default_ref' => 'main',
 			'operation_id' => $operationIdStr,
@@ -251,7 +251,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
@@ -276,7 +276,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0', 'v2.0'],
 			'default_ref' => 'main',
 			'operation_id' => $operationIdStr,
@@ -306,7 +306,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 
 		// Create job with invalid URL to trigger exception
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'invalid://not-a-real-url',
+			'repo_url' => 'invalid://not-a-real-url',
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -336,7 +336,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoAddJob( Title::newMainPage(), [
-			'url' => 'https://github.com/nonexistent/repo-' . uniqid(),
+			'repo_url' => 'https://github.com/nonexistent/repo-' . uniqid(),
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -360,7 +360,7 @@ class LabkiRepoAddJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testConstruct_WithValidParams_StoresParams(): void {
 		$params = [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
 			'default_ref' => 'main',
 			'operation_id' => 'test_op_123',

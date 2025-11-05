@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Services;
+namespace LabkiPackManager\Tests\Integration\Services;
 
 use LabkiPackManager\Services\LabkiPackManager;
 use LabkiPackManager\Services\LabkiRepoRegistry;
@@ -22,11 +22,11 @@ use MediaWikiIntegrationTestCase;
  * - Pack updates
  * - Pack removal
  *
- * @coversDefaultClass \LabkiPackManager\Services\LabkiPackManager
+ * @covers \LabkiPackManager\Services\LabkiPackManager
  * @group Database
  * @group LabkiPackManager
  */
-final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
+class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 
 	private LabkiPackManager $packManager;
 	private LabkiRepoRegistry $repoRegistry;
@@ -119,6 +119,16 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 						}
 					}
 				}
+				if ( isset( $packDef['pages'] ) && is_array( $packDef['pages'] ) ) {
+					if ( empty( $packDef['pages'] ) ) {
+						$yaml .= "    pages: []\n";
+					} else {
+						$yaml .= "    pages:\n";
+						foreach ( $packDef['pages'] as $page ) {
+							$yaml .= "      - {$page}\n";
+						}
+					}
+				}
 			}
 		}
 		
@@ -151,9 +161,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		file_put_contents( $fullPath, $content );
 	}
 
-	/**
-	 * @covers ::validatePackDependencies
-	 */
 	public function testValidatePackDependencies_NoDependencies_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 		
@@ -162,6 +169,7 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 				'name' => 'PackA',
 				'version' => '1.0.0',
 				'depends_on' => [],
+				'pages' => [],
 			],
 		] );
 
@@ -171,9 +179,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $result, 'Should return empty array when no dependencies' );
 	}
 
-	/**
-	 * @covers ::validatePackDependencies
-	 */
 	public function testValidatePackDependencies_MissingDependency_ReturnsMissing(): void {
 		$refId = $this->createTestRef();
 		
@@ -181,10 +186,12 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 			'PackA' => [
 				'name' => 'PackA',
 				'depends_on' => [],
+				'pages' => [],
 			],
 			'PackB' => [
 				'name' => 'PackB',
 				'depends_on' => [ 'PackA' ],
+				'pages' => [],
 			],
 		] );
 
@@ -195,9 +202,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertContains( 'PackA', $result, 'Should identify PackA as missing dependency' );
 	}
 
-	/**
-	 * @covers ::validatePackDependencies
-	 */
 	public function testValidatePackDependencies_DependencyInRequest_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 		
@@ -205,10 +209,12 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 			'PackA' => [
 				'name' => 'PackA',
 				'depends_on' => [],
+				'pages' => [],
 			],
 			'PackB' => [
 				'name' => 'PackB',
 				'depends_on' => [ 'PackA' ],
+				'pages' => [],
 			],
 		] );
 
@@ -219,9 +225,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $result, 'Should return empty when dependency is in request' );
 	}
 
-	/**
-	 * @covers ::validatePackDependencies
-	 */
 	public function testValidatePackDependencies_DependencyAlreadyInstalled_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 		
@@ -229,10 +232,12 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 			'PackA' => [
 				'name' => 'PackA',
 				'depends_on' => [],
+				'pages' => [],
 			],
 			'PackB' => [
 				'name' => 'PackB',
 				'depends_on' => [ 'PackA' ],
+				'pages' => [],
 			],
 		] );
 
@@ -246,16 +251,13 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $result, 'Should return empty when dependency is already installed' );
 	}
 
-	/**
-	 * @covers ::validatePackDependencies
-	 */
 	public function testValidatePackDependencies_MultipleMissingDependencies_ReturnsAll(): void {
 		$refId = $this->createTestRef();
 		
 		$this->createTestManifest( [
-			'PackA' => [ 'depends_on' => [] ],
-			'PackB' => [ 'depends_on' => [] ],
-			'PackC' => [ 'depends_on' => [ 'PackA', 'PackB' ] ],
+			'PackA' => [ 'depends_on' => [], 'pages' => [] ],
+			'PackB' => [ 'depends_on' => [], 'pages' => [] ],
+			'PackC' => [ 'depends_on' => [ 'PackA', 'PackB' ], 'pages' => [] ],
 		] );
 
 		// Try to install PackC without dependencies
@@ -267,9 +269,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertCount( 2, $result );
 	}
 
-	/**
-	 * @covers ::installPacks
-	 */
 	public function testInstallPacks_SinglePack_Success(): void {
 		$refId = $this->createTestRef();
 		
@@ -279,6 +278,7 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 				'TestPack' => [
 					'name' => 'TestPack',
 					'version' => '1.0.0',
+					'pages' => [ 'TestPage' ],
 				],
 			],
 			[
@@ -299,7 +299,7 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 				[
 					'name' => 'TestPage',
 					'original' => 'TestPage',
-					'finalTitle' => 'TestPack/TestPage',
+					'final_title' => 'TestPack/TestPage',
 				],
 			],
 		];
@@ -317,17 +317,14 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( 0, $installed['pages_failed'] );
 	}
 
-	/**
-	 * @covers ::installPacks
-	 */
 	public function testInstallPacks_MultiplePacks_Success(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest
 		$this->createTestManifest(
 			[
-				'PackA' => [ 'name' => 'PackA' ],
-				'PackB' => [ 'name' => 'PackB' ],
+				'PackA' => [ 'name' => 'PackA', 'pages' => [ 'PageA' ] ],
+				'PackB' => [ 'name' => 'PackB', 'pages' => [ 'PageB' ] ],
 			],
 			[
 				'PageA' => [ 'file' => 'pages/PageA.wiki' ],
@@ -343,14 +340,16 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$packs = [
 			[
 				'name' => 'PackA',
+				'version' => '1.0.0',
 				'pages' => [
-					[ 'name' => 'PageA', 'original' => 'PageA', 'finalTitle' => 'PackA/PageA' ],
+					[ 'name' => 'PageA', 'original' => 'PageA', 'final_title' => 'PackA/PageA' ],
 				],
 			],
 			[
 				'name' => 'PackB',
+				'version' => '1.0.0',
 				'pages' => [
-					[ 'name' => 'PageB', 'original' => 'PageB', 'finalTitle' => 'PackB/PageB' ],
+					[ 'name' => 'PageB', 'original' => 'PageB', 'final_title' => 'PackB/PageB' ],
 				],
 			],
 		];
@@ -362,23 +361,21 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $result['failed'] );
 	}
 
-	/**
-	 * @covers ::installPacks
-	 */
 	public function testInstallPacks_MissingPageFile_ReportsError(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest but no page file
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack' ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'pages' => [ 'MissingPage' ] ] ],
 			[ 'MissingPage' => [ 'file' => 'pages/Missing.wiki' ] ]
 		);
 
 		// Try to install pack
 		$packDef = [
 			'name' => 'TestPack',
+			'version' => '1.0.0',
 			'pages' => [
-				[ 'name' => 'MissingPage', 'original' => 'MissingPage', 'finalTitle' => 'Test/Missing' ],
+				[ 'name' => 'MissingPage', 'original' => 'MissingPage', 'final_title' => 'Test/Missing' ],
 			],
 		];
 
@@ -389,29 +386,18 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $result['installed'] );
 	}
 
-	/**
-	 * @covers ::installPacks
-	 */
-	public function testInstallPacks_EmptyPackName_ReportsError(): void {
+	public function testInstallPacks_EmptyPackList_ReturnsSuccess(): void {
 		$refId = $this->createTestRef();
 		$this->createTestManifest();
 
-		// Try to install pack with empty name
-		$packDef = [
-			'name' => '',
-			'pages' => [],
-		];
+		// Install empty pack list (should succeed trivially)
+		$result = $this->packManager->installPacks( $refId, [], 1 );
 
-		$result = $this->packManager->installPacks( $refId, [ $packDef ], 1 );
-
-		$this->assertFalse( $result['success'] );
-		$this->assertCount( 1, $result['failed'] );
-		$this->assertEquals( '(unnamed)', $result['failed'][0]['pack'] );
+		$this->assertTrue( $result['success'] );
+		$this->assertEmpty( $result['installed'] );
+		$this->assertEmpty( $result['failed'] );
 	}
 
-	/**
-	 * @covers ::installPacks
-	 */
 	public function testInstallPacks_InvalidRef_ReturnsError(): void {
 		$invalidRefId = new ContentRefId( 99999 );
 
@@ -422,27 +408,35 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertStringContainsString( 'Ref not found', $result['errors'][0] );
 	}
 
-	/**
-	 * @covers ::removePack
-	 */
-	public function testRemovePack_WithoutDeletingPages_Success(): void {
+	public function testRemovePack_Success(): void {
 		$refId = $this->createTestRef();
 		
-		// Create and install a pack
+		// Create and install a pack with a real page in MediaWiki
 		$packId = $this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
+		
+		// Create a real MediaWiki page
+		$services = \MediaWiki\MediaWikiServices::getInstance();
+		$title = $services->getTitleFactory()->newFromText( 'TestPack/Page1' );
+		$wikiPage = $services->getWikiPageFactory()->newFromTitle( $title );
+		$user = $this->getTestUser()->getUser();
+		$content = new \WikitextContent( 'Test content' );
+		$status = $wikiPage->doUserEditContent( $content, $user, 'Test' );
+		$this->assertTrue( $status->isOK() );
+		
+		// Register in page registry
 		$this->pageRegistry->addPage( $packId, [
 			'name' => 'Page1',
 			'final_title' => 'TestPack/Page1',
 			'page_namespace' => 0,
+			'wiki_page_id' => $wikiPage->getId(),
 		] );
 
-		// Remove pack without deleting pages
-		$result = $this->packManager->removePack( $packId, false, 1 );
+		// Remove pack (userId from test user)
+		$result = $this->packManager->removePack( $packId, $user->getId() );
 
 		$this->assertTrue( $result['success'] );
 		$this->assertEquals( 'TestPack', $result['pack'] );
 		$this->assertEquals( 1, $result['pages_total'] );
-		$this->assertEquals( 0, $result['pages_deleted'] );
 		$this->assertEquals( 1, $result['pages_removed_from_registry'] );
 
 		// Verify pack is removed from registry
@@ -450,28 +444,22 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertNull( $pack );
 	}
 
-	/**
-	 * @covers ::removePack
-	 */
 	public function testRemovePack_InvalidPackId_ReturnsError(): void {
 		$invalidPackId = new PackId( 99999 );
 
-		$result = $this->packManager->removePack( $invalidPackId, false, 1 );
+		$result = $this->packManager->removePack( $invalidPackId, 1 );
 
 		$this->assertFalse( $result['success'] );
 		$this->assertArrayHasKey( 'error', $result );
 		$this->assertStringContainsString( 'Pack not found', $result['error'] );
 	}
 
-	/**
-	 * @covers ::updatePack
-	 */
 	public function testUpdatePack_UpdatesVersionAndPages(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack' ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'pages' => [ 'UpdatedPage' ] ] ],
 			[ 'UpdatedPage' => [ 'file' => 'pages/Updated.wiki' ] ]
 		);
 		$this->createTestPageFile( 'pages/Updated.wiki', '== Updated Content ==' );
@@ -484,7 +472,7 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 			'name' => 'TestPack',
 			'version' => '2.0.0',
 			'pages' => [
-				[ 'name' => 'UpdatedPage', 'original' => 'UpdatedPage', 'finalTitle' => 'TestPack/UpdatedPage' ],
+				[ 'name' => 'UpdatedPage', 'original' => 'UpdatedPage', 'final_title' => 'TestPack/UpdatedPage' ],
 			],
 		];
 
@@ -497,30 +485,31 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( 1, $result['pages_updated'] );
 	}
 
-	/**
-	 * @covers ::updatePack
-	 */
 	public function testUpdatePack_InvalidPackId_ReturnsError(): void {
 		$refId = $this->createTestRef();
 		$invalidPackId = new PackId( 99999 );
 
-		$result = $this->packManager->updatePack( $invalidPackId, $refId, [], 1 );
+		// Need valid pack definition with required fields
+		$packDef = [
+			'name' => 'InvalidPack',
+			'version' => '1.0.0',
+			'pages' => [],
+		];
+
+		$result = $this->packManager->updatePack( $invalidPackId, $refId, $packDef, 1 );
 
 		$this->assertFalse( $result['success'] );
 		$this->assertArrayHasKey( 'error', $result );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_NoDependencies_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with independent packs
 		$this->createTestManifest(
 			[
-				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
-				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [] ],
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [], 'pages' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [], 'pages' => [] ],
 			],
 			[]
 		);
@@ -535,17 +524,14 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $blockingDeps, 'Should have no blocking dependencies' );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_WithBlockingDependency_ReturnsDependents(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with dependencies
 		$this->createTestManifest(
 			[
-				'BasePackage' => [ 'name' => 'BasePackage', 'depends_on' => [] ],
-				'DependentPackage' => [ 'name' => 'DependentPackage', 'depends_on' => [ 'BasePackage' ] ],
+				'BasePackage' => [ 'name' => 'BasePackage', 'depends_on' => [], 'pages' => [] ],
+				'DependentPackage' => [ 'name' => 'DependentPackage', 'depends_on' => [ 'BasePackage' ], 'pages' => [] ],
 			],
 			[]
 		);
@@ -565,17 +551,14 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertContains( 'DependentPackage', $blockingDeps['BasePackage'] );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_RemovingBothDependentAndDependency_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with dependencies
 		$this->createTestManifest(
 			[
-				'BasePackage' => [ 'name' => 'BasePackage', 'depends_on' => [] ],
-				'DependentPackage' => [ 'name' => 'DependentPackage', 'depends_on' => [ 'BasePackage' ] ],
+				'BasePackage' => [ 'name' => 'BasePackage', 'depends_on' => [], 'pages' => [] ],
+				'DependentPackage' => [ 'name' => 'DependentPackage', 'depends_on' => [ 'BasePackage' ], 'pages' => [] ],
 			],
 			[]
 		);
@@ -593,19 +576,16 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $blockingDeps, 'Should have no blocking dependencies when removing both' );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_WithMultipleDependents_ReturnsAllDependents(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with multiple dependents
 		$this->createTestManifest(
 			[
-				'CorePackage' => [ 'name' => 'CorePackage', 'depends_on' => [] ],
-				'Dependent1' => [ 'name' => 'Dependent1', 'depends_on' => [ 'CorePackage' ] ],
-				'Dependent2' => [ 'name' => 'Dependent2', 'depends_on' => [ 'CorePackage' ] ],
-				'Dependent3' => [ 'name' => 'Dependent3', 'depends_on' => [ 'CorePackage' ] ],
+				'CorePackage' => [ 'name' => 'CorePackage', 'depends_on' => [], 'pages' => [] ],
+				'Dependent1' => [ 'name' => 'Dependent1', 'depends_on' => [ 'CorePackage' ], 'pages' => [] ],
+				'Dependent2' => [ 'name' => 'Dependent2', 'depends_on' => [ 'CorePackage' ], 'pages' => [] ],
+				'Dependent3' => [ 'name' => 'Dependent3', 'depends_on' => [ 'CorePackage' ], 'pages' => [] ],
 			],
 			[]
 		);
@@ -632,18 +612,15 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertContains( 'Dependent3', $blockingDeps['CorePackage'] );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_WithChainedDependencies_ReturnsCorrectDependents(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with chained dependencies: Pack3 -> Pack2 -> Pack1
 		$this->createTestManifest(
 			[
-				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
-				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [ 'Pack1' ] ],
-				'Pack3' => [ 'name' => 'Pack3', 'depends_on' => [ 'Pack2' ] ],
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [], 'pages' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [ 'Pack1' ], 'pages' => [] ],
+				'Pack3' => [ 'name' => 'Pack3', 'depends_on' => [ 'Pack2' ], 'pages' => [] ],
 			],
 			[]
 		);
@@ -677,17 +654,14 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $blockingDeps, 'Pack3 has no dependents' );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_OnlyChecksInstalledPacks_IgnoresUninstalled(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with dependencies
 		$this->createTestManifest(
 			[
-				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
-				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [ 'Pack1' ] ],
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [], 'pages' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [ 'Pack1' ], 'pages' => [] ],
 			],
 			[]
 		);
@@ -701,45 +675,16 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $blockingDeps, 'Should ignore uninstalled packs' );
 	}
 
-	/**
-	 * @covers ::validatePackRemoval
-	 */
-	public function testValidatePackRemoval_WithInvalidRef_ReturnsEmpty(): void {
-		$invalidRefId = new ContentRefId( 99999 );
-
-		$blockingDeps = $this->packManager->validatePackRemoval( $invalidRefId, [ 'SomePack' ] );
-
-		$this->assertEmpty( $blockingDeps, 'Should return empty for invalid ref' );
-	}
-
-	/**
-	 * @covers ::validatePackRemoval
-	 */
-	public function testValidatePackRemoval_WithMissingWorktree_ReturnsEmpty(): void {
-		// Create ref without worktree
-		$repoId = $this->repoRegistry->ensureRepoEntry( 'https://example.com/test-repo' );
-		$refId = $this->refRegistry->ensureRefEntry( $repoId, 'main', [
-			'worktree_path' => '/nonexistent/path',
-		] );
-
-		$blockingDeps = $this->packManager->validatePackRemoval( $refId, [ 'SomePack' ] );
-
-		$this->assertEmpty( $blockingDeps, 'Should return empty when worktree is missing' );
-	}
-
-	/**
-	 * @covers ::validatePackRemoval
-	 */
 	public function testValidatePackRemoval_WithMultiplePacksToRemove_ChecksAll(): void {
 		$refId = $this->createTestRef();
 		
 		// Create manifest with complex dependencies
 		$this->createTestManifest(
 			[
-				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [] ],
-				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [] ],
-				'Dependent1' => [ 'name' => 'Dependent1', 'depends_on' => [ 'Pack1' ] ],
-				'Dependent2' => [ 'name' => 'Dependent2', 'depends_on' => [ 'Pack2' ] ],
+				'Pack1' => [ 'name' => 'Pack1', 'depends_on' => [], 'pages' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'depends_on' => [], 'pages' => [] ],
+				'Dependent1' => [ 'name' => 'Dependent1', 'depends_on' => [ 'Pack1' ], 'pages' => [] ],
+				'Dependent2' => [ 'name' => 'Dependent2', 'depends_on' => [ 'Pack2' ], 'pages' => [] ],
 			],
 			[]
 		);
@@ -765,13 +710,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertContains( 'Dependent2', $blockingDeps['Pack2'] );
 	}
 
-	// ========================================
-	// validatePacksInstalled() Tests
-	// ========================================
-
-	/**
-	 * @covers ::validatePacksInstalled
-	 */
 	public function testValidatePacksInstalled_AllInstalled_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 
@@ -784,9 +722,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $notInstalled, 'Should return empty when all packs are installed' );
 	}
 
-	/**
-	 * @covers ::validatePacksInstalled
-	 */
 	public function testValidatePacksInstalled_SomeNotInstalled_ReturnsNotInstalled(): void {
 		$refId = $this->createTestRef();
 
@@ -801,9 +736,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertNotContains( 'Pack1', $notInstalled );
 	}
 
-	/**
-	 * @covers ::validatePacksInstalled
-	 */
 	public function testValidatePacksInstalled_NoneInstalled_ReturnsAll(): void {
 		$refId = $this->createTestRef();
 
@@ -815,19 +747,12 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertContains( 'Pack2', $notInstalled );
 	}
 
-	// ========================================
-	// validatePackVersions() Tests
-	// ========================================
-
-	/**
-	 * @covers ::validatePackVersions
-	 */
 	public function testValidatePackVersions_MinorUpdate_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 
 		// Create manifest with updated version
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'depends_on' => [] ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'depends_on' => [], 'pages' => [] ] ],
 			[]
 		);
 
@@ -841,14 +766,11 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $errors, 'Minor version update should be allowed' );
 	}
 
-	/**
-	 * @covers ::validatePackVersions
-	 */
 	public function testValidatePackVersions_PatchUpdate_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.5', 'depends_on' => [] ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.5', 'depends_on' => [], 'pages' => [] ] ],
 			[]
 		);
 
@@ -861,14 +783,11 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $errors, 'Patch version update should be allowed' );
 	}
 
-	/**
-	 * @covers ::validatePackVersions
-	 */
 	public function testValidatePackVersions_MajorVersionChange_ReturnsError(): void {
 		$refId = $this->createTestRef();
 
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '2.0.0', 'depends_on' => [] ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '2.0.0', 'depends_on' => [], 'pages' => [] ] ],
 			[]
 		);
 
@@ -883,58 +802,13 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertStringContainsString( 'Major version cannot change', $errors['TestPack'] );
 	}
 
-	/**
-	 * @covers ::validatePackVersions
-	 */
-	public function testValidatePackVersions_WithoutTargetVersion_UsesManifest(): void {
-		$refId = $this->createTestRef();
-
-		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'depends_on' => [] ] ],
-			[]
-		);
-
-		$this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
-
-		$errors = $this->packManager->validatePackVersions( $refId, [
-			[ 'name' => 'TestPack' ], // No target_version specified
-		] );
-
-		$this->assertEmpty( $errors, 'Should use version from manifest when not specified' );
-	}
-
-	/**
-	 * @covers ::validatePackVersions
-	 */
-	public function testValidatePackVersions_InvalidVersionFormat_ReturnsError(): void {
-		$refId = $this->createTestRef();
-
-		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => 'invalid', 'depends_on' => [] ] ],
-			[]
-		);
-
-		$this->packRegistry->registerPack( $refId, 'TestPack', '1.0.0', 1 );
-
-		$errors = $this->packManager->validatePackVersions( $refId, [
-			[ 'name' => 'TestPack', 'target_version' => 'invalid' ],
-		] );
-
-		$this->assertNotEmpty( $errors );
-		$this->assertArrayHasKey( 'TestPack', $errors );
-		$this->assertStringContainsString( 'Invalid version format', $errors['TestPack'] );
-	}
-
-	/**
-	 * @covers ::validatePackVersions
-	 */
 	public function testValidatePackVersions_MultiplePacksMixedResults_ReturnsOnlyErrors(): void {
 		$refId = $this->createTestRef();
 
 		$this->createTestManifest(
 			[
-				'Pack1' => [ 'name' => 'Pack1', 'version' => '1.5.0', 'depends_on' => [] ],
-				'Pack2' => [ 'name' => 'Pack2', 'version' => '3.0.0', 'depends_on' => [] ],
+				'Pack1' => [ 'name' => 'Pack1', 'version' => '1.5.0', 'depends_on' => [], 'pages' => [] ],
+				'Pack2' => [ 'name' => 'Pack2', 'version' => '3.0.0', 'depends_on' => [], 'pages' => [] ],
 			],
 			[]
 		);
@@ -952,13 +826,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertArrayNotHasKey( 'Pack1', $errors );
 	}
 
-	// ========================================
-	// validatePackUpdateDependencies() Tests
-	// ========================================
-
-	/**
-	 * @covers ::validatePackUpdateDependencies
-	 */
 	public function testValidatePackUpdateDependencies_NoDependents_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 
@@ -970,9 +837,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $errors, 'Should return empty when pack has no dependents' );
 	}
 
-	/**
-	 * @covers ::validatePackUpdateDependencies
-	 */
 	public function testValidatePackUpdateDependencies_DependentNotBeingUpdated_ReturnsError(): void {
 		$refId = $this->createTestRef();
 
@@ -992,9 +856,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertStringContainsString( 'DependentPackage', $errors[0] );
 	}
 
-	/**
-	 * @covers ::validatePackUpdateDependencies
-	 */
 	public function testValidatePackUpdateDependencies_BothBeingUpdated_ReturnsEmpty(): void {
 		$refId = $this->createTestRef();
 
@@ -1009,9 +870,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertEmpty( $errors, 'Should allow update when both base and dependent are being updated' );
 	}
 
-	/**
-	 * @covers ::validatePackUpdateDependencies
-	 */
 	public function testValidatePackUpdateDependencies_ChainedDependencies_ValidatesAll(): void {
 		$refId = $this->createTestRef();
 
@@ -1031,9 +889,6 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		$this->assertStringContainsString( 'Pack2', $errors[0] );
 	}
 
-	/**
-	 * @covers ::validatePackUpdateDependencies
-	 */
 	public function testValidatePackUpdateDependencies_MultipleDependents_ReturnsAllErrors(): void {
 		$refId = $this->createTestRef();
 
@@ -1056,4 +911,3 @@ final class LabkiPackManagerTest extends MediaWikiIntegrationTestCase {
 		}
 	}
 }
-

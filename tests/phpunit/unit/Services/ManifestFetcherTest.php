@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Services;
+namespace LabkiPackManager\Tests\Unit\Services;
 
-    use LabkiPackManager\Services\ManifestFetcher;
+use LabkiPackManager\Services\ManifestFetcher;
 use LabkiPackManager\Services\LabkiRefRegistry;
-use MediaWikiUnitTestCase;
+use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Tests for ManifestFetcher
@@ -17,7 +18,7 @@ use MediaWikiUnitTestCase;
  *
      * @coversDefaultClass \LabkiPackManager\Services\ManifestFetcher
      */
-final class ManifestFetcherTest extends MediaWikiUnitTestCase {
+final class ManifestFetcherTest extends TestCase {
 
     private string $tempDir;
 
@@ -67,10 +68,24 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
     }
 
     /**
+     * Create a mock worktree directory using a fixture file.
+     *
+     * @param string $repoUrl Repository URL (used as identifier)
+     * @param string $ref Git ref (branch/tag)
+     * @param string $fixtureName Name of fixture file (e.g., 'manifest.yml', 'manifest-empty.yml')
+     * @return string Path to the worktree directory
+     */
+    private function createMockWorktreeFromFixture(string $repoUrl, string $ref, string $fixtureName): string {
+        $fixturePath = __DIR__ . '/../../../fixtures/' . $fixtureName;
+        $manifestContent = file_get_contents($fixturePath);
+        return $this->createMockWorktree($repoUrl, $ref, $manifestContent);
+    }
+
+    /**
      * Create a mock LabkiRefRegistry that returns predefined worktree paths.
      * Uses PHPUnit's mock builder to stub the getWorktreePath() method.
      */
-    private function createRefRegistryMock(array $worktreeMap): LabkiRefRegistry {
+    private function createRefRegistryMock(array $worktreeMap): MockObject {
         $mock = $this->createMock(LabkiRefRegistry::class);
         
         $mock->method('getWorktreePath')
@@ -94,6 +109,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
      * @covers ::__construct
      */
     public function testConstructor_WithRegistry_UsesProvided(): void {
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([]);
         $fetcher = new ManifestFetcher($registry);
         $this->assertInstanceOf(ManifestFetcher::class, $fetcher);
@@ -105,9 +121,9 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
     public function testFetch_WhenValidManifest_ReturnsSuccess(): void {
         $repoUrl = 'https://github.com/example/repo';
         $ref = 'main';
-        $manifestYaml = "schema_version: '1.0.0'\nname: Test Pack\npacks: []\n";
 
-        $worktreePath = $this->createMockWorktree($repoUrl, $ref, $manifestYaml);
+        $worktreePath = $this->createMockWorktreeFromFixture($repoUrl, $ref, 'manifest.yml');
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -116,7 +132,9 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $status = $fetcher->fetch($repoUrl, $ref);
 
         $this->assertTrue($status->isOK(), 'Fetch should succeed for valid manifest');
-        $this->assertSame($manifestYaml, $status->getValue(), 'Should return raw YAML content');
+        $manifestYaml = $status->getValue();
+        $this->assertStringContainsString('schema_version:', $manifestYaml, 'Should return raw YAML content');
+        $this->assertStringContainsString('Test Manifest', $manifestYaml);
         }
 
     /**
@@ -130,6 +148,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $worktreePath = $this->tempDir . '/no_manifest';
         mkdir($worktreePath, 0777, true);
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -148,8 +167,9 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $repoUrl = 'https://github.com/example/repo';
         $ref = 'main';
 
-        $worktreePath = $this->createMockWorktree($repoUrl, $ref, '');
+        $worktreePath = $this->createMockWorktreeFromFixture($repoUrl, $ref, 'manifest-truly-empty.yml');
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -174,6 +194,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         // Remove read permissions
         chmod($manifestPath, 0000);
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -195,6 +216,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $repoUrl = 'https://github.com/example/repo';
         $ref = 'nonexistent';
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => '/path/that/does/not/exist'
         ]);
@@ -220,6 +242,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $mainWorktree = $this->createMockWorktree($repoUrl, $refMain, $mainYaml);
         $devWorktree = $this->createMockWorktree($repoUrl, $refDev, $devYaml);
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $refMain => $mainWorktree,
             $repoUrl . '::' . $refDev => $devWorktree
@@ -260,6 +283,7 @@ packs:
 YAML;
 
         $worktreePath = $this->createMockWorktree($repoUrl, $ref, $complexYaml);
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -278,8 +302,9 @@ YAML;
         $repoUrl = 'https://github.com/example/repo';
         $ref = 'main';
 
-        $worktreePath = $this->createMockWorktree($repoUrl, $ref, "   \n\t\n  ");
+        $worktreePath = $this->createMockWorktreeFromFixture($repoUrl, $ref, 'manifest-whitespace.yml');
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);

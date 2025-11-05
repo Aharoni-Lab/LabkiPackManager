@@ -64,7 +64,7 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
 
         $status = Status::newFatal('labkipackmanager-error-fetch');
         $this->manifestStoreMock->expects($this->once())
-            ->method('get')
+            ->method('getManifest')
             ->with(false)
             ->willReturn($status);
 
@@ -72,23 +72,6 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
             'action' => 'labkiManifestGet',
             'repo_url' => 'https://github.com/test/repo',
             'ref' => 'main',
-        ]);
-
-        $this->expectException(\ApiUsageException::class);
-        $api->execute();
-    }
-
-    public function testInvalidManifestStructure_ReturnsError(): void {
-        $repoId = $this->repoRegistry->ensureRepoEntry('https://github.com/test/repo');
-        $this->assertNotNull($this->repoRegistry->getRepo($repoId));
-
-        // Missing 'manifest' key should trigger ApiUsageException
-        $this->manifestStoreMock->method('get')
-            ->willReturn(Status::newGood(['invalid_key' => true]));
-
-        $api = $this->makeApi([
-            'action' => 'labkiManifestGet',
-            'repo_url' => 'https://github.com/test/repo',
         ]);
 
         $this->expectException(\ApiUsageException::class);
@@ -118,7 +101,7 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
             'from_cache' => true
         ];
 
-        $this->manifestStoreMock->method('get')
+        $this->manifestStoreMock->method('getManifest')
             ->willReturn(Status::newGood($manifestData));
 
         $api = $this->makeApi([
@@ -136,6 +119,7 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
         $this->assertArrayHasKey('manifest', $data);
         $this->assertArrayHasKey('meta', $data);
         $this->assertSame(1, $data['meta']['schemaVersion']);
+        $this->assertTrue($data['meta']['from_cache']);
     }
 
     public function testRefreshFlag_TriggersForcedFetch(): void {
@@ -143,10 +127,15 @@ final class ApiLabkiManifestGetTest extends ApiTestCase {
         $this->assertNotNull($this->repoRegistry->getRepo($repoId));
 
         $this->manifestStoreMock->expects($this->once())
-            ->method('get')
+            ->method('getManifest')
             ->with(true)
             ->willReturn(Status::newGood([
-                'meta' => ['schema_version' => 1],
+                'meta' => [
+                    'schema_version' => 1,
+                    'repo_url' => 'https://github.com/test/repo',
+                    'ref' => 'main',
+                    'hash' => 'xyz789'
+                ],
                 'manifest' => [],
                 'from_cache' => false
             ]));

@@ -8,6 +8,8 @@ use LabkiPackManager\Domain\ContentRepo;
 use LabkiPackManager\Domain\ContentRepoId;
 use LabkiPackManager\Domain\ContentRef;
 use LabkiPackManager\Domain\ContentRefId;
+use LabkiPackManager\Domain\Operation;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Domain\Pack;
 use LabkiPackManager\Domain\PackId;
 use LabkiPackManager\Domain\Page;
@@ -17,6 +19,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * @covers \LabkiPackManager\Domain\ContentRepo
  * @covers \LabkiPackManager\Domain\ContentRef
+ * @covers \LabkiPackManager\Domain\Operation
  * @covers \LabkiPackManager\Domain\Pack
  * @covers \LabkiPackManager\Domain\Page
  */
@@ -290,6 +293,116 @@ class EntitiesTest extends TestCase {
         $this->assertNull( $page3->contentHash() );
         $this->assertNull( $page3->createdAt() );
         $this->assertNull( $page3->updatedAt() );
+    }
+
+    public function testOperationToArrayAndFromRow(): void {
+        // Test TABLE and FIELDS constants
+        $this->assertSame( 'labki_operations', Operation::TABLE );
+        $this->assertSame(
+            [
+                'operation_id',
+                'operation_type',
+                'status',
+                'progress',
+                'message',
+                'result_data',
+                'user_id',
+                'created_at',
+                'started_at',
+                'updated_at',
+            ],
+            Operation::FIELDS
+        );
+
+        // Test status constants
+        $this->assertSame( 'queued', Operation::STATUS_QUEUED );
+        $this->assertSame( 'running', Operation::STATUS_RUNNING );
+        $this->assertSame( 'success', Operation::STATUS_SUCCESS );
+        $this->assertSame( 'failed', Operation::STATUS_FAILED );
+
+        // Test type constants
+        $this->assertSame( 'repo_add', Operation::TYPE_REPO_ADD );
+        $this->assertSame( 'repo_sync', Operation::TYPE_REPO_SYNC );
+        $this->assertSame( 'repo_remove', Operation::TYPE_REPO_REMOVE );
+        $this->assertSame( 'pack_install', Operation::TYPE_PACK_INSTALL );
+        $this->assertSame( 'pack_update', Operation::TYPE_PACK_UPDATE );
+        $this->assertSame( 'pack_remove', Operation::TYPE_PACK_REMOVE );
+        $this->assertSame( 'pack_apply', Operation::TYPE_PACK_APPLY );
+
+        // Test toArray()
+        $operation = new Operation(
+            new OperationId( 'repo_add_abc123' ),
+            Operation::TYPE_REPO_ADD,
+            Operation::STATUS_RUNNING,
+            50,
+            'Cloning repository...',
+            '{"repo_url":"https://github.com/example/repo"}',
+            1,
+            1000,
+            1100,
+            1200
+        );
+        $opArr = $operation->toArray();
+        $this->assertSame( 'repo_add_abc123', $opArr['operation_id'] );
+        $this->assertSame( 'repo_add', $opArr['operation_type'] );
+        $this->assertSame( 'running', $opArr['status'] );
+        $this->assertSame( 50, $opArr['progress'] );
+        $this->assertSame( 'Cloning repository...', $opArr['message'] );
+        $this->assertSame( '{"repo_url":"https://github.com/example/repo"}', $opArr['result_data'] );
+        $this->assertSame( 1, $opArr['user_id'] );
+        $this->assertSame( 1000, $opArr['created_at'] );
+        $this->assertSame( 1100, $opArr['started_at'] );
+        $this->assertSame( 1200, $opArr['updated_at'] );
+
+        // Test fromRow()
+        $opRow = (object)[
+            'operation_id' => 'pack_apply_xyz789',
+            'operation_type' => 'pack_apply',
+            'status' => 'success',
+            'progress' => 100,
+            'message' => 'Pack applied successfully',
+            'result_data' => '{"pages_created":5}',
+            'user_id' => 2,
+            'created_at' => 2000,
+            'started_at' => 2100,
+            'updated_at' => 2200,
+        ];
+        $operation2 = Operation::fromRow( $opRow );
+        $this->assertSame( 'pack_apply_xyz789', $operation2->id()->toString() );
+        $this->assertSame( 'pack_apply', $operation2->type() );
+        $this->assertSame( 'success', $operation2->status() );
+        $this->assertSame( 100, $operation2->progress() );
+        $this->assertSame( 'Pack applied successfully', $operation2->message() );
+        $this->assertSame( '{"pages_created":5}', $operation2->resultData() );
+        $this->assertSame( 2, $operation2->userId() );
+        $this->assertSame( 2000, $operation2->createdAt() );
+        $this->assertSame( 2100, $operation2->startedAt() );
+        $this->assertSame( 2200, $operation2->updatedAt() );
+
+        // Test with null values
+        $opRowNull = (object)[
+            'operation_id' => 'repo_sync_minimal',
+            'operation_type' => 'repo_sync',
+            'status' => 'queued',
+            'progress' => null,
+            'message' => null,
+            'result_data' => null,
+            'user_id' => null,
+            'created_at' => null,
+            'started_at' => null,
+            'updated_at' => null,
+        ];
+        $operation3 = Operation::fromRow( $opRowNull );
+        $this->assertSame( 'repo_sync_minimal', $operation3->id()->toString() );
+        $this->assertSame( 'repo_sync', $operation3->type() );
+        $this->assertSame( 'queued', $operation3->status() );
+        $this->assertNull( $operation3->progress() );
+        $this->assertNull( $operation3->message() );
+        $this->assertNull( $operation3->resultData() );
+        $this->assertNull( $operation3->userId() );
+        $this->assertNull( $operation3->createdAt() );
+        $this->assertNull( $operation3->startedAt() );
+        $this->assertNull( $operation3->updatedAt() );
     }
 }
 

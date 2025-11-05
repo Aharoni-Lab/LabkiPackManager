@@ -83,7 +83,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$data = $result[0];
@@ -99,7 +99,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		$this->assertSame( LabkiOperationRegistry::STATUS_QUEUED, $data['status'] );
 		
 		$this->assertArrayHasKey( 'message', $data );
-		$this->assertStringContainsString( 'Repository removal queued', $data['message'] );
+		$this->assertStringContainsString( 'queued for removal', $data['message'] );
 		
 		// Should NOT have refs in response when removing entire repo
 		$this->assertArrayNotHasKey( 'refs', $data );
@@ -128,7 +128,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'develop|v1.0',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -162,7 +162,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'develop',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -193,7 +193,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => '',
+			'repo_url' => '',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
@@ -205,7 +205,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'not-a-valid-url',
+			'repo_url' => 'not-a-valid-url',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
@@ -217,26 +217,27 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/nonexistent/repo',
+			'repo_url' => 'https://github.com/nonexistent/repo',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
 	/**
 	 * Test that empty refs array returns error.
 	 */
-	public function testRemoveRepo_WithEmptyRefsArray_ReturnsError(): void {
+	public function testRemoveRepo_WithEmptyRefsArray_QueuesFullRemoval(): void {
 		$repoId = $this->createTestRepo( 'https://github.com/test/repo' );
 		$this->createTestRef( $repoId, 'main' );
 		
-		// MediaWiki API handles empty array parameters specially
-		// We expect an error when refs is provided but empty
-		$this->expectException( \ApiUsageException::class );
-		
-		$this->doApiRequest( [
+		// Empty refs string is treated as no refs parameter (full removal)
+		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => '',
 		], null, false, $this->getTestUser()->getUser() );
+		
+		$data = $result[0];
+		$this->assertTrue( $data['success'] );
+		$this->assertStringContainsString( 'queued for removal', $data['message'] );
 	}
 
 	/**
@@ -249,7 +250,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		// Query with .git suffix
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo.git',
+			'repo_url' => 'https://github.com/test/repo.git',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$this->assertTrue( $result[0]['success'] );
@@ -265,7 +266,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 		
 		// If we get here without exception, POST was allowed
@@ -286,7 +287,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
@@ -299,7 +300,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$operationId = $result[0]['operation_id'];
@@ -323,7 +324,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		// Full removal
 		$result1 = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 		
 		$op1 = $this->operationRegistry->getOperation( new OperationId( $result1[0]['operation_id'] ) );
@@ -336,7 +337,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result2 = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo2',
+			'repo_url' => 'https://github.com/test/repo2',
 			'refs' => 'develop',
 		], null, false, $this->getTestUser()->getUser() );
 		
@@ -353,7 +354,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$data = $result[0];
@@ -377,12 +378,12 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result1 = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo1',
+			'repo_url' => 'https://github.com/test/repo1',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$result2 = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo2',
+			'repo_url' => 'https://github.com/test/repo2',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$this->assertNotSame( $result1[0]['operation_id'], $result2[0]['operation_id'] );
@@ -401,7 +402,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'main|develop|v1.0|v2.0',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -421,7 +422,7 @@ class ApiLabkiReposRemoveTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposRemove',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'develop|v1.0',
 		], null, false, $this->getTestUser()->getUser() );
 

@@ -219,7 +219,7 @@ class ApiLabkiPacksList extends PackApiBase {
 		
 		if ( $packId ) {
 			// Mode 4: Get specific pack by name
-			return $this->buildPackData( $packId, $includePages );
+			return [ $this->buildPackData( $packId, $includePages ) ];
 		}
 		if ( $refId ) {
 		// Mode 3: Get packs for a specific ref	

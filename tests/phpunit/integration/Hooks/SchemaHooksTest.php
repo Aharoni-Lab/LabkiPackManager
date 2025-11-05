@@ -115,22 +115,70 @@ final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
     /**
      * @covers ::onLoadExtensionSchemaUpdates
      */
-    public function testOnLoadExtensionSchemaUpdates_RegistersAllFourTables(): void {
+    public function testOnLoadExtensionSchemaUpdates_RegistersPackDependencyTable(): void {
         $db = $this->createMock(IDatabase::class);
         $db->method('getType')->willReturn('sqlite');
 
         $updater = $this->createMock(DatabaseUpdater::class);
         $updater->method('getDB')->willReturn($db);
 
-        // Expect addExtensionTable to be called exactly 4 times
-        $updater->expects($this->exactly(4))
+        // Track all table registrations
+        $tables = [];
+        $updater->method('addExtensionTable')
+            ->willReturnCallback(function($table, $path) use (&$tables) {
+                $tables[] = $table;
+            });
+
+        SchemaHooks::onLoadExtensionSchemaUpdates($updater);
+
+        // Verify labki_pack_dependency was registered
+        $this->assertContains('labki_pack_dependency', $tables);
+    }
+
+    /**
+     * @covers ::onLoadExtensionSchemaUpdates
+     */
+    public function testOnLoadExtensionSchemaUpdates_RegistersOperationsTable(): void {
+        $db = $this->createMock(IDatabase::class);
+        $db->method('getType')->willReturn('sqlite');
+
+        $updater = $this->createMock(DatabaseUpdater::class);
+        $updater->method('getDB')->willReturn($db);
+
+        // Track all table registrations
+        $tables = [];
+        $updater->method('addExtensionTable')
+            ->willReturnCallback(function($table, $path) use (&$tables) {
+                $tables[] = $table;
+            });
+
+        SchemaHooks::onLoadExtensionSchemaUpdates($updater);
+
+        // Verify labki_operations was registered
+        $this->assertContains('labki_operations', $tables);
+    }
+
+    /**
+     * @covers ::onLoadExtensionSchemaUpdates
+     */
+    public function testOnLoadExtensionSchemaUpdates_RegistersAllSixTables(): void {
+        $db = $this->createMock(IDatabase::class);
+        $db->method('getType')->willReturn('sqlite');
+
+        $updater = $this->createMock(DatabaseUpdater::class);
+        $updater->method('getDB')->willReturn($db);
+
+        // Expect addExtensionTable to be called exactly 6 times
+        $updater->expects($this->exactly(6))
             ->method('addExtensionTable')
             ->with(
                 $this->logicalOr(
                     $this->equalTo('labki_content_repo'),
                     $this->equalTo('labki_content_ref'),
                     $this->equalTo('labki_pack'),
-                    $this->equalTo('labki_page')
+                    $this->equalTo('labki_page'),
+                    $this->equalTo('labki_pack_dependency'),
+                    $this->equalTo('labki_operations')
                 ),
                 $this->stringContains('sql/sqlite/tables.sql')
             );
@@ -220,7 +268,7 @@ final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
 
         // Track the order of table registrations
         $tableOrder = [];
-        $updater->expects($this->exactly(4))
+        $updater->expects($this->exactly(6))
             ->method('addExtensionTable')
             ->willReturnCallback(function ($table, $path) use (&$tableOrder) {
                 $tableOrder[] = $table;
@@ -228,11 +276,13 @@ final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
 
         SchemaHooks::onLoadExtensionSchemaUpdates($updater);
 
-        // Verify expected order (content_repo, content_ref, pack, page)
+        // Verify expected order (content_repo, content_ref, pack, page, pack_dependency, operations)
         $this->assertSame('labki_content_repo', $tableOrder[0], 'First table should be labki_content_repo');
         $this->assertSame('labki_content_ref', $tableOrder[1], 'Second table should be labki_content_ref');
         $this->assertSame('labki_pack', $tableOrder[2], 'Third table should be labki_pack');
         $this->assertSame('labki_page', $tableOrder[3], 'Fourth table should be labki_page');
+        $this->assertSame('labki_pack_dependency', $tableOrder[4], 'Fifth table should be labki_pack_dependency');
+        $this->assertSame('labki_operations', $tableOrder[5], 'Sixth table should be labki_operations');
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Handlers\Packs;
 
-use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Session\PackSessionState;
 
 /**
  * Handles renaming a page within a pack.

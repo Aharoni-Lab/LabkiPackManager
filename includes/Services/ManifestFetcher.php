@@ -19,7 +19,7 @@ use LabkiPackManager\Services\LabkiRefRegistry;
  * @error labkipackmanager-error-manifest-unreadable - File exists but no read permission
  * @error labkipackmanager-error-manifest-read - General read failure
  */
-final class ManifestFetcher {
+class ManifestFetcher {
 
     private LabkiRefRegistry $refRegistry;
 

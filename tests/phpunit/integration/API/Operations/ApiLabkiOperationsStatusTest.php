@@ -175,8 +175,8 @@ final class ApiLabkiOperationsStatusTest extends ApiTestCase {
 		$this->assertTrue($data['result_data']['success']);
 	}
 
-	/** Test that invalid JSON in result_data is returned as raw string */
-	public function testGetSingleOperation_WithInvalidJson_ReturnsString(): void {
+	/** Test that invalid JSON in result_data is returned as empty array */
+	public function testGetSingleOperation_WithInvalidJson_ReturnsEmptyArray(): void {
 		$opId = $this->createTestOperation('repo_sync', 'failed', 0, 'Error', 1, '{invalid_json');
 
 		$result = $this->doApiRequest([
@@ -185,8 +185,8 @@ final class ApiLabkiOperationsStatusTest extends ApiTestCase {
 		]);
 
 		$data = $result[0];
-		$this->assertIsString($data['result_data']);
-		$this->assertStringContainsString('{invalid_json', $data['result_data']);
+		$this->assertIsArray($data['result_data']);
+		$this->assertEmpty($data['result_data']);
 	}
 
 	/** Test that non-managers cannot view another user's operation */

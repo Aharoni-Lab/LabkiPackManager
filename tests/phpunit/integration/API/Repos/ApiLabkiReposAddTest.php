@@ -61,7 +61,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithAllParams_QueuesJobAndReturnsOperationId(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'main|develop',
 			'default_ref' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
@@ -105,7 +105,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithOnlyUrl_DefaultsToMainRef(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$this->assertTrue( $result[0]['success'] );
@@ -122,7 +122,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithRefsNoDefault_UsesFirstRefAsDefault(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'develop|main|v1.0',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -136,7 +136,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithDefaultRefNoRefs_UsesDefaultForRefs(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'default_ref' => 'develop',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -154,7 +154,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'main',
 			'default_ref' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
@@ -183,7 +183,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		// Try to add with a new ref 'develop'
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'main|develop',
 			'default_ref' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
@@ -201,7 +201,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithGitSuffix_NormalizesUrl(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo.git',
+			'repo_url' => 'https://github.com/test/repo.git',
 			'refs' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -231,7 +231,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => '',
+			'repo_url' => '',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
@@ -243,7 +243,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'not-a-valid-url',
+			'repo_url' => 'not-a-valid-url',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
@@ -255,7 +255,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		// This test verifies the API configuration
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 		
 		// If we get here without exception, POST was allowed
@@ -270,7 +270,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		// ApiTestCase handles token generation for us
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 		
 		$this->assertTrue( $result[0]['success'] );
@@ -287,7 +287,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 	}
 
@@ -297,7 +297,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithSshUrl_AcceptsUrl(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'git@github.com:test/repo.git',
+			'repo_url' => 'git@github.com:test/repo.git',
 			'refs' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -313,7 +313,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 		
 		$this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'file:///tmp/test-repo',
+			'repo_url' => 'file:///tmp/test-repo',
 			'refs' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
 	}
@@ -324,7 +324,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_CreatesProperOperationRecord(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
 
@@ -345,7 +345,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WithMultipleRefs_AcceptsAllRefs(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'main|develop|v1.0|v2.0',
 			'default_ref' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
@@ -360,7 +360,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_WhenDefaultNotInRefs_AddsDefaultToRefs(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => 'develop|v1.0',
 			'default_ref' => 'main',
 		], null, false, $this->getTestUser()->getUser() );
@@ -378,7 +378,7 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_ResponseIncludesMetadata(): void {
 		$result = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$data = $result[0];
@@ -396,12 +396,12 @@ class ApiLabkiReposAddTest extends ApiTestCase {
 	public function testAddRepo_GeneratesUniqueOperationIds(): void {
 		$result1 = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo1',
+			'repo_url' => 'https://github.com/test/repo1',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$result2 = $this->doApiRequest( [
 			'action' => 'labkiReposAdd',
-			'url' => 'https://github.com/test/repo2',
+			'repo_url' => 'https://github.com/test/repo2',
 		], null, false, $this->getTestUser()->getUser() );
 
 		$this->assertNotSame( $result1[0]['operation_id'], $result2[0]['operation_id'] );

@@ -117,6 +117,16 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 						}
 					}
 				}
+				if ( isset( $packDef['pages'] ) && is_array( $packDef['pages'] ) ) {
+					if ( empty( $packDef['pages'] ) ) {
+						$yaml .= "    pages: []\n";
+					} else {
+						$yaml .= "    pages:\n";
+						foreach ( $packDef['pages'] as $pageName ) {
+							$yaml .= "      - {$pageName}\n";
+						}
+					}
+				}
 			}
 		}
 		
@@ -213,7 +223,7 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 		] );
 
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.0', 'depends_on' => [] ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'TestPage' ] ] ],
 			[ 'TestPage' => [ 'file' => 'pages/TestPage.wiki' ] ]
 		);
 		$this->createTestPageFile( 'pages/TestPage.wiki', '== Test Page ==' );
@@ -235,7 +245,7 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 					'pack_name' => 'TestPack',
 					'version' => '1.0.0',
 					'pages' => [
-						[ 'name' => 'TestPage', 'finalTitle' => 'TestPack/TestPage' ],
+						[ 'name' => 'TestPage', 'final_title' => 'TestPack/TestPage' ],
 					],
 				],
 			],
@@ -270,7 +280,7 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 		] );
 
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'pages' => [ 'TestPage' ] ] ],
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.5.0', 'depends_on' => [], 'pages' => [ 'TestPage' ] ] ],
 			[ 'TestPage' => [ 'file' => 'pages/test.wiki' ] ]
 		);
 		$this->createTestPageFile( 'pages/test.wiki', 'New content' );
@@ -368,11 +378,16 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 
 		$this->createTestManifest(
 			[
-				'InstallPack' => [ 'name' => 'InstallPack', 'version' => '1.0.0', 'depends_on' => [] ],
-				'UpdatePack' => [ 'name' => 'UpdatePack', 'version' => '1.5.0', 'depends_on' => [] ],
+				'InstallPack' => [ 'name' => 'InstallPack', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'InstallPage' ] ],
+				'UpdatePack' => [ 'name' => 'UpdatePack', 'version' => '1.5.0', 'depends_on' => [], 'pages' => [ 'UpdatePage' ] ],
 			],
-			[]
+			[
+				'InstallPage' => [ 'file' => 'pages/install.wiki' ],
+				'UpdatePage' => [ 'file' => 'pages/update.wiki' ],
+			]
 		);
+		$this->createTestPageFile( 'pages/install.wiki', 'Install content' );
+		$this->createTestPageFile( 'pages/update.wiki', 'Update content' );
 
 		// Install UpdatePack (old version) and RemovePack
 		$updatePackId = $this->packRegistry->registerPack( $refId, 'UpdatePack', '1.0.0', 1 );
@@ -399,7 +414,9 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 					'action' => 'install',
 					'pack_name' => 'InstallPack',
 					'version' => '1.0.0',
-					'pages' => [],
+					'pages' => [
+						[ 'name' => 'InstallPage', 'final_title' => 'InstallPack/InstallPage' ],
+					],
 				],
 				[
 					'action' => 'update',
@@ -458,11 +475,19 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 
 		$this->createTestManifest(
 			[
-				'Pack1' => [ 'name' => 'Pack1', 'version' => '1.0.0', 'depends_on' => [] ],
-				'Pack2' => [ 'name' => 'Pack2', 'version' => '1.0.0', 'depends_on' => [] ],
+				'Pack1' => [ 'name' => 'Pack1', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'Page1' ] ],
+				'Pack2' => [ 'name' => 'Pack2', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'Page2' ] ],
+				'Pack3' => [ 'name' => 'Pack3', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'Page3' ] ],
 			],
-			[]
+			[
+				'Page1' => [ 'file' => 'pages/page1.wiki' ],
+				'Page2' => [ 'file' => 'pages/page2.wiki' ],
+				'Page3' => [ 'file' => 'pages/page3.wiki' ],
+			]
 		);
+		$this->createTestPageFile( 'pages/page1.wiki', 'Page 1 content' );
+		$this->createTestPageFile( 'pages/page2.wiki', 'Page 2 content' );
+		$this->createTestPageFile( 'pages/page3.wiki', 'Page 3 content' );
 
 		$pack1Id = $this->packRegistry->registerPack( $refId, 'Pack1', '1.0.0', 1 );
 		$pack2Id = $this->packRegistry->registerPack( $refId, 'Pack2', '1.0.0', 1 );
@@ -482,7 +507,9 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 			'ref_id' => $refId->toInt(),
 			'operations' => [
 				[ 'action' => 'update', 'pack_name' => 'Pack1', 'target_version' => '1.0.0' ],
-				[ 'action' => 'install', 'pack_name' => 'Pack3', 'version' => '1.0.0', 'pages' => [] ],
+				[ 'action' => 'install', 'pack_name' => 'Pack3', 'version' => '1.0.0', 'pages' => [
+					[ 'name' => 'Page3', 'final_title' => 'Pack3/Page3' ],
+				] ],
 				[ 'action' => 'remove', 'pack_id' => $pack2Id->toInt(), 'delete_pages' => false ],
 			],
 			'operation_id' => $operationId,
@@ -517,10 +544,13 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 
 		$this->createTestManifest(
 			[
-				'ValidPack' => [ 'name' => 'ValidPack', 'version' => '1.0.0', 'depends_on' => [] ],
+				'ValidPack' => [ 'name' => 'ValidPack', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'ValidPage' ] ],
 			],
-			[]
+			[
+				'ValidPage' => [ 'file' => 'pages/valid.wiki' ],
+			]
 		);
+		$this->createTestPageFile( 'pages/valid.wiki', 'Valid content' );
 
 		// Install a pack to remove
 		$removePackId = $this->packRegistry->registerPack( $refId, 'RemovePack', '1.0.0', 1 );
@@ -538,7 +568,9 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 			'ref_id' => $refId->toInt(),
 			'operations' => [
 				[ 'action' => 'remove', 'pack_id' => $removePackId->toInt(), 'delete_pages' => false ],
-				[ 'action' => 'install', 'pack_name' => 'ValidPack', 'version' => '1.0.0', 'pages' => [] ],
+				[ 'action' => 'install', 'pack_name' => 'ValidPack', 'version' => '1.0.0', 'pages' => [
+					[ 'name' => 'ValidPage', 'final_title' => 'ValidPack/ValidPage' ],
+				] ],
 				// This will fail - trying to update non-existent pack
 				[ 'action' => 'update', 'pack_name' => 'NonExistentPack', 'target_version' => '1.0.0' ],
 			],
@@ -584,9 +616,12 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 		] );
 
 		$this->createTestManifest(
-			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.0', 'depends_on' => [] ] ],
-			[]
+			[ 'TestPack' => [ 'name' => 'TestPack', 'version' => '1.0.0', 'depends_on' => [], 'pages' => [ 'TestPage' ] ] ],
+			[
+				'TestPage' => [ 'file' => 'pages/test.wiki' ],
+			]
 		);
+		$this->createTestPageFile( 'pages/test.wiki', 'Test content' );
 
 		$operationId = 'test_progress_' . uniqid();
 		$this->operationRegistry->createOperation(
@@ -600,7 +635,9 @@ class LabkiPackApplyJobTest extends MediaWikiIntegrationTestCase {
 		$job = new LabkiPackApplyJob( Title::newMainPage(), [
 			'ref_id' => $refId->toInt(),
 			'operations' => [
-				[ 'action' => 'install', 'pack_name' => 'TestPack', 'version' => '1.0.0', 'pages' => [] ],
+				[ 'action' => 'install', 'pack_name' => 'TestPack', 'version' => '1.0.0', 'pages' => [
+					[ 'name' => 'TestPage', 'final_title' => 'TestPack/TestPage' ],
+				] ],
 			],
 			'operation_id' => $operationId,
 			'user_id' => 1,

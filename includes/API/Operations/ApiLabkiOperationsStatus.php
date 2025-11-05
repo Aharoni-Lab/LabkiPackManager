@@ -151,8 +151,13 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 			$this->dieWithError( 'apierror-permissiondenied-generic', 'permission_denied' );
 		}
 
-		$parsed = FormatJson::parse( $operation->resultData(), FormatJson::FORCE_ASSOC );
-		$resultData = $parsed->isOK() ? $parsed->getValue() : [];
+		$rawResultData = $operation->resultData();
+		if ( $rawResultData === null || $rawResultData === '' ) {
+			$resultData = [];
+		} else {
+			$parsed = FormatJson::parse( $rawResultData, FormatJson::FORCE_ASSOC );
+			$resultData = $parsed->isOK() ? $parsed->getValue() : [];
+		}
 
 		// Build response
 		$result = $this->getResult();
@@ -194,8 +199,13 @@ final class ApiLabkiOperationsStatus extends ApiBase {
 		// Format operations for response
 		$formattedOps = [];
 		foreach ( $operations as $op ) {
-			$parsed = FormatJson::parse( $op->resultData(), FormatJson::FORCE_ASSOC );
-			$resultData = $parsed->isOK() ? $parsed->getValue() : [];
+			$rawResultData = $op->resultData();
+			if ( $rawResultData === null || $rawResultData === '' ) {
+				$resultData = [];
+			} else {
+				$parsed = FormatJson::parse( $rawResultData, FormatJson::FORCE_ASSOC );
+				$resultData = $parsed->isOK() ? $parsed->getValue() : [];
+			}
 
 			$formattedOps[] = [
 				'operation_id' => $op->id()->toString(),

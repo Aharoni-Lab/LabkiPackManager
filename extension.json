@@ -123,7 +123,6 @@
 	},
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
-    "BeforePageDisplay": "LabkiPackManager\\Hooks\\LabkiPackManagerHooks::onBeforePageDisplay",
     "SkinBuildSidebar": "LabkiPackManager\\Hooks\\SidebarHook::onSkinBuildSidebar"
   },
   "MaintenanceScripts": {

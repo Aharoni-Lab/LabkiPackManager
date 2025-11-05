@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace LabkiPackManager\Handlers\Packs;
 
-use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Session\PackSessionState;
 
 /**
  * Handles setting the action for a pack.

@@ -6,6 +6,7 @@ namespace LabkiPackManager\Tests\Unit\Domain;
 
 use LabkiPackManager\Domain\ContentRepoId;
 use LabkiPackManager\Domain\ContentRefId;
+use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Domain\PackId;
 use LabkiPackManager\Domain\PageId;
 use PHPUnit\Framework\TestCase;
@@ -13,6 +14,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * @covers \LabkiPackManager\Domain\ContentRepoId
  * @covers \LabkiPackManager\Domain\ContentRefId
+ * @covers \LabkiPackManager\Domain\OperationId
  * @covers \LabkiPackManager\Domain\PackId
  * @covers \LabkiPackManager\Domain\PageId
  */
@@ -53,6 +55,18 @@ class ValueObjectsTest extends TestCase {
         $this->assertFalse( $pageA->equals( $pageC ) );
         $this->assertSame( 100, $pageA->toInt() );
         $this->assertSame( '100', (string)$pageA );
+    }
+
+    public function testOperationId(): void {
+        // OperationId (string-based, unlike the int-based IDs above)
+        $opA = new OperationId( 'repo_add_abc123' );
+        $opB = new OperationId( 'repo_add_abc123' );
+        $opC = new OperationId( 'pack_apply_xyz789' );
+        
+        $this->assertTrue( $opA->equals( $opB ) );
+        $this->assertFalse( $opA->equals( $opC ) );
+        $this->assertSame( 'repo_add_abc123', $opA->toString() );
+        $this->assertSame( 'repo_add_abc123', (string)$opA );
     }
 }
 
