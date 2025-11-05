@@ -24,7 +24,7 @@ use LabkiPackManager\Services\PackStateStore;
  * - apply: Execute operations
  *
  * @covers \LabkiPackManager\API\Packs\ApiLabkiPacksState
- * @covers \LabkiPackManager\Domain\PackSessionState
+ * @covers \LabkiPackManager\Session\PackSessionState
  * @covers \LabkiPackManager\Services\PackStateStore
  * @group LabkiPackManager
  * @group Database

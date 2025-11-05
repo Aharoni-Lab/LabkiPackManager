@@ -6,7 +6,7 @@ namespace LabkiPackManager\Services;
 
 use MediaWiki\MediaWikiServices;
 use WANObjectCache;
-use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Session\PackSessionState;
 use LabkiPackManager\Domain\ContentRefId;
 
 /**

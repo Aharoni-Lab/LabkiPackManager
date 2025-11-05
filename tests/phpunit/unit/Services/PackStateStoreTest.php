@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\Tests\Unit\Services;
 
 use LabkiPackManager\Services\PackStateStore;
-use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Session\PackSessionState;
 use LabkiPackManager\Domain\ContentRefId;
 use WANObjectCache;
 use HashBagOStuff;

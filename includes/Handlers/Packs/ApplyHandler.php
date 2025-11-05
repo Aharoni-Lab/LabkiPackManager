@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\Handlers\Packs;
 
 use MediaWiki\Title\Title;
-use LabkiPackManager\Domain\PackSessionState;
+use LabkiPackManager\Session\PackSessionState;
 use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use LabkiPackManager\Jobs\LabkiPackApplyJob;
