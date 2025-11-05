@@ -50,7 +50,7 @@ export default {
       tsconfig: './tsconfig.json',
       sourceMap: true,
       declaration: false,
-      exclude: ['**/*.spec.ts', '**/*.test.ts']
+      exclude: ['**/*.spec.ts', '**/*.test.ts', '**/__tests__/**/*']
     }),
     scss({
       output: 'resources/css/labkipackmanager.css',
