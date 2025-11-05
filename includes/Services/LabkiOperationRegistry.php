@@ -23,7 +23,7 @@ use Wikimedia\Rdbms\IDatabase;
  *
  * @see LabkiRepoAddJob Example usage in background jobs
  */
-final class LabkiOperationRegistry {
+final class LabkiOperationRegistry extends BaseRegistry {
 
     // Re-export Operation constants for backward compatibility
     public const STATUS_QUEUED = Operation::STATUS_QUEUED;
@@ -54,15 +54,6 @@ final class LabkiOperationRegistry {
     }
 
     /**
-     * Get current timestamp in DB-specific format.
-     * Can be called by external code to get properly formatted timestamps.
-     * @return string Formatted timestamp for database insertion
-     */
-    public function now(): string {
-        return $this->dbw->timestamp( wfTimestampNow() );
-    }
-
-    /**
      * Create a new operation record
      *
      * Inserts a new operation into the tracking table. The operation is created with
@@ -88,8 +79,8 @@ final class LabkiOperationRegistry {
             'status' => $status,
             'message' => $message,
             'user_id' => $userId,
-            'created_at' => $this->now(),
-            'updated_at' => $this->now(),
+            'created_at' => $this->now($this->dbw),
+            'updated_at' => $this->now($this->dbw),
         ], __METHOD__ );
     }
 
@@ -115,7 +106,7 @@ final class LabkiOperationRegistry {
     ): void {
         $row = [
             'status' => $status,
-            'updated_at' => $this->now(),
+            'updated_at' => $this->now($this->dbw),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;
@@ -148,8 +139,8 @@ final class LabkiOperationRegistry {
     public function startOperation( OperationId $operationId, ?string $message = null ): void {
         $row = [
             'status' => Operation::STATUS_RUNNING,
-            'started_at' => $this->now(),
-            'updated_at' => $this->now(),
+            'started_at' => $this->now($this->dbw),
+            'updated_at' => $this->now($this->dbw),
         ];
         if ( $message !== null ) {
             $row['message'] = $message;

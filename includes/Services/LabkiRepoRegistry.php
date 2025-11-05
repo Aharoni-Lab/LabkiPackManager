@@ -33,18 +33,8 @@ use Wikimedia\Rdbms\IDatabase;
  *
  * Note: Not marked as final to allow mocking in unit tests.
  */
-class LabkiRepoRegistry {
+class LabkiRepoRegistry extends BaseRegistry {
     private const TABLE = 'labki_content_repo';
-
-    /**
-     * Get current timestamp in DB-specific format.
-     * Can be called by external code to get properly formatted timestamps.
-     * @return string Formatted timestamp for database insertion
-     */
-    public function now(): string {
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        return $dbw->timestamp( \wfTimestampNow() );
-    }
 
     /**
      * Ensure a repository entry exists (create or update) and return its ID.
