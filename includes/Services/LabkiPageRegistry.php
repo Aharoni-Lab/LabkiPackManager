@@ -34,18 +34,8 @@ use Wikimedia\Rdbms\IDatabase;
  *
  * Note: Not marked as final to allow mocking in unit tests.
  */
-class LabkiPageRegistry {
+class LabkiPageRegistry extends BaseRegistry {
     private const TABLE = 'labki_page';
-
-    /**
-     * Get current timestamp in DB-specific format.
-     * Can be called by external code to get properly formatted timestamps.
-     * @return string Formatted timestamp for database insertion
-     */
-    public function now(): string {
-        $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
-        return $dbw->timestamp( \wfTimestampNow() );
-    }
 
     /**
      * Add a page to a pack and return page_id.
