@@ -37,7 +37,7 @@ namespace LabkiPackManager\Services;
  *
  * Complexity: O(N + E)
  */
-final class GraphBuilder {
+class GraphBuilder {
 
 	/**
 	 * Build the dependency graph.

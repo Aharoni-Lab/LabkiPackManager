@@ -27,8 +27,13 @@ class PackStateStoreTest extends TestCase {
 		$refId = new ContentRefId( 5 );
 		$userId = 123;
 		$packs = [
-			'test pack' => [
-				'selected' => true,
+			'test-pack' => [
+				'action' => 'install',
+				'auto_selected_reason' => null,
+				'current_version' => null,
+				'target_version' => '1.0.0',
+				'prefix' => 'TestPack',
+				'installed' => false,
 				'pages' => [],
 			],
 		];
@@ -54,8 +59,14 @@ class PackStateStoreTest extends TestCase {
 		$refId = new ContentRefId( 5 );
 		$userId = 123;
 		$packs = [
-			'test pack' => [
-				'selected' => true,
+			'test-pack' => [
+				'action' => 'update',
+				'auto_selected_reason' => null,
+				'current_version' => '0.9.0',
+				'target_version' => '1.0.0',
+				'prefix' => 'TestPack',
+				'installed' => true,
+				'pages' => [],
 			],
 		];
 
@@ -109,7 +120,17 @@ class PackStateStoreTest extends TestCase {
 	public function testClear(): void {
 		$refId = new ContentRefId( 5 );
 		$userId = 123;
-		$packs = [ 'test pack' => [ 'selected' => true ] ];
+		$packs = [
+			'test-pack' => [
+				'action' => 'install',
+				'auto_selected_reason' => null,
+				'current_version' => null,
+				'target_version' => '1.0.0',
+				'prefix' => 'TestPack',
+				'installed' => false,
+				'pages' => [],
+			],
+		];
 
 		$cache = $this->createTestCache();
 		$store = new PackStateStore( $cache );
@@ -132,7 +153,17 @@ class PackStateStoreTest extends TestCase {
 	public function testExists(): void {
 		$refId = new ContentRefId( 5 );
 		$userId = 123;
-		$packs = [ 'test pack' => [ 'selected' => true ] ];
+		$packs = [
+			'test-pack' => [
+				'action' => 'remove',
+				'auto_selected_reason' => null,
+				'current_version' => '1.0.0',
+				'target_version' => '1.0.0',
+				'prefix' => 'TestPack',
+				'installed' => true,
+				'pages' => [],
+			],
+		];
 
 		$cache = $this->createTestCache();
 		$store = new PackStateStore( $cache );
@@ -159,7 +190,17 @@ class PackStateStoreTest extends TestCase {
 		$refId2 = new ContentRefId( 10 );
 		$userId1 = 123;
 		$userId2 = 456;
-		$packs = [ 'test pack' => [ 'selected' => true ] ];
+		$packs = [
+			'test-pack' => [
+				'action' => 'install',
+				'auto_selected_reason' => 'Dependency of other-pack',
+				'current_version' => null,
+				'target_version' => '2.0.0',
+				'prefix' => 'TestPack',
+				'installed' => false,
+				'pages' => [],
+			],
+		];
 
 		$cache = $this->createTestCache();
 		$store = new PackStateStore( $cache );

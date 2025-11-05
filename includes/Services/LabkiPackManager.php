@@ -84,7 +84,7 @@ class LabkiPackManager {
 		$manifestPath = $worktreePath . '/manifest.yml';
 		$manifestContent = file_get_contents( $manifestPath );
 		$manifest = Yaml::parse( $manifestContent );
-		$packs = $manifest['packs'];
+		$packs = $manifest['packs'] ?? [];
 
 		// Get list of already installed packs for this ref
 		$installedPackNames = [];
@@ -97,9 +97,12 @@ class LabkiPackManager {
 		$missingDeps = [];
 
 		foreach ( $packsToInstall as $packName ) {
+			if ( !isset( $packs[$packName] ) ) {
+				continue; // Pack not in manifest
+			}
 
 			$packDef = $packs[$packName];
-			$dependsOn = $packDef['depends_on'];
+			$dependsOn = $packDef['depends_on'] ?? [];
 
 			foreach ( $dependsOn as $depName ) {
 				// Check if dependency is satisfied
@@ -495,11 +498,20 @@ class LabkiPackManager {
 		?array $rewriteMap = null,
 		?array $manifestPages = null
 	): array {
-		$packName = $packDef['name'];
-		$version = $packDef['version'];
-		$pages = $packDef['pages'];
+		$packName = $packDef['name'] ?? '(unnamed)';
+		$version = $packDef['version'] ?? null;
+		$pages = $packDef['pages'] ?? [];
 
 		wfDebugLog( 'labkipack', "Installing pack: {$packName} (version: {$version})" );
+		
+		// Validate pack name
+		if ( $packName === '' || $packName === '(unnamed)' ) {
+			return [
+				'success' => false,
+				'pack' => $packName,
+				'error' => 'Pack name is required',
+			];
+		}
 
 		// Auto-fetch worktree path if not provided
 		if ( $worktreePath === null ) {
@@ -634,6 +646,17 @@ class LabkiPackManager {
 			$fullPath = $worktreePath . '/' . ltrim( $relPath, '/' );
 			$wikitext = $this->readFileFromWorktree( $fullPath );
 
+			if ( $wikitext === null ) {
+				wfDebugLog( 'labkipack', "Failed to read file: {$fullPath}" );
+				$results[] = [
+					'success' => false,
+					'name' => $sourceName,
+					'final_title' => $finalTitle,
+					'error' => "File not found: {$relPath}",
+				];
+				continue;
+			}
+
 			// Rewrite internal links
 			$updatedText = $this->rewriteLinks( $wikitext, $rewriteMap );
 
@@ -668,6 +691,12 @@ class LabkiPackManager {
 
 		// Get existing pack
 		$existingPack = $this->packRegistry->getPack( $packId );
+		if ( !$existingPack ) {
+			return [
+				'success' => false,
+				'error' => "Pack not found: {$packId->toInt()}",
+			];
+		}
 
 		// Get ref and worktree
 		$ref = $this->refRegistry->getRefById( $refId );
@@ -684,7 +713,7 @@ class LabkiPackManager {
 		$manifestPages = $this->getManifestPagesFromWorktree( $worktreePath );
 
 		// Update pages
-		$pages = $packDef['pages'];
+		$pages = $packDef['pages'] ?? [];
 		$updatedPages = $this->importPackPages(
 			$pages,
 			$worktreePath,
@@ -697,7 +726,7 @@ class LabkiPackManager {
 		$failedCount = count( $updatedPages ) - $successCount;
 
 		// Update pack version if provided
-		$newVersion = $packDef['version'];
+		$newVersion = $packDef['version'] ?? null;
 		if ( $newVersion && $newVersion !== $existingPack->version() ) {
 			$this->packRegistry->updatePack( $packId, [
 				'version' => $newVersion,
@@ -819,9 +848,10 @@ class LabkiPackManager {
 		// Add incoming pages
 		$map = $existingMap;
 		foreach ( $incomingPacks as $packDef ) {
-			foreach ( $packDef['pages'] as $pageDef ) {
-				$orig = $pageDef['name'];
-				$final = $pageDef['final_title'];
+			$pages = $packDef['pages'] ?? [];
+			foreach ( $pages as $pageDef ) {
+				$orig = $pageDef['name'] ?? '';
+				$final = $pageDef['final_title'] ?? '';
 				if ( $orig !== '' && $final !== '' ) {
 					$map[$orig] = $final;
 				}
@@ -844,11 +874,10 @@ class LabkiPackManager {
 		$manifestContent = file_get_contents( $manifestPath );
 
 		// Parse YAML
-
 		$manifest = Yaml::parse( $manifestContent );
 
 		// Extract pages
-		$pages = $manifest['pages'];
+		$pages = $manifest['pages'] ?? [];
 
 		$map = [];
 		foreach ( $pages as $name => $info ) {
@@ -856,7 +885,7 @@ class LabkiPackManager {
 				continue;
 			}
 
-			$path = $info['file'];
+			$path = $info['file'] ?? null;
 			if ( $path ) {
 				$map[$name] = $path;
 			}
@@ -1060,7 +1089,7 @@ class LabkiPackManager {
 		}
 
 		$packDef = $packs[$packName];
-		$dependsOn = $packDef['depends_on'];
+		$dependsOn = $packDef['depends_on'] ?? [];
 
 		if ( !is_array( $dependsOn ) || empty( $dependsOn ) ) {
 			wfDebugLog( 'labkipack', "Pack {$packName} has no dependencies" );

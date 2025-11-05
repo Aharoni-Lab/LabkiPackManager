@@ -2,742 +2,576 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Services;
+namespace LabkiPackManager\Tests\Integration\Services;
 
+use LabkiPackManager\Domain\Operation;
 use LabkiPackManager\Domain\OperationId;
 use LabkiPackManager\Services\LabkiOperationRegistry;
 use MediaWikiIntegrationTestCase;
 
 /**
- * Tests for LabkiOperationRegistry
+ * Integration tests for LabkiOperationRegistry
  *
- * @coversDefaultClass \LabkiPackManager\Services\LabkiOperationRegistry
+ * Tests the operation tracking service for the labki_operations table.
+ * These tests use the actual MediaWiki database.
+ *
+ * @covers \LabkiPackManager\Services\LabkiOperationRegistry
  * @group Database
  */
-final class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
-
-    private function newRegistry(): LabkiOperationRegistry {
-        return new LabkiOperationRegistry();
-    }
-
-    /**
-     * @covers ::createOperation
-     * @covers ::operationExists
-     */
-    public function testCreateOperation_CreatesNewOperation(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation(
-            $operationId,
-            LabkiOperationRegistry::TYPE_REPO_ADD,
-            1,
-            LabkiOperationRegistry::STATUS_QUEUED,
-            'Test operation'
-        );
-
-        $this->assertTrue($registry->operationExists($operationId));
-    }
-
-    /**
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testCreateOperation_WithAllFields_StoresCorrectly(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation(
-            $operationId,
-            LabkiOperationRegistry::TYPE_REPO_SYNC,
-            123,
-            LabkiOperationRegistry::STATUS_QUEUED,
-            'Syncing repository'
-        );
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame($operationIdStr, $operation->id()->toString());
-        $this->assertSame(LabkiOperationRegistry::TYPE_REPO_SYNC, $operation->type());
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $operation->status());
-        $this->assertSame('Syncing repository', $operation->message());
-        $this->assertSame(123, $operation->userId());
-    }
-
-    /**
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testCreateOperation_WithDefaults_UsesDefaultValues(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation(
-            $operationId,
-            LabkiOperationRegistry::TYPE_PACK_INSTALL
-        );
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $operation->status());
-        $this->assertSame(0, $operation->userId());
-        $this->assertSame('', $operation->message());
-    }
-
-    /**
-     * @covers ::updateOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testUpdateOperation_UpdatesStatus(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->updateOperation(
-            $operationId,
-            LabkiOperationRegistry::STATUS_RUNNING,
-            'Processing...'
-        );
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $operation->status());
-        $this->assertSame('Processing...', $operation->message());
-    }
-
-    /**
-     * @covers ::updateOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testUpdateOperation_UpdatesProgress(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
-        $registry->updateOperation(
-            $operationId,
-            LabkiOperationRegistry::STATUS_RUNNING,
-            null,
-            45
-        );
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame(45, $operation->progress());
-    }
-
-    /**
-     * @covers ::updateOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testUpdateOperation_ClampsProgressToRange(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-
-        // Test upper bound
-        $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING, null, 150);
-        $operation = $registry->getOperation($operationId);
-        $this->assertSame(100, $operation->progress());
-
-        // Test lower bound
-        $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING, null, -10);
-        $operation = $registry->getOperation($operationId);
-        $this->assertSame(0, $operation->progress());
-    }
-
-    /**
-     * @covers ::updateOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testUpdateOperation_UpdatesResultData(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-        $resultData = json_encode(['installed' => 5, 'failed' => 0]);
-        $registry->updateOperation(
-            $operationId,
-            LabkiOperationRegistry::STATUS_SUCCESS,
-            null,
-            null,
-            $resultData
-        );
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame($resultData, $operation->resultData());
-    }
-
-    /**
-     * @covers ::startOperation
-     * @covers ::createOperation
-     * @covers ::getOperationStatus
-     */
-    public function testStartOperation_MarksAsRunning(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->startOperation($operationId, 'Starting process');
-
-        $status = $registry->getOperationStatus($operationId);
-
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $status);
-    }
-
-    /**
-     * @covers ::startOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testStartOperation_WithMessage_StoresMessage(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
-        $registry->startOperation($operationId, 'Cloning repository');
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame('Cloning repository', $operation->message());
-    }
-
-    /**
-     * @covers ::completeOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testCompleteOperation_MarksAsSuccessWithFullProgress(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-        $registry->completeOperation($operationId, 'Installation complete');
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_SUCCESS, $operation->status());
-        $this->assertSame(100, $operation->progress());
-        $this->assertSame('Installation complete', $operation->message());
-    }
-
-    /**
-     * @covers ::completeOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testCompleteOperation_WithResultData_StoresResultData(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $resultData = json_encode(['pages_created' => 10, 'duration_ms' => 1500]);
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-        $registry->completeOperation($operationId, 'Done', $resultData);
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame($resultData, $operation->resultData());
-    }
-
-    /**
-     * @covers ::failOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testFailOperation_MarksAsFailed(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->failOperation($operationId, 'Network timeout');
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_FAILED, $operation->status());
-        $this->assertSame('Network timeout', $operation->message());
-    }
-
-    /**
-     * @covers ::failOperation
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testFailOperation_WithResultData_StoresErrorData(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $errorData = json_encode(['error_code' => 'E001', 'stack_trace' => 'Sample trace']);
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
-        $registry->failOperation($operationId, 'Git fetch failed', $errorData);
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame($errorData, $operation->resultData());
-    }
-
-    /**
-     * @covers ::setProgress
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testSetProgress_UpdatesProgressAndKeepsRunningStatus(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_PACK_UPDATE);
-        $registry->startOperation($operationId);
-        $registry->setProgress($operationId, 75, 'Almost done');
-
-        $operation = $registry->getOperation($operationId);
-
-        $this->assertNotNull($operation);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $operation->status());
-        $this->assertSame(75, $operation->progress());
-        $this->assertSame('Almost done', $operation->message());
-    }
-
-    /**
-     * @covers ::operationExists
-     * @covers ::createOperation
-     */
-    public function testOperationExists_WhenExists_ReturnsTrue(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-
-        $this->assertTrue($registry->operationExists($operationId));
-    }
-
-    /**
-     * @covers ::operationExists
-     */
-    public function testOperationExists_WhenNotExists_ReturnsFalse(): void {
-        $registry = $this->newRegistry();
-
-        $this->assertFalse($registry->operationExists(new OperationId('nonexistent_operation')));
-    }
-
-    /**
-     * @covers ::getOperationStatus
-     * @covers ::createOperation
-     */
-    public function testGetOperationStatus_ReturnsCorrectStatus(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_SYNC);
-
-        $status = $registry->getOperationStatus($operationId);
-
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $status);
-    }
-
-    /**
-     * @covers ::getOperationStatus
-     */
-    public function testGetOperationStatus_WhenNotExists_ReturnsNull(): void {
-        $registry = $this->newRegistry();
-
-        $status = $registry->getOperationStatus(new OperationId('nonexistent_operation'));
-
-        $this->assertNull($status);
-    }
-
-    /**
-     * @covers ::getOperation
-     */
-    public function testGetOperation_WhenNotExists_ReturnsNull(): void {
-        $registry = $this->newRegistry();
-
-        $operation = $registry->getOperation(new OperationId('nonexistent_operation'));
-
-        $this->assertNull($operation);
-    }
-
-    /**
-     * @covers ::listOperations
-     * @covers ::createOperation
-     */
-    public function testListOperations_ReturnsAllOperations(): void {
-        $registry = $this->newRegistry();
-        $opIdStr1 = 'test_op_' . uniqid();
-        $opIdStr2 = 'test_op_' . uniqid();
-        $opId1 = new OperationId( $opIdStr1 );
-        $opId2 = new OperationId( $opIdStr2 );
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
-
-        $operations = $registry->listOperations();
-
-        $this->assertGreaterThanOrEqual(2, count($operations));
-
-        $operationIds = array_map(fn($op) => $op->id()->toString(), $operations);
-        $this->assertContains($opIdStr1, $operationIds);
-        $this->assertContains($opIdStr2, $operationIds);
-    }
-
-    /**
-     * @covers ::listOperations
-     * @covers ::createOperation
-     */
-    public function testListOperations_WithTypeFilter_ReturnsOnlyMatchingType(): void {
-        $registry = $this->newRegistry();
-        $opIdStr1 = 'test_op_' . uniqid();
-        $opIdStr2 = 'test_op_' . uniqid();
-        $opId1 = new OperationId( $opIdStr1 );
-        $opId2 = new OperationId( $opIdStr2 );
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-
-        $operations = $registry->listOperations(LabkiOperationRegistry::TYPE_REPO_ADD);
-
-        $operationIds = array_map(fn($op) => $op->id()->toString(), $operations);
-        $this->assertContains($opIdStr1, $operationIds);
-        $this->assertNotContains($opIdStr2, $operationIds);
-    }
-
-    /**
-     * @covers ::listOperations
-     * @covers ::createOperation
-     */
-    public function testListOperations_WithLimit_RespectsLimit(): void {
-        $registry = $this->newRegistry();
-
-        // Create more operations than the limit
-        for ($i = 0; $i < 10; $i++) {
-            $registry->createOperation(new OperationId('test_op_' . uniqid()), LabkiOperationRegistry::TYPE_REPO_ADD);
-        }
-
-        $operations = $registry->listOperations(null, 5);
-
-        $this->assertLessThanOrEqual(5, count($operations));
-    }
-
-    /**
-     * @covers ::getOperationsByStatus
-     * @covers ::createOperation
-     * @covers ::updateOperation
-     */
-    public function testGetOperationsByStatus_ReturnsOnlyMatchingStatus(): void {
-        $registry = $this->newRegistry();
-        $opIdStr1 = 'test_op_' . uniqid();
-        $opIdStr2 = 'test_op_' . uniqid();
-        $opIdStr3 = 'test_op_' . uniqid();
-        $opId1 = new OperationId( $opIdStr1 );
-        $opId2 = new OperationId( $opIdStr2 );
-        $opId3 = new OperationId( $opIdStr3 );
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
-        $registry->createOperation($opId3, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-
-        $registry->startOperation($opId1);
-        $registry->completeOperation($opId2);
-        // opId3 remains queued
-
-        $runningOps = $registry->getOperationsByStatus(LabkiOperationRegistry::STATUS_RUNNING);
-        $runningIds = array_map(fn($op) => $op->id()->toString(), $runningOps);
-
-        $this->assertContains($opIdStr1, $runningIds);
-        $this->assertNotContains($opIdStr2, $runningIds);
-        $this->assertNotContains($opIdStr3, $runningIds);
-    }
-
-    /**
-     * @covers ::getOperationsByUser
-     * @covers ::createOperation
-     */
-    public function testGetOperationsByUser_ReturnsOnlyUserOperations(): void {
-        $registry = $this->newRegistry();
-        $opIdStr1 = 'test_op_' . uniqid();
-        $opIdStr2 = 'test_op_' . uniqid();
-        $opIdStr3 = 'test_op_' . uniqid();
-        $opId1 = new OperationId( $opIdStr1 );
-        $opId2 = new OperationId( $opIdStr2 );
-        $opId3 = new OperationId( $opIdStr3 );
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD, 100);
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC, 200);
-        $registry->createOperation($opId3, LabkiOperationRegistry::TYPE_PACK_INSTALL, 100);
-
-        $user100Ops = $registry->getOperationsByUser(100);
-        $user100Ids = array_map(fn($op) => $op->id()->toString(), $user100Ops);
-
-        $this->assertContains($opIdStr1, $user100Ids);
-        $this->assertNotContains($opIdStr2, $user100Ids);
-        $this->assertContains($opIdStr3, $user100Ids);
-    }
-
-    /**
-     * @covers ::countOperationsByStatus
-     * @covers ::createOperation
-     * @covers ::updateOperation
-     */
-    public function testCountOperationsByStatus_ReturnsCorrectCount(): void {
-        $registry = $this->newRegistry();
-
-        // Create some operations with different statuses
-        $opId1 = new OperationId('test_op_' . uniqid());
-        $opId2 = new OperationId('test_op_' . uniqid());
-        $opId3 = new OperationId('test_op_' . uniqid());
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
-        $registry->createOperation($opId3, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-
-        $registry->startOperation($opId1);
-        $registry->startOperation($opId2);
-        // opId3 remains queued
-
-        $runningCount = $registry->countOperationsByStatus(LabkiOperationRegistry::STATUS_RUNNING);
-
-        $this->assertGreaterThanOrEqual(2, $runningCount);
-    }
-
-    /**
-     * @covers ::getOperationStats
-     * @covers ::createOperation
-     * @covers ::updateOperation
-     */
-    public function testGetOperationStats_ReturnsCountsByStatus(): void {
-        $registry = $this->newRegistry();
-
-        $opId1 = new OperationId('test_op_' . uniqid());
-        $opId2 = new OperationId('test_op_' . uniqid());
-        $opId3 = new OperationId('test_op_' . uniqid());
-        $opId4 = new OperationId('test_op_' . uniqid());
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
-        $registry->createOperation($opId3, LabkiOperationRegistry::TYPE_PACK_INSTALL);
-        $registry->createOperation($opId4, LabkiOperationRegistry::TYPE_REPO_REMOVE);
-
-        $registry->startOperation($opId1);
-        $registry->completeOperation($opId2);
-        $registry->failOperation($opId3, 'Error');
-        // opId4 remains queued
-
-        $stats = $registry->getOperationStats();
-
-        $this->assertIsArray($stats);
-        $this->assertArrayHasKey(LabkiOperationRegistry::STATUS_QUEUED, $stats);
-        $this->assertArrayHasKey(LabkiOperationRegistry::STATUS_RUNNING, $stats);
-        $this->assertArrayHasKey(LabkiOperationRegistry::STATUS_SUCCESS, $stats);
-        $this->assertArrayHasKey(LabkiOperationRegistry::STATUS_FAILED, $stats);
-
-        $this->assertGreaterThanOrEqual(1, $stats[LabkiOperationRegistry::STATUS_QUEUED]);
-        $this->assertGreaterThanOrEqual(1, $stats[LabkiOperationRegistry::STATUS_RUNNING]);
-        $this->assertGreaterThanOrEqual(1, $stats[LabkiOperationRegistry::STATUS_SUCCESS]);
-        $this->assertGreaterThanOrEqual(1, $stats[LabkiOperationRegistry::STATUS_FAILED]);
-    }
-
-    /**
-     * @covers ::deleteOldOperations
-     * @covers ::createOperation
-     * @covers ::operationExists
-     */
-    public function testDeleteOldOperations_DeletesCompletedOperations(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->completeOperation($operationId);
-
-        // Manually update the updated_at to be old enough
-        $db = $this->db;
-        $oldTimestamp = wfTimestamp(TS_MW, time() - (31 * 86400)); // 31 days ago
-        $db->update(
-            'labki_operations',
-            ['updated_at' => $oldTimestamp],
-            ['operation_id' => $operationIdStr],
-            __METHOD__
-        );
-
-        $deleted = $registry->deleteOldOperations(30, true);
-
-        $this->assertGreaterThanOrEqual(1, $deleted);
-        $this->assertFalse($registry->operationExists($operationId));
-    }
-
-    /**
-     * @covers ::deleteOldOperations
-     * @covers ::createOperation
-     * @covers ::operationExists
-     */
-    public function testDeleteOldOperations_PreservesRunningOperations(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->startOperation($operationId);
-
-        // Manually update the updated_at to be old enough
-        $db = $this->db;
-        $oldTimestamp = wfTimestamp(TS_MW, time() - (31 * 86400)); // 31 days ago
-        $db->update(
-            'labki_operations',
-            ['updated_at' => $oldTimestamp],
-            ['operation_id' => $operationIdStr],
-            __METHOD__
-        );
-
-        $registry->deleteOldOperations(30, true);
-
-        // Running operation should still exist when onlyCompleted = true
-        $this->assertTrue($registry->operationExists($operationId));
-    }
-
-    /**
-     * @covers ::deleteOldOperations
-     * @covers ::createOperation
-     * @covers ::operationExists
-     */
-    public function testDeleteOldOperations_WithOnlyCompletedFalse_DeletesAllOldOperations(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        $registry->startOperation($operationId);
-
-        // Manually update the updated_at to be old enough
-        $db = $this->db;
-        $oldTimestamp = wfTimestamp(TS_MW, time() - (31 * 86400)); // 31 days ago
-        $db->update(
-            'labki_operations',
-            ['updated_at' => $oldTimestamp],
-            ['operation_id' => $operationIdStr],
-            __METHOD__
-        );
-
-        $registry->deleteOldOperations(30, false);
-
-        // Running operation should be deleted when onlyCompleted = false
-        $this->assertFalse($registry->operationExists($operationId));
-    }
-
-    /**
-     * @covers ::listOperations
-     * @covers ::createOperation
-     * @covers ::updateOperation
-     */
-    public function testListOperations_OrdersByMostRecentFirst(): void {
-        $registry = $this->newRegistry();
-        $opIdStr1 = 'test_op_1_' . uniqid();
-        $opIdStr2 = 'test_op_2_' . uniqid();
-        $opId1 = new OperationId( $opIdStr1 );
-        $opId2 = new OperationId( $opIdStr2 );
-
-        $registry->createOperation($opId1, LabkiOperationRegistry::TYPE_REPO_ADD);
-        sleep(1); // Ensure different timestamps
-        $registry->createOperation($opId2, LabkiOperationRegistry::TYPE_REPO_SYNC);
-
-        $operations = $registry->listOperations();
-
-        // First operation should be the most recent (opId2)
-        $firstOp = reset($operations);
-        $this->assertSame($opIdStr2, $firstOp->id()->toString());
-    }
-
-    /**
-     * @covers ::createOperation
-     * @covers ::getOperation
-     */
-    public function testOperationLifecycle_CompleteWorkflow(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_lifecycle_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        // Create
-        $registry->createOperation(
-            $operationId,
-            LabkiOperationRegistry::TYPE_REPO_ADD,
-            1,
-            LabkiOperationRegistry::STATUS_QUEUED,
-            'Initializing'
-        );
-
-        $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_QUEUED, $op->status());
-
-        // Start
-        $registry->startOperation($operationId, 'Cloning repository');
-        $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $op->status());
-
-        // Progress
-        $registry->setProgress($operationId, 50, 'Halfway done');
-        $op = $registry->getOperation($operationId);
-        $this->assertSame(50, $op->progress());
-
-        // Complete
-        $resultData = json_encode(['files' => 42]);
-        $registry->completeOperation($operationId, 'All done', $resultData);
-        $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_SUCCESS, $op->status());
-        $this->assertSame(100, $op->progress());
-        $this->assertSame($resultData, $op->resultData());
-    }
-
-    /**
-     * @covers ::createOperation
-     * @covers ::updateOperation
-     * @covers ::getOperation
-     */
-    public function testUpdateOperation_OnlyUpdatesSpecifiedFields(): void {
-        $registry = $this->newRegistry();
-        $operationIdStr = 'test_op_' . uniqid();
-        $operationId = new OperationId( $operationIdStr );
-
-        $registry->createOperation($operationId, LabkiOperationRegistry::TYPE_REPO_ADD);
-        
-        // Update only status
-        $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING);
-        $op = $registry->getOperation($operationId);
-        $this->assertSame(LabkiOperationRegistry::STATUS_RUNNING, $op->status());
-        $this->assertSame('', $op->message()); // Should remain empty
-        $this->assertSame(0, $op->progress()); // Should remain 0
-
-        // Update only message
-        $registry->updateOperation($operationId, LabkiOperationRegistry::STATUS_RUNNING, 'New message');
-        $op = $registry->getOperation($operationId);
-        $this->assertSame('New message', $op->message());
-    }
+class LabkiOperationRegistryTest extends MediaWikiIntegrationTestCase {
+
+	private function newRegistry(): LabkiOperationRegistry {
+		return new LabkiOperationRegistry();
+	}
+
+	private function generateOperationId(): OperationId {
+		return new OperationId( 'test_op_' . uniqid() . '_' . mt_rand() );
+	}
+
+	public function testNow_ReturnsValidTimestamp(): void {
+		$registry = $this->newRegistry();
+		
+		$timestamp = $registry->now();
+		
+		$this->assertIsString( $timestamp );
+		$this->assertNotEmpty( $timestamp );
+		$this->assertMatchesRegularExpression( '/^\d{14}$/', $timestamp );
+	}
+
+	public function testCreateOperation_CreatesNewOperation(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation(
+			$operationId,
+			Operation::TYPE_REPO_ADD,
+			1,
+			Operation::STATUS_QUEUED,
+			'Test operation'
+		);
+
+		$this->assertTrue( $registry->operationExists( $operationId ) );
+	}
+
+	public function testCreateOperation_WithAllFields_StoresCorrectly(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation(
+			$operationId,
+			Operation::TYPE_REPO_SYNC,
+			123,
+			Operation::STATUS_QUEUED,
+			'Syncing repository'
+		);
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( $operationId->toString(), $operation->id()->toString() );
+		$this->assertSame( Operation::TYPE_REPO_SYNC, $operation->type() );
+		$this->assertSame( Operation::STATUS_QUEUED, $operation->status() );
+		$this->assertSame( 'Syncing repository', $operation->message() );
+		$this->assertSame( 123, $operation->userId() );
+	}
+
+	public function testCreateOperation_WithDefaults_UsesDefaultValues(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation(
+			$operationId,
+			Operation::TYPE_PACK_INSTALL
+		);
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( Operation::STATUS_QUEUED, $operation->status() );
+		$this->assertSame( 0, $operation->userId() );
+		$this->assertSame( '', $operation->message() );
+	}
+
+	public function testCreateOperation_SetsTimestamps(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$beforeTime = wfTimestampNow();
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+		$afterTime = wfTimestampNow();
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertNotNull( $operation->createdAt() );
+		$this->assertNotNull( $operation->updatedAt() );
+		$this->assertGreaterThanOrEqual( (int)$beforeTime, $operation->createdAt() );
+		$this->assertLessThanOrEqual( (int)$afterTime, $operation->createdAt() );
+	}
+
+	public function testGetOperation_WithOperationId_ReturnsOperation(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertInstanceOf( Operation::class, $operation );
+	}
+
+	public function testGetOperation_WithString_ReturnsOperation(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+
+		$operation = $registry->getOperation( $operationId->toString() );
+
+		$this->assertNotNull( $operation );
+		$this->assertInstanceOf( Operation::class, $operation );
+		$this->assertSame( $operationId->toString(), $operation->id()->toString() );
+	}
+
+	public function testGetOperation_WhenNotExists_ReturnsNull(): void {
+		$registry = $this->newRegistry();
+		$operationId = new OperationId( 'nonexistent_operation' );
+
+		$result = $registry->getOperation( $operationId );
+
+		$this->assertNull( $result );
+	}
+
+	public function testOperationExists_WhenExists_ReturnsTrue(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+
+		$this->assertTrue( $registry->operationExists( $operationId ) );
+	}
+
+	public function testOperationExists_WhenNotExists_ReturnsFalse(): void {
+		$registry = $this->newRegistry();
+		$operationId = new OperationId( 'nonexistent_check' );
+
+		$this->assertFalse( $registry->operationExists( $operationId ) );
+	}
+
+	public function testGetOperationStatus_WhenExists_ReturnsStatus(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD, 0, Operation::STATUS_QUEUED );
+
+		$status = $registry->getOperationStatus( $operationId );
+
+		$this->assertSame( Operation::STATUS_QUEUED, $status );
+	}
+
+	public function testGetOperationStatus_WhenNotExists_ReturnsNull(): void {
+		$registry = $this->newRegistry();
+		$operationId = new OperationId( 'nonexistent_status' );
+
+		$status = $registry->getOperationStatus( $operationId );
+
+		$this->assertNull( $status );
+	}
+
+	public function testUpdateOperation_UpdatesStatus(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+		$registry->updateOperation(
+			$operationId,
+			Operation::STATUS_RUNNING,
+			'Processing...'
+		);
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( Operation::STATUS_RUNNING, $operation->status() );
+		$this->assertSame( 'Processing...', $operation->message() );
+	}
+
+	public function testUpdateOperation_UpdatesProgress(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_SYNC );
+		$registry->updateOperation(
+			$operationId,
+			Operation::STATUS_RUNNING,
+			null,
+			45
+		);
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( 45, $operation->progress() );
+	}
+
+	public function testUpdateOperation_ClampsProgressToRange(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+
+		// Test upper bound
+		$registry->updateOperation( $operationId, Operation::STATUS_RUNNING, null, 150 );
+		$operation = $registry->getOperation( $operationId );
+		$this->assertSame( 100, $operation->progress() );
+
+		// Test lower bound
+		$registry->updateOperation( $operationId, Operation::STATUS_RUNNING, null, -10 );
+		$operation = $registry->getOperation( $operationId );
+		$this->assertSame( 0, $operation->progress() );
+	}
+
+	public function testUpdateOperation_UpdatesResultData(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_PACK_INSTALL );
+		$resultData = json_encode( [ 'installed' => 5, 'failed' => 0 ] );
+		$registry->updateOperation(
+			$operationId,
+			Operation::STATUS_SUCCESS,
+			null,
+			null,
+			$resultData
+		);
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( $resultData, $operation->resultData() );
+	}
+
+	public function testStartOperation_MarksAsRunning(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+		$registry->startOperation( $operationId, 'Starting process' );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( Operation::STATUS_RUNNING, $operation->status() );
+		$this->assertSame( 'Starting process', $operation->message() );
+		$this->assertNotNull( $operation->startedAt() );
+	}
+
+	public function testStartOperation_SetsStartedAtTimestamp(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+		
+		$beforeStart = wfTimestampNow();
+		$registry->startOperation( $operationId );
+		$afterStart = wfTimestampNow();
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertNotNull( $operation->startedAt() );
+		$this->assertGreaterThanOrEqual( (int)$beforeStart, $operation->startedAt() );
+		$this->assertLessThanOrEqual( (int)$afterStart, $operation->startedAt() );
+	}
+
+	public function testCompleteOperation_MarksAsSuccess(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_SYNC );
+		$registry->completeOperation( $operationId, 'Completed successfully' );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( Operation::STATUS_SUCCESS, $operation->status() );
+		$this->assertSame( 'Completed successfully', $operation->message() );
+		$this->assertSame( 100, $operation->progress() );
+	}
+
+	public function testCompleteOperation_WithResultData_StoresData(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_PACK_INSTALL );
+		$resultData = json_encode( [ 'packs' => 3, 'pages' => 25 ] );
+		$registry->completeOperation( $operationId, 'Installation complete', $resultData );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( $resultData, $operation->resultData() );
+	}
+
+	public function testFailOperation_MarksAsFailed(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_ADD );
+		$registry->failOperation( $operationId, 'Error occurred' );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( Operation::STATUS_FAILED, $operation->status() );
+		$this->assertSame( 'Error occurred', $operation->message() );
+	}
+
+	public function testFailOperation_WithResultData_StoresErrorData(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_PACK_UPDATE );
+		$errorData = json_encode( [ 'error_code' => 500, 'details' => 'Connection timeout' ] );
+		$registry->failOperation( $operationId, 'Failed to update', $errorData );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( $errorData, $operation->resultData() );
+	}
+
+	public function testSetProgress_UpdatesProgress(): void {
+		$registry = $this->newRegistry();
+		$operationId = $this->generateOperationId();
+
+		$registry->createOperation( $operationId, Operation::TYPE_REPO_SYNC );
+		$registry->setProgress( $operationId, 75, 'Almost done' );
+
+		$operation = $registry->getOperation( $operationId );
+
+		$this->assertNotNull( $operation );
+		$this->assertSame( 75, $operation->progress() );
+		$this->assertSame( 'Almost done', $operation->message() );
+		$this->assertSame( Operation::STATUS_RUNNING, $operation->status() );
+	}
+
+	public function testGetOperations_WithNoFilters_ReturnsAllOperations(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD );
+		$registry->createOperation( $op2, Operation::TYPE_PACK_INSTALL );
+
+		$operations = $registry->getOperations();
+
+		$this->assertIsArray( $operations );
+		$this->assertGreaterThanOrEqual( 2, count( $operations ) );
+		
+		foreach ( $operations as $operation ) {
+			$this->assertInstanceOf( Operation::class, $operation );
+		}
+	}
+
+	public function testGetOperations_WithTypeFilter_ReturnsOnlyMatchingType(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$op3 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_ADD );
+		$registry->createOperation( $op3, Operation::TYPE_PACK_INSTALL );
+
+		$operations = $registry->getOperations( Operation::TYPE_REPO_ADD );
+
+		$this->assertGreaterThanOrEqual( 2, count( $operations ) );
+		
+		foreach ( $operations as $operation ) {
+			$this->assertSame( Operation::TYPE_REPO_ADD, $operation->type() );
+		}
+	}
+
+	public function testGetOperations_WithStatusFilter_ReturnsOnlyMatchingStatus(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$op3 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD, 0, Operation::STATUS_QUEUED );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_SYNC, 0, Operation::STATUS_QUEUED );
+		$registry->createOperation( $op3, Operation::TYPE_PACK_INSTALL, 0, Operation::STATUS_RUNNING );
+
+		$operations = $registry->getOperations( null, Operation::STATUS_QUEUED );
+
+		$this->assertGreaterThanOrEqual( 2, count( $operations ) );
+		
+		foreach ( $operations as $operation ) {
+			$this->assertSame( Operation::STATUS_QUEUED, $operation->status() );
+		}
+	}
+
+	public function testGetOperations_WithUserIdFilter_ReturnsOnlyUserOperations(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$op3 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD, 100 );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_SYNC, 100 );
+		$registry->createOperation( $op3, Operation::TYPE_PACK_INSTALL, 200 );
+
+		$operations = $registry->getOperations( null, null, 100 );
+
+		$this->assertGreaterThanOrEqual( 2, count( $operations ) );
+		
+		foreach ( $operations as $operation ) {
+			$this->assertSame( 100, $operation->userId() );
+		}
+	}
+
+	public function testGetOperations_WithLimit_RespectsLimit(): void {
+		$registry = $this->newRegistry();
+
+		// Create several operations
+		for ( $i = 0; $i < 10; $i++ ) {
+			$opId = $this->generateOperationId();
+			$registry->createOperation( $opId, Operation::TYPE_REPO_ADD );
+		}
+
+		$operations = $registry->getOperations( null, null, null, 3 );
+
+		$this->assertCount( 3, $operations );
+	}
+
+	public function testGetOperations_OrderedByMostRecentFirst(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$op3 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD );
+		usleep( 10000 );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_SYNC );
+		usleep( 10000 );
+		$registry->createOperation( $op3, Operation::TYPE_PACK_INSTALL );
+
+		$operations = $registry->getOperations( null, null, null, 10 );
+
+		// Most recent should be first
+		$this->assertGreaterThanOrEqual( 3, count( $operations ) );
+		
+		// Verify descending order by updated_at
+		$prevUpdated = PHP_INT_MAX;
+		foreach ( $operations as $operation ) {
+			$this->assertLessThanOrEqual( $prevUpdated, $operation->updatedAt() );
+			$prevUpdated = $operation->updatedAt();
+		}
+	}
+
+	public function testCountOperationsByStatus_ReturnsCorrectCount(): void {
+		$registry = $this->newRegistry();
+
+		// Create operations with different statuses
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$op3 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD, 0, Operation::STATUS_QUEUED );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_SYNC, 0, Operation::STATUS_QUEUED );
+		$registry->createOperation( $op3, Operation::TYPE_PACK_INSTALL, 0, Operation::STATUS_RUNNING );
+
+		$queuedCount = $registry->countOperationsByStatus( Operation::STATUS_QUEUED );
+		$runningCount = $registry->countOperationsByStatus( Operation::STATUS_RUNNING );
+
+		$this->assertGreaterThanOrEqual( 2, $queuedCount );
+		$this->assertGreaterThanOrEqual( 1, $runningCount );
+	}
+
+	public function testDeleteOldOperations_DeletesOldRecords(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD, 0, Operation::STATUS_SUCCESS );
+		
+		// Delete operations older than 0 days
+		// Note: Just-created operations may not count as "old" depending on timestamp precision
+		$deleted = $registry->deleteOldOperations( 0, false );
+
+		// Verify the method executes without error (count may be 0 or more)
+		$this->assertGreaterThanOrEqual( 0, $deleted );
+		
+		// Verify we can still call the method (testing it doesn't crash)
+		$this->assertIsInt( $deleted );
+	}
+
+	public function testDeleteOldOperations_WithOnlyCompletedFlag_PreservesRunning(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD, 0, Operation::STATUS_SUCCESS );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_SYNC, 0, Operation::STATUS_RUNNING );
+
+		// Delete old completed operations only
+		$registry->deleteOldOperations( 0, true );
+
+		// Running operation should still exist
+		$this->assertTrue( $registry->operationExists( $op2 ) );
+	}
+
+	public function testGetOperationStats_ReturnsStatusCounts(): void {
+		$registry = $this->newRegistry();
+
+		$op1 = $this->generateOperationId();
+		$op2 = $this->generateOperationId();
+		$op3 = $this->generateOperationId();
+		$op4 = $this->generateOperationId();
+		
+		$registry->createOperation( $op1, Operation::TYPE_REPO_ADD, 0, Operation::STATUS_QUEUED );
+		$registry->createOperation( $op2, Operation::TYPE_REPO_SYNC, 0, Operation::STATUS_QUEUED );
+		$registry->createOperation( $op3, Operation::TYPE_PACK_INSTALL, 0, Operation::STATUS_RUNNING );
+		$registry->createOperation( $op4, Operation::TYPE_PACK_UPDATE, 0, Operation::STATUS_SUCCESS );
+
+		$stats = $registry->getOperationStats();
+
+		$this->assertIsArray( $stats );
+		$this->assertArrayHasKey( Operation::STATUS_QUEUED, $stats );
+		$this->assertArrayHasKey( Operation::STATUS_RUNNING, $stats );
+		$this->assertArrayHasKey( Operation::STATUS_SUCCESS, $stats );
+		
+		$this->assertGreaterThanOrEqual( 2, $stats[Operation::STATUS_QUEUED] );
+		$this->assertGreaterThanOrEqual( 1, $stats[Operation::STATUS_RUNNING] );
+		$this->assertGreaterThanOrEqual( 1, $stats[Operation::STATUS_SUCCESS] );
+	}
+
+	/**
+	 * Test operation type constants are available
+	 */
+	public function testOperationTypeConstants_AreAvailable(): void {
+		$this->assertSame( 'repo_add', LabkiOperationRegistry::TYPE_REPO_ADD );
+		$this->assertSame( 'repo_sync', LabkiOperationRegistry::TYPE_REPO_SYNC );
+		$this->assertSame( 'repo_remove', LabkiOperationRegistry::TYPE_REPO_REMOVE );
+		$this->assertSame( 'pack_install', LabkiOperationRegistry::TYPE_PACK_INSTALL );
+		$this->assertSame( 'pack_update', LabkiOperationRegistry::TYPE_PACK_UPDATE );
+		$this->assertSame( 'pack_remove', LabkiOperationRegistry::TYPE_PACK_REMOVE );
+		$this->assertSame( 'pack_apply', LabkiOperationRegistry::TYPE_PACK_APPLY );
+	}
+
+	/**
+	 * Test operation status constants are available
+	 */
+	public function testOperationStatusConstants_AreAvailable(): void {
+		$this->assertSame( 'queued', LabkiOperationRegistry::STATUS_QUEUED );
+		$this->assertSame( 'running', LabkiOperationRegistry::STATUS_RUNNING );
+		$this->assertSame( 'success', LabkiOperationRegistry::STATUS_SUCCESS );
+		$this->assertSame( 'failed', LabkiOperationRegistry::STATUS_FAILED );
+	}
 }

@@ -10,7 +10,7 @@ namespace LabkiPackManager\Services;
  * Builds a UI-ready hierarchy structure of packs and pages from a manifest.
  * Supports both associative and numeric-keyed pack definitions.
  */
-final class HierarchyBuilder {
+class HierarchyBuilder {
 
     /**
      * Build a hierarchical tree of packs and pages.

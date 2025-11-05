@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Services;
+namespace LabkiPackManager\Tests\Unit\Services;
 
-    use LabkiPackManager\Services\ManifestFetcher;
+use LabkiPackManager\Services\ManifestFetcher;
 use LabkiPackManager\Services\LabkiRefRegistry;
-use MediaWikiUnitTestCase;
+use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Tests for ManifestFetcher
@@ -17,7 +18,7 @@ use MediaWikiUnitTestCase;
  *
      * @coversDefaultClass \LabkiPackManager\Services\ManifestFetcher
      */
-final class ManifestFetcherTest extends MediaWikiUnitTestCase {
+final class ManifestFetcherTest extends TestCase {
 
     private string $tempDir;
 
@@ -70,7 +71,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
      * Create a mock LabkiRefRegistry that returns predefined worktree paths.
      * Uses PHPUnit's mock builder to stub the getWorktreePath() method.
      */
-    private function createRefRegistryMock(array $worktreeMap): LabkiRefRegistry {
+    private function createRefRegistryMock(array $worktreeMap): MockObject {
         $mock = $this->createMock(LabkiRefRegistry::class);
         
         $mock->method('getWorktreePath')
@@ -94,6 +95,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
      * @covers ::__construct
      */
     public function testConstructor_WithRegistry_UsesProvided(): void {
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([]);
         $fetcher = new ManifestFetcher($registry);
         $this->assertInstanceOf(ManifestFetcher::class, $fetcher);
@@ -108,6 +110,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $manifestYaml = "schema_version: '1.0.0'\nname: Test Pack\npacks: []\n";
 
         $worktreePath = $this->createMockWorktree($repoUrl, $ref, $manifestYaml);
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -130,6 +133,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $worktreePath = $this->tempDir . '/no_manifest';
         mkdir($worktreePath, 0777, true);
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -150,6 +154,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
 
         $worktreePath = $this->createMockWorktree($repoUrl, $ref, '');
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -174,6 +179,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         // Remove read permissions
         chmod($manifestPath, 0000);
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -195,6 +201,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $repoUrl = 'https://github.com/example/repo';
         $ref = 'nonexistent';
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => '/path/that/does/not/exist'
         ]);
@@ -220,6 +227,7 @@ final class ManifestFetcherTest extends MediaWikiUnitTestCase {
         $mainWorktree = $this->createMockWorktree($repoUrl, $refMain, $mainYaml);
         $devWorktree = $this->createMockWorktree($repoUrl, $refDev, $devYaml);
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $refMain => $mainWorktree,
             $repoUrl . '::' . $refDev => $devWorktree
@@ -260,6 +268,7 @@ packs:
 YAML;
 
         $worktreePath = $this->createMockWorktree($repoUrl, $ref, $complexYaml);
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);
@@ -280,6 +289,7 @@ YAML;
 
         $worktreePath = $this->createMockWorktree($repoUrl, $ref, "   \n\t\n  ");
 
+        /** @var LabkiRefRegistry&MockObject $registry */
         $registry = $this->createRefRegistryMock([
             $repoUrl . '::' . $ref => $worktreePath
         ]);

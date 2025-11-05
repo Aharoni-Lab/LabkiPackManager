@@ -319,8 +319,9 @@ class LabkiPageRegistry {
         $res = $dbr->newSelectQueryBuilder()
             ->select( [ 'lp.name', 'lp.final_title' ] )
             ->from( self::TABLE, 'lp' )
-            ->join( 'labki_pack', 'pack', 'lp.pack_id = pack.pack_id' )  // ✅ FIXED
-            ->where( [ 'pack.content_repo_id' => $repoId ] )
+            ->join( 'labki_pack', 'pack', 'lp.pack_id = pack.pack_id' )
+            ->join( 'labki_content_ref', 'ref', 'pack.content_ref_id = ref.content_ref_id' )
+            ->where( [ 'ref.content_repo_id' => $repoId ] )
             ->distinct()
             ->caller( __METHOD__ )
             ->fetchResultSet();

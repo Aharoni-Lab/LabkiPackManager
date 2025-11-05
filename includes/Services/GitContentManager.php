@@ -183,13 +183,13 @@ final class GitContentManager {
         $manifestResult = $manifestStore->get(true); // force refresh
         if ($manifestResult->isOK()) {
             $manifest = $manifestResult->getValue();
+            $refId = $this->refRegistry->ensureRefEntry($repoUrl, $ref, [
+                'content_ref_name' => $manifest['manifest']['name'] ?? null,
+                'manifest_hash' => $manifest['meta']['hash'] ?? null,
+                'manifest_last_parsed' => isset($manifest['meta']['parsed_at']) ? (int)$manifest['meta']['parsed_at'] : null,
+                'updated_at'    => $this->refRegistry->now(),
+            ]);
         }
-        $refId = $this->refRegistry->ensureRefEntry($repoUrl, $ref, [
-            'content_ref_name' => $manifest['manifest']['name'],
-            'manifest_hash' => $manifest['hash'],
-            'manifest_last_parsed' => $manifest['last_parsed_at'],
-            'updated_at'    => $this->refRegistry->now(),
-        ]);
 
         wfDebugLog('labkipack', "Ref {$ref} registered (commit {$commit}, refID={$refId->toInt()}, repoID={$repoUrl})");
 
