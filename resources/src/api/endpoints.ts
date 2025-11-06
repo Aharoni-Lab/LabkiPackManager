@@ -84,6 +84,42 @@ export async function reposAdd(
 }
 
 /**
+ * Sync a repository from remote.
+ * 
+ * @param repoUrl - Repository URL
+ * @param refs - Optional array of specific refs to sync (if not provided, syncs entire repo)
+ */
+export async function reposSync(
+  repoUrl: string,
+  refs?: string[]
+): Promise<any> {
+  return apiCall(async () => {
+    const api = getApi();
+    console.log('[reposSync] Sending request:', { repo_url: repoUrl, refs });
+    
+    const params: any = {
+      action: 'labkiReposSync',
+      format: 'json',
+      repo_url: repoUrl,
+    };
+    
+    if (refs && refs.length > 0) {
+      params.refs = refs.join('|');
+    }
+    
+    const response = await api.post(params);
+    
+    console.log('[reposSync] Raw API response:', response);
+    
+    // MediaWiki might wrap or not wrap depending on context
+    const data = response.labkiReposSync || response;
+    console.log('[reposSync] Returning data:', data);
+    
+    return data;
+  });
+}
+
+/**
  * Get dependency graph for a repository/ref.
  * 
  * @param repoUrl - Repository URL

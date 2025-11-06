@@ -208,6 +208,7 @@
 	"labkipackmanager-clear-success": "Session cleared successfully.",
 	"labkipackmanager-loading": "Loading",
 	"labkipackmanager-refresh": "Refresh",
+	"labkipackmanager-sync-from-remote": "Sync from Remote",
 	"labkipackmanager-pack-prefix": "Pack Prefix",
 	"labkipackmanager-pack-prefix-placeholder": "MyNamespace/MyPack",
 	"labkipackmanager-page-title": "Page Title"

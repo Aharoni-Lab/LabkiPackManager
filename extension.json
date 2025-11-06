@@ -93,7 +93,8 @@
         "labkipackmanager-loading",
         "labkipackmanager-error-repo-not-found",
         "labkipackmanager-error-invalid-url",
-        "labkipackmanager-error-invalid-protocol"
+        "labkipackmanager-error-invalid-protocol",
+        "labkipackmanager-sync-from-remote"
       ],
       "dependencies": [
         "mediawiki.util",
