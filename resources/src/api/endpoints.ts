@@ -237,9 +237,15 @@ export async function operationStatus(operationId: string) {
     
     console.log('[operationStatus] Raw response:', response);
     console.log('[operationStatus] Response keys:', Object.keys(response));
-    console.log('[operationStatus] status field:', response?.status);
-    console.log('[operationStatus] operation_id field:', response?.operation_id);
-    return response;
+    
+    // MediaWiki API might wrap the response in the action name
+    let data = response.labkiOperationsStatus || response;
+    
+    console.log('[operationStatus] Unwrapped data:', data);
+    console.log('[operationStatus] status field:', data?.status);
+    console.log('[operationStatus] operation_id field:', data?.operation_id);
+    
+    return data;
   });
 }
 
@@ -272,12 +278,12 @@ export async function pollOperation(
     }
     
     if (status.status === 'success') {
-      console.log('[pollOperation] Operation completed successfully:', status);
+      console.log('[pollOperation] ✓ SUCCESS detected! Operation completed successfully:', status);
       return status;
     }
     
     if (status.status === 'failed') {
-      console.error('[pollOperation] Operation failed:', status.message);
+      console.error('[pollOperation] ✗ FAILED detected! Operation failed:', status.message);
       throw new Error(`Operation failed: ${status.message}`);
     }
     
@@ -287,6 +293,7 @@ export async function pollOperation(
     }
   }
   
+  console.error('[pollOperation] ⏱ TIMEOUT after', maxAttempts, 'attempts');
   throw new Error(`Operation timed out after ${maxAttempts} attempts`);
 }
 

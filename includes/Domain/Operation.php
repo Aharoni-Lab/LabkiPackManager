@@ -102,17 +102,27 @@ final class Operation {
     }
 
     public static function fromRow(object $row): self {
+        // Handle case-insensitive column names (some DBs return uppercase, some lowercase)
+        $status = $row->status ?? $row->STATUS ?? self::STATUS_QUEUED;
+        $progress = $row->progress ?? $row->PROGRESS ?? null;
+        $message = $row->message ?? $row->MESSAGE ?? null;
+        $resultData = $row->result_data ?? $row->RESULT_DATA ?? null;
+        $userId = $row->user_id ?? $row->USER_ID ?? null;
+        $createdAt = $row->created_at ?? $row->CREATED_AT ?? null;
+        $startedAt = $row->started_at ?? $row->STARTED_AT ?? null;
+        $updatedAt = $row->updated_at ?? $row->UPDATED_AT ?? null;
+        
         return new self(
-            new OperationId((string)$row->operation_id),
-            (string)$row->operation_type,
-            (string)$row->status,
-            isset($row->progress) && $row->progress !== null ? (int)$row->progress : null,
-            $row->message ?? null,
-            $row->result_data ?? null,
-            isset($row->user_id) && $row->user_id !== null ? (int)$row->user_id : null,
-            isset($row->created_at) && $row->created_at !== null ? (int)$row->created_at : null,
-            isset($row->started_at) && $row->started_at !== null ? (int)$row->started_at : null,
-            isset($row->updated_at) && $row->updated_at !== null ? (int)$row->updated_at : null,
+            new OperationId((string)($row->operation_id ?? $row->OPERATION_ID)),
+            (string)($row->operation_type ?? $row->OPERATION_TYPE),
+            (string)$status,
+            $progress !== null ? (int)$progress : null,
+            $message,
+            $resultData,
+            $userId !== null ? (int)$userId : null,
+            $createdAt !== null ? (int)$createdAt : null,
+            $startedAt !== null ? (int)$startedAt : null,
+            $updatedAt !== null ? (int)$updatedAt : null,
         );
     }
 }
