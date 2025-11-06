@@ -299,14 +299,6 @@
           </cdx-button>
           
           <cdx-button
-            action="default"
-            :disabled="store.busy"
-            @click="onRefresh"
-          >
-            🔄 {{ $t('labkipackmanager-refresh') }}
-          </cdx-button>
-          
-          <cdx-button
             action="destructive"
             weight="quiet"
             :disabled="store.busy"
@@ -504,34 +496,6 @@ function getActionIcon(action) {
     case 'update': return '🔄';
     case 'remove': return '🗑️';
     default: return '';
-  }
-}
-
-async function onRefresh() {
-  if (store.busy) return;
-  
-  try {
-    store.busy = true;
-    operationMessage.value = '';
-    errorMessage.value = '';
-    
-    const response = await packsAction({
-      command: 'refresh',
-      repo_url: store.repoUrl,
-      ref: store.ref,
-      data: {},
-    });
-    
-    // Merge diff
-    mergeDiff(store.packs, response.diff);
-    store.stateHash = response.state_hash;
-    store.warnings = response.warnings;
-    
-    operationMessage.value = $t('labkipackmanager-refresh-success');
-  } catch (e) {
-    errorMessage.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    store.busy = false;
   }
 }
 
