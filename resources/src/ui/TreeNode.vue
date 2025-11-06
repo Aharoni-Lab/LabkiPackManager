@@ -287,8 +287,9 @@
                   :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
                   :disabled="!getPageEditable(page.label)"
                   :readonly="!getPageEditable(page.label)"
+                  :data-pack-name="node.label"
+                  :data-page-name="page.label"
                   @input="(e) => onPageTitleChangeForPage(e, page.label)"
-                  @focus="() => console.log('[Page Input Focus] Page:', page.label, 'Editable:', getPageEditable(page.label), 'Pack action:', packState?.action)"
                   :aria-invalid="getPageHasCollision(page.label) ? 'true' : 'false'"
                   :style="{
                     fontSize: '0.72em',
@@ -408,6 +409,8 @@
             :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
             :disabled="!isPageEditable"
             :readonly="!isPageEditable"
+            :data-pack-name="parentName"
+            :data-page-name="node.label"
             @input="onPageTitleChange"
             :aria-invalid="pageHasCollision ? 'true' : 'false'"
             :aria-describedby="pageHasCollision ? collisionId : undefined"
@@ -435,6 +438,24 @@ const emit = defineEmits(['set-pack-action'])
 const expanded = ref(false)
 let prefixTimer = null
 let pageTimer = null
+
+/**
+ * Get the current value from the page's textbox in the DOM.
+ * This is used to check if API responses are stale.
+ */
+function getCurrentTextboxValue(packName, pageName) {
+  const input = document.querySelector(
+    `input.page-input[data-pack-name="${packName}"][data-page-name="${pageName}"]`
+  )
+  if (!input) return null
+  
+  const editableValue = input.value
+  const pack = store.packs[packName]
+  const prefix = pack?.prefix || ''
+  const prefixWithSlash = prefix ? (prefix.endsWith('/') ? prefix : prefix + '/') : ''
+  
+  return prefixWithSlash ? prefixWithSlash + editableValue : editableValue
+}
 
 const hasChildren = computed(
   () => !!(props.node.children && props.node.children.length)
@@ -531,12 +552,6 @@ const canUpdate = computed(() => {
   return ps.target_version > ps.current_version
 })
 
-if (props.node.type === 'pack') {
-  watch(() => packState.value?.action, (newAction, oldAction) => {
-    console.log(`[TreeNode:${props.node.label}] packState.action changed: "${oldAction}" -> "${newAction}"`)
-  })
-}
-
 const subtreeHasAction = computed(() => {
   store.stateHash
   const check = (n) => {
@@ -557,8 +572,6 @@ function toggleExpanded() { expanded.value = !expanded.value }
 function toggleAction(action) {
   const current = packState.value?.action
   const next = current === action ? 'unchanged' : action
-  console.log(`[TreeNode:${props.node.label}] toggleAction: current="${current}", requested="${action}", next="${next}"`)
-  console.log(`[TreeNode:${props.node.label}] packState:`, packState.value)
   emit('set-pack-action', { pack_name: props.node.label, action: next })
 }
 
@@ -614,9 +627,34 @@ async function sendSetPackPrefixCommand(prefix) {
   }
 }
 
+/**
+ * Shared helper to handle rename page API calls with stale response detection.
+ * Only applies the response if it matches the current textbox value.
+ */
+async function handleRenamePageResponse(packName, pageName, response) {
+  const currentTextboxValue = getCurrentTextboxValue(packName, pageName)
+  const responseFinalTitle = response.diff[packName]?.pages?.[pageName]?.final_title
+  
+  // Only apply if response matches current textbox value
+  // This prevents stale responses from overwriting newer user input
+  if (currentTextboxValue !== null && responseFinalTitle !== currentTextboxValue) {
+    console.log('[handleRenamePageResponse] 🚫 Ignoring stale response - would overwrite user input')
+    // Do NOT update anything - any store update triggers re-render which overwrites textbox
+    return
+  }
+  
+  mergeDiff(store.packs, response.diff)
+  store.stateHash = response.state_hash
+  store.warnings = response.warnings
+}
+
 // Legacy function for standalone page nodes (edge case)
 async function sendRenamePageCommandLegacy(newTitle) {
   if (store.busy || !parentName.value) return
+  
+  const pageName = props.node.label
+  const packName = parentName.value
+  
   try {
     store.busy = true
     const response = await packsAction({
@@ -624,14 +662,13 @@ async function sendRenamePageCommandLegacy(newTitle) {
       repo_url: store.repoUrl,
       ref: store.ref,
       data: {
-        pack_name: parentName.value,
-        page_name: props.node.label,
+        pack_name: packName,
+        page_name: pageName,
         new_title: newTitle,
       },
     })
-    mergeDiff(store.packs, response.diff)
-    store.stateHash = response.state_hash
-    store.warnings = response.warnings
+    
+    await handleRenamePageResponse(packName, pageName, response)
   } catch (e) {
     console.error('rename_page failed:', e)
   } finally {
@@ -733,36 +770,34 @@ function onPageTitleChangeForPage(e, pageName) {
   // Check if pack is editable
   const action = packState.value?.action
   if (action !== 'install' && action !== 'update') {
-    console.log('[onPageTitleChangeForPage] Pack not in install/update mode, ignoring input')
     return
   }
   
   const pageState = getPageState(pageName)
   if (!pageState) {
-    console.log('[onPageTitleChangeForPage] No page state found for', pageName)
     return
   }
   
   // For install action, only allow editing if page is not already installed
   if (action === 'install' && pageState.installed) {
-    console.log('[onPageTitleChangeForPage] Page already installed, cannot rename during install')
     return
   }
   
   const editable = e.target.value
-  console.log('[onPageTitleChangeForPage] Page:', pageName, 'New value:', editable)
   
   if (pageTimer) clearTimeout(pageTimer)
   pageTimer = setTimeout(() => {
     const prefix = getDisplayPrefixWithSlash(pageName)
     const newTitle = prefix ? prefix + editable : editable
-    console.log('[onPageTitleChangeForPage] Sending rename command. Pack:', props.node.label, 'Page:', pageName, 'Title:', newTitle)
     sendRenamePageCommand(pageName, newTitle)
   }, 400)
 }
 
 async function sendRenamePageCommand(pageName, newTitle) {
   if (store.busy) return
+  
+  const packName = props.node.label
+  
   try {
     store.busy = true
     const response = await packsAction({
@@ -770,14 +805,13 @@ async function sendRenamePageCommand(pageName, newTitle) {
       repo_url: store.repoUrl,
       ref: store.ref,
       data: {
-        pack_name: props.node.label,
+        pack_name: packName,
         page_name: pageName,
         new_title: newTitle,
       },
     })
-    mergeDiff(store.packs, response.diff)
-    store.stateHash = response.state_hash
-    store.warnings = response.warnings
+    
+    await handleRenamePageResponse(packName, pageName, response)
   } catch (e) {
     console.error('rename_page failed:', e)
   } finally {
