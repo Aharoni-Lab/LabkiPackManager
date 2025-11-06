@@ -497,7 +497,7 @@ function onPrefixChange(e) {
   if (!isPackEditable.value) return
   const val = e.target.value
   if (prefixTimer) clearTimeout(prefixTimer)
-  prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 400)
+  prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 200)
 }
 
 async function sendSetPackPrefixCommand(prefix) {
@@ -671,7 +671,7 @@ function onPageTitleChangeForPage(e, pageName) {
     const prefix = getDisplayPrefixWithSlash(pageName)
     const newTitle = prefix ? prefix + editable : editable
     sendRenamePageCommand(pageName, newTitle)
-  }, 400)
+  }, 200)
 }
 
 async function sendRenamePageCommand(pageName, newTitle) {
