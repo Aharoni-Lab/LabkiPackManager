@@ -133,6 +133,11 @@ else
         --type=sqlite
 fi
 
+# Normalize the source path in generated files (remove absolute paths for consistency)
+# This ensures CI and local generation produce identical files
+sed -i "2s|Source: .*sql/tables.json|Source: sql/tables.json|" "$EXT_DIR/sql/mysql/tables-generated.sql"
+sed -i "2s|Source: .*sql/tables.json|Source: sql/tables.json|" "$EXT_DIR/sql/sqlite/tables-generated.sql"
+
 echo ""
 echo "✓ Schema files regenerated successfully!"
 echo ""
