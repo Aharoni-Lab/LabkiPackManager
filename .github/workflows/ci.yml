@@ -82,19 +82,20 @@ jobs:
 
 
       - name: Check schema SQL freshness
+        working-directory: mediawiki
         run: |
-          cd mediawiki/extensions/LabkiPackManager
           # Regenerate schemas from abstract definition
-          php ../../maintenance/run.php generateSchemaSql \
-            --json=sql/tables.json \
-            --sql=sql/mysql/tables-generated.sql \
+          php maintenance/run.php generateSchemaSql \
+            --json=extensions/LabkiPackManager/sql/tables.json \
+            --sql=extensions/LabkiPackManager/sql/mysql/tables-generated.sql \
             --type=mysql
-          php ../../maintenance/run.php generateSchemaSql \
-            --json=sql/tables.json \
-            --sql=sql/sqlite/tables-generated.sql \
+          php maintenance/run.php generateSchemaSql \
+            --json=extensions/LabkiPackManager/sql/tables.json \
+            --sql=extensions/LabkiPackManager/sql/sqlite/tables-generated.sql \
             --type=sqlite
           
           # Check if generated files differ from committed versions
+          cd extensions/LabkiPackManager
           if ! git diff --quiet -- sql/mysql/tables-generated.sql sql/sqlite/tables-generated.sql; then
             echo "::error ::Generated SQL schemas are out of date with tables.json"
             echo "::error ::Please run './maintenance/regenerateSchema.sh' and commit the changes."
