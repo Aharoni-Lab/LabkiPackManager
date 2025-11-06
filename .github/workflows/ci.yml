@@ -81,6 +81,28 @@ jobs:
           echo "\$wgCacheDirectory = \"\$IP/cache\";" >> mediawiki/LocalSettings.php
 
 
+      - name: Check schema SQL freshness
+        run: |
+          cd mediawiki/extensions/LabkiPackManager
+          # Regenerate schemas from abstract definition
+          php ../../maintenance/run.php generateSchemaSql \
+            --json=sql/tables.json \
+            --sql=sql/mysql/tables-generated.sql \
+            --type=mysql
+          php ../../maintenance/run.php generateSchemaSql \
+            --json=sql/tables.json \
+            --sql=sql/sqlite/tables-generated.sql \
+            --type=sqlite
+          
+          # Check if generated files differ from committed versions
+          if ! git diff --quiet -- sql/mysql/tables-generated.sql sql/sqlite/tables-generated.sql; then
+            echo "::error ::Generated SQL schemas are out of date with tables.json"
+            echo "::error ::Please run './maintenance/regenerateSchema.sh' and commit the changes."
+            git diff sql/mysql/tables-generated.sql sql/sqlite/tables-generated.sql
+            exit 1
+          fi
+          echo "✓ Schema SQL files are up to date"
+
       - name: Update DB schema
         working-directory: mediawiki
         run: php maintenance/update.php --quick

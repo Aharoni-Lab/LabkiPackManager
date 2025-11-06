@@ -20,7 +20,8 @@
   "require-dev": {
     "phpunit/phpunit": "^9.6",
     "phpunit/php-code-coverage": "^9.2",
-    "mediawiki/mediawiki-codesniffer": "^43.0"
+    "mediawiki/mediawiki-codesniffer": "^43.0",
+    "doctrine/dbal": "^3.6"
   },
   "scripts": {
     "test": [
