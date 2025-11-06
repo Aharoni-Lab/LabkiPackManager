@@ -93,11 +93,12 @@ final class GitContentManager {
                 ? (int)wfTimestamp(TS_UNIX, $repo->lastFetched())
                 : 0;
     
-            $oneHourAgo = time() - 3600;
+            $fiveMinutesAgo = time() - 300;
+            $tenSecondsAgo = time() - 10;
 
             // Fetch latest updates if forced or if the last fetch was more than 1 hour ago
     
-            if ($forceRefresh || $lastFetched < $oneHourAgo) {
+            if (($forceRefresh && ($lastFetched < $tenSecondsAgo)) || $lastFetched < $fiveMinutesAgo) {
                 // Fetch latest updates for the bare repository
                 $reason = $forceRefresh ? "(forced)" : "(stale)";
                 wfDebugLog('labkipack', "Fetching latest updates for {$repoUrl} {$reason}");
