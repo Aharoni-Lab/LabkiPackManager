@@ -48,7 +48,7 @@
   </cdx-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue';
 import { CdxDialog, CdxField, CdxTextInput, CdxMessage } from '@wikimedia/codex';
 import { reposAdd, pollOperation } from '../api/endpoints';

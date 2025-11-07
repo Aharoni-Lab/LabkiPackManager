@@ -418,12 +418,12 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onBeforeUnmount, watch } from 'vue'
-import { CdxButton } from '@wikimedia/codex'
-import { store } from '../state/store'
-import { packsAction } from '../api/endpoints'
-import { mergeDiff } from '../state/merge'
+<script setup lang="ts">
+import { ref, computed, onBeforeUnmount, watch } from 'vue';
+import { CdxButton } from '@wikimedia/codex';
+import { store } from '../state/store';
+import { packsAction } from '../api/endpoints';
+import { mergeDiff } from '../state/merge';
 
 const props = defineProps({
   node: { type: Object, required: true },

@@ -50,7 +50,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { CdxField, CdxSelect, CdxMessage } from '@wikimedia/codex';
 import { store } from '../state/store';

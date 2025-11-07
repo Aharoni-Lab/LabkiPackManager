@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue';
 import { store } from '../state/store';
 import RepoRefSelector from './RepoRefSelector.vue';
