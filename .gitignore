@@ -8,8 +8,10 @@ node_modules/
 
 # Frontend build artifacts
 # Commit built bundles so extension works without Node.
-# Keep sourcemaps untracked.
-*.map
+# Also commit source maps for easier debugging.
+# Exclude only non-essential map files if needed:
+# *.map
+!resources/modules/**/*.map
 
 # Linters/tooling caches
 .eslintcache

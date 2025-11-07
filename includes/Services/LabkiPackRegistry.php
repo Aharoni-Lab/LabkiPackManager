@@ -181,17 +181,42 @@ class LabkiPackRegistry extends BaseRegistry {
     }
 
     /**
-     * Remove a pack (cascade pages).
+     * Remove a pack and manually cascade to pages and dependencies.
+     *
+     * Since we don't use database-level foreign key constraints per MediaWiki
+     * convention, this method manually cascades deletion to all associated pages
+     * and pack dependencies.
      */
     public function removePack( int|PackId $packId ): void {
-        // Note: Caller must have removed MW pages first; this only deletes registry row (pages cascade).
+        // Note: Caller must have removed MW pages first; this only deletes registry rows.
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_PRIMARY );
+        $id = $packId instanceof PackId ? $packId->toInt() : $packId;
+
+        // Manually cascade: Delete all pages for this pack
+        $deletedPages = $dbw->newDeleteQueryBuilder()
+            ->deleteFrom('labki_page')
+            ->where(['pack_id' => $id])
+            ->caller(__METHOD__)
+            ->execute();
+
+        // Manually cascade: Delete pack dependencies (both as dependent and as dependency)
+        $deletedDeps = $dbw->newDeleteQueryBuilder()
+            ->deleteFrom('labki_pack_dependency')
+            ->where($dbw->makeList([
+                'pack_id' => $id,
+                'depends_on_pack_id' => $id
+            ], LIST_OR))
+            ->caller(__METHOD__)
+            ->execute();
+
+        // Now delete the pack itself
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom( self::TABLE )
-            ->where( [ 'pack_id' => $packId instanceof PackId ? $packId->toInt() : $packId ] )
+            ->where( [ 'pack_id' => $id ] )
             ->caller( __METHOD__ )
             ->execute();
-        wfDebugLog( 'Labki', 'Removed pack ' . $packId );
+
+        wfDebugLog( 'Labki', "Removed pack {$id} with {$deletedPages} pages and {$deletedDeps} dependencies" );
     }
 
     // ===========================================================
@@ -284,6 +309,29 @@ class LabkiPackRegistry extends BaseRegistry {
 		
 		return $dependents;
 	}
+
+    /**
+     * Check if a pack has any dependent packs.
+     *
+     * This replaces the ON DELETE RESTRICT foreign key behavior. Call this before
+     * attempting to delete a pack to ensure no other packs depend on it.
+     *
+     * @param int|PackId $packId Pack ID to check
+     * @return bool True if other packs depend on this pack
+     */
+    public function hasDependentPacks( int|PackId $packId ): bool {
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $id = $packId instanceof PackId ? $packId->toInt() : $packId;
+
+        $count = $dbr->newSelectQueryBuilder()
+            ->select( '1' )
+            ->from( 'labki_pack_dependency' )
+            ->where( [ 'depends_on_pack_id' => $id ] )
+            ->caller( __METHOD__ )
+            ->fetchField();
+
+        return (bool)$count;
+    }
 
     /**
      * Remove all dependencies for a pack.
