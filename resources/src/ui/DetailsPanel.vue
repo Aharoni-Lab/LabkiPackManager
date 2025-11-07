@@ -561,10 +561,11 @@ async function reconcileAndReapply() {
     stateSyncModal.attemptingReconcile = true;
     stateSyncModal.reconcileMessage = '';
 
-    // Start from the authoritative server state
-    replaceStorePacks(stateSyncModal.serverPacks || {});
-    if (stateSyncModal.serverHash) {
-      store.stateHash = stateSyncModal.serverHash;
+    if (stateSyncModal.reconcileCommands.length === 0) {
+      stateSyncModal.reconcileMessage =
+        'No automatic reconciliation steps are available. Please sync with the backend instead.';
+      stateSyncModal.attemptingReconcile = false;
+      return;
     }
 
     for (const command of stateSyncModal.reconcileCommands) {
