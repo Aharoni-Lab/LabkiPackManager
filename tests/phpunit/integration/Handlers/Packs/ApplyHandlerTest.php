@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LabkiPackManager\Tests\Unit\Handlers\Packs;
 
 use LabkiPackManager\Handlers\Packs\ApplyHandler;
+use LabkiPackManager\Handlers\Packs\StateOutOfSyncException;
 use LabkiPackManager\Session\PackSessionState;
 use LabkiPackManager\Domain\ContentRefId;
 use PHPUnit\Framework\TestCase;
@@ -60,7 +61,7 @@ final class ApplyHandlerTest extends TestCase {
 		$state = new PackSessionState( new ContentRefId( 1 ), 1, [] );
 		$correctHash = $state->hash();
 
-		$this->expectException( \RuntimeException::class );
+		$this->expectException( StateOutOfSyncException::class );
 		$this->expectExceptionMessage( 'state hash mismatch' );
 		
 		$handler->handle( $state, $manifest, [ 'state_hash' => 'wrong_hash' ], $context );

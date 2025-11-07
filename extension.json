@@ -78,6 +78,7 @@
         "labkipackmanager-version",
         "labkipackmanager-pages",
         "labkipackmanager-no-packs-selected",
+        "labkipackmanager-state-out-of-sync-title",
         "labkipackmanager-state-hash",
         "labkipackmanager-apply",
         "labkipackmanager-refresh",
@@ -93,7 +94,8 @@
         "labkipackmanager-loading",
         "labkipackmanager-error-repo-not-found",
         "labkipackmanager-error-invalid-url",
-        "labkipackmanager-error-invalid-protocol"
+        "labkipackmanager-error-invalid-protocol",
+        "labkipackmanager-sync-frontend-with-backend"
       ],
       "dependencies": [
         "mediawiki.util",

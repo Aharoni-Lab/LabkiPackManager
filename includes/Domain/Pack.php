@@ -83,6 +83,13 @@ final class Pack {
      * Build from a database row having columns in self::FIELDS
      */
     public static function fromRow( object $row ): self {
+		$status = null;
+		if ( isset( $row->status ) && $row->status !== null ) {
+			$status = (string)$row->status;
+		} elseif ( isset( $row->STATUS ) && $row->STATUS !== null ) {
+			$status = (string)$row->STATUS;
+		}
+
         return new self(
             new PackId( (int)$row->pack_id ),
             new ContentRefId( (int)$row->content_ref_id ),

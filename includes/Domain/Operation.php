@@ -106,7 +106,7 @@ final class Operation {
         $status = $row->status ?? $row->STATUS;
         
         return new self(
-            new OperationId((string)$row->operation_id),
+            new OperationId( (string)$row->operation_id ),
             (string)$row->operation_type,
             (string)$status,
             isset($row->progress) && $row->progress !== null ? (int)$row->progress : null,

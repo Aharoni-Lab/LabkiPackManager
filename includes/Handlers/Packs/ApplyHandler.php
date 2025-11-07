@@ -49,9 +49,21 @@ final class ApplyHandler extends BasePackHandler {
 		$frontendStateHash = $data['state_hash'];
 		$backendStateHash = $state->hash();
 		if ( $frontendStateHash !== $backendStateHash ) {
-			throw new \RuntimeException( 
-				"ApplyHandler: state hash mismatch. Frontend hash: {$frontendStateHash}, Backend hash: {$backendStateHash}. " .
-				"Please refresh and try again."
+			$clientPacks = [];
+			if ( isset( $data['packs'] ) && is_array( $data['packs'] ) ) {
+				$clientPacks = $data['packs'];
+			}
+
+			$serverPacks = $state->packs();
+			$differences = $this->computeStateDifferences( $clientPacks, $serverPacks );
+			$reconcileCommands = $this->buildReconcileCommands( $clientPacks, $serverPacks );
+
+			throw new StateOutOfSyncException(
+				"ApplyHandler: state hash mismatch. Frontend hash: {$frontendStateHash}, Backend hash: {$backendStateHash}.",
+				$serverPacks,
+				$backendStateHash,
+				$differences,
+				$reconcileCommands
 			);
 		}
 
@@ -188,5 +200,133 @@ final class ApplyHandler extends BasePackHandler {
 			];
 		}
 		return $result;
+	}
+
+	/**
+	 * Compute field-level differences between client-submitted state and server state.
+	 *
+	 * @param array<string, array> $clientPacks
+	 * @param array<string, array> $serverPacks
+	 * @return array
+	 */
+	private function computeStateDifferences( array $clientPacks, array $serverPacks ): array {
+		$differences = [];
+
+		foreach ( $clientPacks as $packName => $clientPack ) {
+			$serverPack = $serverPacks[$packName] ?? null;
+			if ( $serverPack === null ) {
+				continue;
+			}
+
+			$packDiff = [];
+
+			foreach ( PackSessionState::PACK_FIELDS as $field ) {
+				$clientValue = $clientPack[$field] ?? null;
+				$serverValue = $serverPack[$field] ?? null;
+				if ( $clientValue !== $serverValue ) {
+					$packDiff['fields'][$field] = [
+						'client' => $clientValue,
+						'server' => $serverValue,
+					];
+				}
+			}
+
+			$clientPages = $clientPack['pages'] ?? [];
+			$serverPages = $serverPack['pages'] ?? [];
+			foreach ( $clientPages as $pageName => $clientPage ) {
+				$serverPage = $serverPages[$pageName] ?? null;
+				if ( $serverPage === null ) {
+					continue;
+				}
+
+				$pageDiff = [];
+				foreach ( PackSessionState::PAGE_FIELDS as $field ) {
+					$clientValue = $clientPage[$field] ?? null;
+					$serverValue = $serverPage[$field] ?? null;
+					if ( $clientValue !== $serverValue ) {
+						$pageDiff[$field] = [
+							'client' => $clientValue,
+							'server' => $serverValue,
+						];
+					}
+				}
+
+				if ( !empty( $pageDiff ) ) {
+					$packDiff['pages'][$pageName] = $pageDiff;
+				}
+			}
+
+			if ( !empty( $packDiff ) ) {
+				$differences[$packName] = $packDiff;
+			}
+		}
+
+		return $differences;
+	}
+
+	/**
+	 * Build a queue of commands that could reconcile the server state to match the client intent.
+	 *
+	 * @param array<string, array> $clientPacks
+	 * @param array<string, array> $serverPacks
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function buildReconcileCommands( array $clientPacks, array $serverPacks ): array {
+		$commands = [];
+
+		foreach ( $clientPacks as $packName => $clientPack ) {
+			$serverPack = $serverPacks[$packName] ?? null;
+			if ( $serverPack === null ) {
+				continue;
+			}
+
+			$clientAction = $clientPack['action'] ?? 'unchanged';
+			$serverAction = $serverPack['action'] ?? 'unchanged';
+			if ( $clientAction !== $serverAction ) {
+				$commands[] = [
+					'command' => 'set_pack_action',
+					'data' => [
+						'pack_name' => $packName,
+						'action' => $clientAction,
+					],
+				];
+			}
+
+			$clientPrefix = $clientPack['prefix'] ?? '';
+			$serverPrefix = $serverPack['prefix'] ?? '';
+			if ( $clientPrefix !== $serverPrefix ) {
+				$commands[] = [
+					'command' => 'set_pack_prefix',
+					'data' => [
+						'pack_name' => $packName,
+						'prefix' => $clientPrefix,
+					],
+				];
+			}
+
+			$clientPages = $clientPack['pages'] ?? [];
+			$serverPages = $serverPack['pages'] ?? [];
+			foreach ( $clientPages as $pageName => $clientPage ) {
+				$serverPage = $serverPages[$pageName] ?? null;
+				if ( $serverPage === null ) {
+					continue;
+				}
+
+				$clientTitle = $clientPage['final_title'] ?? null;
+				$serverTitle = $serverPage['final_title'] ?? null;
+				if ( is_string( $clientTitle ) && $clientTitle !== $serverTitle ) {
+					$commands[] = [
+						'command' => 'rename_page',
+						'data' => [
+							'pack_name' => $packName,
+							'page_name' => $pageName,
+							'new_title' => $clientTitle,
+						],
+					];
+				}
+			}
+		}
+
+		return $commands;
 	}
 }
