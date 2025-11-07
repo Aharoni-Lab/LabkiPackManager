@@ -748,17 +748,17 @@ function onPageTitleChangeForPage(e, pageName) {
     console.log('[onPageTitleChangeForPage] Page already installed, cannot rename during install')
     return
   }
-  
-  const editable = e.target.value
-  console.log('[onPageTitleChangeForPage] Page:', pageName, 'New value:', editable)
-  
+
+  const prefix = getDisplayPrefixWithSlash(pageName)
+  const newTitle = prefix ? prefix + e.target.value: e.target.value
+  console.log('[onPageTitleChangeForPage] Page:', pageName, 'New value:', newTitle)
+  store.packs[props.node.label].pages[pageName].final_title = newTitle;
+
   if (pageTimer) clearTimeout(pageTimer)
   pageTimer = setTimeout(() => {
-    const prefix = getDisplayPrefixWithSlash(pageName)
-    const newTitle = prefix ? prefix + editable : editable
     console.log('[onPageTitleChangeForPage] Sending rename command. Pack:', props.node.label, 'Page:', pageName, 'Title:', newTitle)
     sendRenamePageCommand(pageName, newTitle)
-  }, 400)
+  }, 200)
 }
 
 async function sendRenamePageCommand(pageName, newTitle) {
@@ -775,7 +775,6 @@ async function sendRenamePageCommand(pageName, newTitle) {
         new_title: newTitle,
       },
     })
-    mergeDiff(store.packs, response.diff)
     store.stateHash = response.state_hash
     store.warnings = response.warnings
   } catch (e) {
