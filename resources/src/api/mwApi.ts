@@ -17,7 +17,9 @@ export function getApi() {
  */
 export async function apiCall<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    return await fn();
+    const res = await fn();
+    console.log('API Response', fn, res);
+    return res;
   } catch (error) {
     console.error('API call failed:', error);
     throw error;

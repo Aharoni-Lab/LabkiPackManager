@@ -10,6 +10,7 @@ import type {
   HierarchyGetResponse,
   PacksActionPayload,
   PacksActionResponse,
+  OperationsStatusResponse,
 } from '../state/types';
 
 /**
@@ -17,42 +18,15 @@ import type {
  */
 export async function reposList(): Promise<ReposListResponse> {
   return apiCall(async () => {
-    console.log('[reposList] Starting API call...');
     const api = getApi();
-    console.log('[reposList] API instance:', api);
-
     const response = await api.get({
       action: 'labkiReposList',
       format: 'json',
     });
-    console.log('[reposList] Raw API response:', response);
-    console.log('[reposList] Response keys:', Object.keys(response));
-
     if (!response) {
       throw new Error('No response from API');
     }
-
-    // Try different ways to get the data
-    let data = response.labkiReposList;
-    if (!data) {
-      // Maybe the response is already unwrapped?
-      if (response.repos && response.meta) {
-        console.log('[reposList] Response appears to be unwrapped, using directly');
-        data = response;
-      } else {
-        console.error(
-          '[reposList] Cannot find repos data in response:',
-          JSON.stringify(response, null, 2),
-        );
-        throw new Error(
-          'Invalid API response structure - no labkiReposList field and no repos field',
-        );
-      }
-    }
-
-    console.log('[reposList] Data structure:', data);
-    console.log('[reposList] Returning:', data);
-    return data as ReposListResponse;
+    return response;
   });
 }
 
@@ -65,23 +39,13 @@ export async function reposList(): Promise<ReposListResponse> {
 export async function reposAdd(repoUrl: string, defaultRef: string): Promise<ReposAddResponse> {
   return apiCall(async () => {
     const api = getApi();
-    console.log('[reposAdd] Sending request:', { repo_url: repoUrl, default_ref: defaultRef });
 
-    const response = await api.post({
+    return await api.post({
       action: 'labkiReposAdd',
       format: 'json',
       repo_url: repoUrl,
       default_ref: defaultRef,
     });
-
-    console.log('[reposAdd] Raw API response:', response);
-    console.log('[reposAdd] Response keys:', Object.keys(response));
-
-    // MediaWiki might wrap or not wrap depending on context
-    const data = response.labkiReposAdd || response;
-    console.log('[reposAdd] Returning data:', data);
-
-    return data as ReposAddResponse;
   });
 }
 
@@ -94,26 +58,12 @@ export async function reposAdd(repoUrl: string, defaultRef: string): Promise<Rep
 export async function graphGet(repoUrl: string, ref: string): Promise<GraphGetResponse> {
   return apiCall(async () => {
     const api = getApi();
-    const response = await api.get({
+    return await api.get({
       action: 'labkiGraphGet',
       format: 'json',
       repo_url: repoUrl,
       ref: ref,
     });
-    console.log('[graphGet] Response:', response);
-
-    // Try wrapped response first
-    let data = response.labkiGraphGet;
-    if (!data) {
-      // Try unwrapped response
-      if (response.graph && response.repo_url && response.ref) {
-        console.log('[graphGet] Using unwrapped response');
-        data = response;
-      } else {
-        throw new Error('Invalid graphGet response structure');
-      }
-    }
-    return data as GraphGetResponse;
   });
 }
 
@@ -126,26 +76,12 @@ export async function graphGet(repoUrl: string, ref: string): Promise<GraphGetRe
 export async function hierarchyGet(repoUrl: string, ref: string): Promise<HierarchyGetResponse> {
   return apiCall(async () => {
     const api = getApi();
-    const response = await api.get({
+    return await api.get({
       action: 'labkiHierarchyGet',
       format: 'json',
       repo_url: repoUrl,
       ref: ref,
     });
-    console.log('[hierarchyGet] Response:', response);
-
-    // Try wrapped response first
-    let data = response.labkiHierarchyGet;
-    if (!data) {
-      // Try unwrapped response
-      if (response.hierarchy && response.repo_url && response.ref) {
-        console.log('[hierarchyGet] Using unwrapped response');
-        data = response;
-      } else {
-        throw new Error('Invalid hierarchyGet response structure');
-      }
-    }
-    return data as HierarchyGetResponse;
   });
 }
 
@@ -157,28 +93,13 @@ export async function hierarchyGet(repoUrl: string, ref: string): Promise<Hierar
 export async function packsAction(payload: PacksActionPayload): Promise<PacksActionResponse> {
   return apiCall(async () => {
     const api = getApi();
-    console.log('[packsAction] Sending payload:', payload);
 
     const response = await api.post({
       action: 'labkiPacksAction',
       format: 'json',
       payload: JSON.stringify(payload),
     });
-
-    console.log('[packsAction] Raw response:', response);
-
-    // Response is always wrapped in labkiPacksAction
-    const data = response.labkiPacksAction;
-    if (!data) {
-      console.error(
-        '[packsAction] Cannot find labkiPacksAction in response:',
-        JSON.stringify(response, null, 2),
-      );
-      throw new Error('Invalid packsAction response structure');
-    }
-
-    console.log('[packsAction] Returning:', data);
-    return data as PacksActionResponse;
+    return response.labkiPacksAction;
   });
 }
 
@@ -190,17 +111,11 @@ export async function packsAction(payload: PacksActionPayload): Promise<PacksAct
 export async function operationStatus(operationId: string) {
   return apiCall(async () => {
     const api = getApi();
-    const response = await api.get({
+    return await api.get({
       action: 'labkiOperationsStatus',
       format: 'json',
       operation_id: operationId,
     });
-
-    console.log('[operationStatus] Raw response:', response);
-    console.log('[operationStatus] Response keys:', Object.keys(response));
-    console.log('[operationStatus] status field:', response?.status);
-    console.log('[operationStatus] operation_id field:', response?.operation_id);
-    return response;
   });
 }
 
@@ -218,8 +133,8 @@ export async function pollOperation(
   operationId: string,
   maxAttempts = 60,
   intervalMs = 1000,
-  onProgress?: (status: any) => void,
-): Promise<any> {
+  onProgress?: (status: OperationsStatusResponse) => void,
+): Promise<OperationsStatusResponse> {
   console.log(`[pollOperation] Starting poll for ${operationId}`);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {

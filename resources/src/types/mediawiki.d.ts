@@ -4,6 +4,13 @@
  * Minimal type definitions for MediaWiki global objects.
  */
 
+import {
+  ActionAPIRequest,
+  ActionAPIResponseMap,
+  ActionAPIRequest,
+  ActionAPIRequest,
+} from '../state/types';
+
 declare global {
   const mw: {
     msg: (key: string, ...params: string[]) => string;
@@ -13,8 +20,12 @@ declare global {
       require: (module: string) => any;
     };
     Api: new () => {
-      get: (params: Record<string, any>) => Promise<any>;
-      post: (params: Record<string, any>) => Promise<any>;
+      get: <T extends keyof ActionAPIResponseMap>(
+        params: ActionAPIRequest<T>,
+      ) => Promise<ActionAPIResponseMap[T]>;
+      post: <T extends keyof ActionAPIResponseMap>(
+        params: ActionAPIRequest<T>,
+      ) => Promise<ActionAPIResponseMap[T]>;
     };
   };
 }

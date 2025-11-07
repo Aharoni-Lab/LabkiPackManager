@@ -4,6 +4,33 @@
  * These types mirror the PHP PackSessionState domain model and API response structures.
  */
 
+// base types
+
+export type ActionAPIName =
+  | 'labkiReposList'
+  | 'labkiReposAdd'
+  | 'labkiGraphGet'
+  | 'labkiHierarchyGet'
+  | 'labkiPacksAction'
+  | 'labkiOperationsStatus';
+export interface ActionAPIResponseBase {
+  meta: {
+    schemaVersion: number;
+    timestamp: string;
+    from_cache?: boolean;
+  };
+}
+
+export interface ActionAPIRequestBase<T extends ActionAPIName> {
+  action: T;
+  format: 'json';
+}
+
+export interface RepoRefRequest<T extends ActionAPIName> extends ActionAPIRequestBase<T> {
+  repo_url: string;
+  ref: string;
+}
+
 // ============================================================================
 // Pack Session State Types
 // ============================================================================
@@ -69,10 +96,14 @@ export interface PacksActionPayload {
   data: Record<string, unknown>;
 }
 
+export interface PacksActionRequest extends ActionAPIRequestBase<'labkiPacksAction'> {
+  payload: string;
+}
+
 /**
  * Response from labkiPacksAction API.
  */
-export interface PacksActionResponse {
+export interface PacksActionResponse extends ActionAPIResponseBase {
   /** Success flag */
   ok: boolean;
   /** State diff (changed fields only, or full state on init) */
@@ -87,11 +118,11 @@ export interface PacksActionResponse {
     status?: string;
     [key: string]: unknown;
   };
-  /** Response metadata */
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-  };
+}
+
+// idk why but this is nested???
+export interface PacksActionWrapper {
+  labkiPacksAction: PacksActionResponse;
 }
 
 // ============================================================================
@@ -199,26 +230,27 @@ export interface Repo {
 /**
  * Response from labkiReposList API.
  */
-export interface ReposListResponse {
+export interface ReposListResponse extends ActionAPIResponseBase {
   repos: Repo[];
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-  };
 }
 
 /**
  * Response from labkiReposAdd API.
  */
-export interface ReposAddResponse {
-  ok: boolean;
+export interface ReposAddRequest extends ActionAPIRequestBase<'labkiReposAdd'> {
+  repo_url: string;
+  default_ref?: string;
+  refs?: string[];
+}
+
+export interface ReposAddResponse extends ActionAPIResponseBase {
+  success: boolean;
   operation_id: string;
   repo_url: string;
   default_ref: string;
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-  };
+  status?: string;
+  message?: string;
+  refs?: Ref[];
 }
 
 // ============================================================================
@@ -228,7 +260,7 @@ export interface ReposAddResponse {
 /**
  * Response from labkiGraphGet API.
  */
-export interface GraphGetResponse {
+export interface GraphGetResponse extends ActionAPIResponseBase {
   repo_url: string;
   ref: string;
   hash: string;
@@ -238,24 +270,51 @@ export interface GraphGetResponse {
     roots: string[];
     hasCycle: boolean;
   };
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-    from_cache: boolean;
-  };
 }
 
 /**
  * Response from labkiHierarchyGet API.
  */
-export interface HierarchyGetResponse {
+export interface HierarchyGetResponse extends ActionAPIResponseBase {
   repo_url: string;
   ref: string;
   hash: string;
   hierarchy: Hierarchy;
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-    from_cache: boolean;
-  };
+}
+
+export interface OperationsStatusRequest extends ActionAPIRequestBase<'labkiOperationsStatus'> {
+  operation_id: number;
+}
+
+export interface OperationsStatusResponse extends ActionAPIResponseBase {
+  status: string;
+  operation_id: string;
+  message: string;
+}
+
+// Type unions for api.get and api.post methods
+// using a combination of conditional types with a generic and a mapping
+// so that the `action` within the request can be linked to the response type
+
+export type ActionAPIRequest<T extends ActionAPIName> = T extends 'labkiReposList'
+  ? ActionAPIRequestBase<T>
+  : T extends 'labkiReposAdd'
+    ? ReposAddRequest
+    : T extends 'labkiGraphGet'
+      ? RepoRefRequest<T>
+      : T extends 'labkiHierarchyGet'
+        ? RepoRefRequest<T>
+        : T extends 'labkiPacksAction'
+          ? PacksActionRequest
+          : T extends 'labkiOperationsStatus'
+            ? OperationsStatusRequest
+            : never;
+
+export interface ActionAPIResponseMap {
+  labkiReposList: ReposListResponse;
+  labkiReposAdd: ReposAddResponse;
+  labkiGraphGet: GraphGetResponse;
+  labkiHierarchyGet: HierarchyGetResponse;
+  labkiPacksAction: PacksActionWrapper;
+  labkiOperationsStatus: OperationsStatusResponse;
 }
