@@ -9,7 +9,7 @@
     </div>
 
     <div v-else-if="mermaidSrc" class="mermaid-wrapper">
-      <pre class="mermaid" ref="mermaidPre">{{ mermaidSrc }}</pre>
+      <pre ref="mermaidPre" class="mermaid">{{ mermaidSrc }}</pre>
     </div>
 
     <div v-else class="no-graph-message">

@@ -57,6 +57,18 @@ export default [
     }
   },
   {
+    // test-specific rule overrides
+    // these should be removed once ts is more established throughout the frontend
+    // for now there aren't many tests, and we don't have types for a lot of things.
+    files: ['resources/src/__tests__/**/*.{js,ts}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': "off",
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-return': "off",
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+    }
+  },
+  {
     // Config
     files: ['eslint.config.js'],
     ...tseslint.configs.disableTypeChecked

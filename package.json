@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "lint": "eslint resources/src",
+    "lint:fix": "npm run lint -- --fix",
     "format": "prettier -w resources/src",
     "format:check": "prettier -c resources/src"
   },

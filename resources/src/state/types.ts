@@ -233,8 +233,8 @@ export interface GraphGetResponse {
   ref: string;
   hash: string;
   graph: {
-    containsEdges: Array<{ from: string; to: string }>;
-    dependsEdges: Array<{ from: string; to: string }>;
+    containsEdges: { from: string; to: string }[];
+    dependsEdges: { from: string; to: string }[];
     roots: string[];
     hasCycle: boolean;
   };

@@ -168,7 +168,7 @@ export async function packsAction(payload: PacksActionPayload): Promise<PacksAct
     console.log('[packsAction] Raw response:', response);
 
     // Response is always wrapped in labkiPacksAction
-    let data = response.labkiPacksAction;
+    const data = response.labkiPacksAction;
     if (!data) {
       console.error(
         '[packsAction] Cannot find labkiPacksAction in response:',
@@ -216,8 +216,8 @@ export async function operationStatus(operationId: string) {
  */
 export async function pollOperation(
   operationId: string,
-  maxAttempts: number = 60,
-  intervalMs: number = 1000,
+  maxAttempts = 60,
+  intervalMs = 1000,
   onProgress?: (status: any) => void,
 ): Promise<any> {
   console.log(`[pollOperation] Starting poll for ${operationId}`);

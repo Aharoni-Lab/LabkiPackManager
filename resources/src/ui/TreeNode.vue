@@ -173,7 +173,6 @@
               :placeholder="$t('labkipackmanager-pack-prefix-placeholder') || 'MyNamespace/MyPack'"
               :disabled="!isPackEditable"
               :readonly="!isPackEditable"
-              @input="onPrefixChange"
               :style="{
                 fontSize: '0.72em',
                 padding: '4px 7px',
@@ -185,6 +184,7 @@
                 transition: 'all 0.15s ease',
                 cursor: isPackEditable ? 'text' : 'not-allowed',
               }"
+              @input="onPrefixChange"
             />
           </div>
 
@@ -198,7 +198,7 @@
               flexWrap: 'wrap',
             }"
           >
-            <div class="action-item" v-if="packState && packState.current_version === null">
+            <div v-if="packState && packState.current_version === null" class="action-item">
               <cdx-button
                 action="progressive"
                 :weight="packState.action === 'install' ? 'primary' : 'normal'"
@@ -209,7 +209,7 @@
               </cdx-button>
             </div>
 
-            <div class="action-item" v-if="canUpdate">
+            <div v-if="canUpdate" class="action-item">
               <cdx-button
                 :weight="packState?.action === 'update' ? 'primary' : 'normal'"
                 :class="{ active: packState?.action === 'update' }"
@@ -219,7 +219,7 @@
               </cdx-button>
             </div>
 
-            <div class="action-item" v-if="packState && packState.current_version !== null">
+            <div v-if="packState && packState.current_version !== null" class="action-item">
               <cdx-button
                 action="destructive"
                 :weight="packState.action === 'remove' ? 'primary' : 'normal'"
@@ -331,18 +331,6 @@
                 :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
                 :disabled="!getPageEditable(page.label)"
                 :readonly="!getPageEditable(page.label)"
-                @input="(e) => onPageTitleChangeForPage(e, page.label)"
-                @focus="
-                  () =>
-                    console.log(
-                      '[Page Input Focus] Page:',
-                      page.label,
-                      'Editable:',
-                      getPageEditable(page.label),
-                      'Pack action:',
-                      packState?.action,
-                    )
-                "
                 :aria-invalid="getPageHasCollision(page.label) ? 'true' : 'false'"
                 :style="{
                   fontSize: '0.72em',
@@ -356,16 +344,28 @@
                   transition: 'all 0.15s ease',
                   cursor: getPageEditable(page.label) ? 'text' : 'not-allowed',
                 }"
+                @input="(e) => onPageTitleChangeForPage(e, page.label)"
+                @focus="
+                  () =>
+                    console.log(
+                      '[Page Input Focus] Page:',
+                      page.label,
+                      'Editable:',
+                      getPageEditable(page.label),
+                      'Pack action:',
+                      packState?.action,
+                    )
+                "
               />
               <span
                 v-if="getPageHasCollision(page.label)"
+                :id="getCollisionId(page.label)"
                 class="collision-icon"
                 :style="{
                   fontSize: '1.1em',
                   cursor: 'help',
                   color: '#d33',
                 }"
-                :id="getCollisionId(page.label)"
                 :title="getCollisionTooltip(page.label)"
                 >⚠️</span
               >
@@ -485,14 +485,14 @@
           :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
           :disabled="!isPageEditable"
           :readonly="!isPageEditable"
-          @input="onPageTitleChange"
           :aria-invalid="pageHasCollision ? 'true' : 'false'"
           :aria-describedby="pageHasCollision ? collisionId : undefined"
+          @input="onPageTitleChange"
         />
         <span
           v-if="pageHasCollision"
-          class="collision-icon"
           :id="collisionId"
+          class="collision-icon"
           :title="collisionTooltip"
           >⚠️</span
         >
