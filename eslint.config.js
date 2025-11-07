@@ -49,13 +49,14 @@ export default [
       }
     },
     rules: {
-      'no-console': 'off',
+      'no-console': 'warn',
     }
   },
   {
     // js/ts files
     files: ['**/*.{js,ts}'],
     rules: {
+      // make error after conferring with daniel -jls
       'no-console': 'warn',
     }
   },
