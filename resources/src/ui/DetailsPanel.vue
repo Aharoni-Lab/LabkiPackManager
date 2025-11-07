@@ -1,5 +1,17 @@
 <template>
   <div class="details-panel">
+    <StateSyncModal
+      v-model="stateSyncModal.visible"
+      :message="stateSyncModal.message"
+      :differences="stateSyncModal.differences"
+      :reconcile-commands="stateSyncModal.reconcileCommands"
+      :attempting-reconcile="stateSyncModal.attemptingReconcile"
+      :reconcile-message="stateSyncModal.reconcileMessage"
+      @sync="syncFrontendWithBackend"
+      @cancel="closeStateSyncModal"
+      @reconcile="reconcileAndReapply"
+    />
+
     <div class="panel-header">
       <h3>{{ $t('labkipackmanager-details-title') }}</h3>
       <div v-if="selectedPacks.length > 0" class="pack-count-badge">
@@ -343,15 +355,28 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, reactive } from 'vue';
 import { CdxButton, CdxMessage } from '@wikimedia/codex';
 import { store } from '../state/store';
 import { packsAction, pollOperation } from '../api/endpoints';
 import { mergeDiff } from '../state/merge';
+import StateSyncModal from './StateSyncModal.vue';
 
 const operationMessage = ref('');
 const errorMessage = ref('');
 const packStatuses = ref({}); // Track status of each pack during apply
+
+const stateSyncModal = reactive({
+  visible: false,
+  message: '',
+  differences: {},
+  serverPacks: {},
+  serverHash: '',
+  reconcileCommands: [],
+  clientSnapshot: {},
+  attemptingReconcile: false,
+  reconcileMessage: '',
+});
 
 const selectedPacks = computed(() => {
   const packs = [];
@@ -401,11 +426,28 @@ async function onApply() {
     });
     
     console.log('[onApply] Apply response:', response);
+	
+	if (!response.ok) {
+		if (response.error === 'state_out_of_sync') {
+			handleStateOutOfSync(response);
+			operationMessage.value = 'State out of sync detected. Review differences below.';
+			markAllStatuses('failed');
+			return;
+		}
+		throw new Error(response.message || 'Apply command failed');
+	}
     
     // Merge diff (session state is cleared by backend)
+	if (response.diff) {
     mergeDiff(store.packs, response.diff);
+	} else {
+		// When backend returns no diff (should not happen), ensure packs are cleared
+		for (const key of Object.keys(store.packs)) delete store.packs[key];
+	}
+	if (response.state_hash) {
     store.stateHash = response.state_hash;
-    store.warnings = response.warnings;
+	}
+	store.warnings = response.warnings ?? [];
     
     // Step 2: If we got an operation_id, poll for completion
     if (response.operation?.operation_id) {
@@ -458,12 +500,166 @@ async function onApply() {
     operationMessage.value = '';
     
     // Mark all as failed
-    for (const packName in packStatuses.value) {
-      packStatuses.value[packName] = 'failed';
-    }
+		markAllStatuses('failed');
   } finally {
     store.busy = false;
   }
+}
+
+function markAllStatuses(status) {
+  for (const packName in packStatuses.value) {
+    packStatuses.value[packName] = status;
+  }
+}
+
+function handleStateOutOfSync(response) {
+  const rawCommands = Array.isArray(response.reconcile_commands) ? response.reconcile_commands : [];
+  const cleanedDifferences = sanitizeDifferences(response.differences, rawCommands);
+
+  stateSyncModal.visible = true;
+  stateSyncModal.message = response.message || 'Frontend and backend pack states are out of sync.';
+  stateSyncModal.differences = cleanedDifferences;
+  stateSyncModal.serverPacks = response.server_packs ? deepClone(response.server_packs) : {};
+  stateSyncModal.serverHash = response.state_hash || '';
+  stateSyncModal.reconcileCommands = filterReconcileCommands(rawCommands, cleanedDifferences);
+  stateSyncModal.clientSnapshot = deepClone(store.packs);
+  stateSyncModal.attemptingReconcile = false;
+  stateSyncModal.reconcileMessage = '';
+}
+
+function replaceStorePacks(newPacks) {
+  const target = store.packs;
+  for (const key of Object.keys(target)) {
+    delete target[key];
+  }
+  for (const [packName, packState] of Object.entries(newPacks)) {
+    target[packName] = packState;
+  }
+}
+
+function syncFrontendWithBackend() {
+  replaceStorePacks(stateSyncModal.serverPacks || {});
+  if (stateSyncModal.serverHash) {
+    store.stateHash = stateSyncModal.serverHash;
+  }
+  stateSyncModal.visible = false;
+  stateSyncModal.reconcileMessage = '';
+  operationMessage.value = 'Synced with backend state. Review selections before applying again.';
+}
+
+function closeStateSyncModal() {
+  stateSyncModal.visible = false;
+  stateSyncModal.reconcileMessage = '';
+}
+
+async function reconcileAndReapply() {
+  if (stateSyncModal.attemptingReconcile) {
+    return;
+  }
+
+  try {
+    stateSyncModal.attemptingReconcile = true;
+    stateSyncModal.reconcileMessage = '';
+
+    // Start from the authoritative server state
+    replaceStorePacks(stateSyncModal.serverPacks || {});
+    if (stateSyncModal.serverHash) {
+      store.stateHash = stateSyncModal.serverHash;
+    }
+
+    for (const command of stateSyncModal.reconcileCommands) {
+      const response = await packsAction({
+        command: command.command,
+        repo_url: store.repoUrl,
+        ref: store.ref,
+        data: command.data,
+      });
+
+      if (!response.ok) {
+        throw new Error(response.message || `Failed to execute ${command.command}`);
+      }
+
+      if (response.diff) {
+        mergeDiff(store.packs, response.diff);
+      }
+      if (response.state_hash) {
+        store.stateHash = response.state_hash;
+      }
+      if (response.warnings) {
+        store.warnings = response.warnings;
+      }
+    }
+
+    stateSyncModal.reconcileMessage = 'Differences reapplied successfully. Attempting apply again...';
+    stateSyncModal.attemptingReconcile = false;
+    stateSyncModal.visible = false;
+
+    await onApply();
+  } catch (err) {
+    console.error('[reconcileAndReapply] Error:', err);
+    stateSyncModal.reconcileMessage = err instanceof Error ? err.message : String(err);
+    stateSyncModal.attemptingReconcile = false;
+  }
+}
+
+function deepClone(value) {
+  if (value === undefined) {
+    return value;
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+function sanitizeDifferences(differences, commands = []) {
+  const result = {};
+  if (!differences || typeof differences !== 'object') {
+    return result;
+  }
+
+  const allowedPacks = new Set(
+    commands
+      .map((command) => command?.data?.pack_name)
+      .filter((packName) => typeof packName === 'string' && packName !== '')
+  );
+  const restrictToAllowed = allowedPacks.size > 0;
+
+  for (const [packName, packDiff] of Object.entries(differences)) {
+    if (restrictToAllowed && !allowedPacks.has(packName)) {
+      continue;
+    }
+
+    const fields = packDiff?.fields ?? {};
+    const pages = packDiff?.pages ?? {};
+
+    const fieldEntries = Object.entries(fields ?? {});
+
+    const filteredPages = {};
+    for (const [pageName, pageDiff] of Object.entries(pages ?? {})) {
+      const pageFields = Object.entries(pageDiff ?? {});
+      if (pageFields.length > 0) {
+        filteredPages[pageName] = pageDiff;
+      }
+    }
+
+    if (fieldEntries.length > 0 || Object.keys(filteredPages).length > 0) {
+      result[packName] = {
+        ...(fieldEntries.length > 0 ? { fields } : {}),
+        ...(Object.keys(filteredPages).length > 0 ? { pages: filteredPages } : {}),
+      };
+    }
+  }
+
+  return result;
+}
+
+function filterReconcileCommands(commands, differences) {
+  const packs = new Set(Object.keys(differences));
+  return commands.filter((command) => {
+    const packName = command?.data?.pack_name;
+    if (!packName) {
+      return true;
+    }
+    return packs.has(packName);
+  });
 }
 
 function updatePackStatusFromMessage(message) {
@@ -597,8 +793,6 @@ function $t(key) {
   
   ============================================================================
 */
-
-/* ==================== PANEL CONTAINER ==================== */
 
 .details-panel {
   padding: 20px;

@@ -75,23 +75,50 @@ export interface PacksActionPayload {
 export interface PacksActionResponse {
   /** Success flag */
   ok: boolean;
+  /** Optional error code when ok === false */
+  error?: string;
+  /** Human-friendly message */
+  message?: string;
   /** State diff (changed fields only, or full state on init) */
-  diff: PacksState;
+  diff?: PacksState;
   /** Warning messages */
-  warnings: string[];
+  warnings?: string[];
   /** Authoritative server state hash */
-  state_hash: string;
+  state_hash?: string;
   /** Operation info (e.g., from apply command) */
   operation?: {
     operation_id?: string;
     status?: string;
     [key: string]: unknown;
   };
+  /** Authoritative server packs (when state is out of sync) */
+  server_packs?: PacksState;
+  /** Field-level differences for reconciliation */
+  differences?: StateDifference;
+  /** Suggested commands to reconcile client intent */
+  reconcile_commands?: ReconcileCommand[];
   /** Response metadata */
   meta: {
     schemaVersion: number;
     timestamp: string;
   };
+}
+
+export interface StateDifference {
+  [packName: string]: {
+    fields?: Record<string, FieldDifference>;
+    pages?: Record<string, Record<string, FieldDifference>>;
+  };
+}
+
+export interface FieldDifference {
+  client: unknown;
+  server: unknown;
+}
+
+export interface ReconcileCommand {
+  command: string;
+  data: Record<string, unknown>;
 }
 
 // ============================================================================

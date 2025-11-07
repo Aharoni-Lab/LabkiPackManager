@@ -364,7 +364,39 @@ final class LabkiOperationRegistry extends BaseRegistry {
         
         $stats = [];
         foreach ( $res as $row ) {
-            $stats[$row->status] = (int)$row->count;
+            $status = null;
+            if ( isset( $row->status ) ) {
+                $status = (string)$row->status;
+            } elseif ( isset( $row->STATUS ) ) {
+                $status = (string)$row->STATUS;
+            }
+            if ( $status === null ) {
+                // Skip rows where status column is not present
+                wfDebugLog( 'labkipack', 'getOperationStats: skipping row with missing status column' );
+                continue;
+            }
+
+            $countValue = null;
+            if ( isset( $row->count ) ) {
+                $countValue = (int)$row->count;
+            } elseif ( isset( $row->COUNT ) ) {
+                $countValue = (int)$row->COUNT;
+            } else {
+                // Fallback to numeric property name (e.g., COUNT(*) might appear as column index)
+                foreach ( $row as $key => $value ) {
+                    if ( preg_match( '/^COUNT/i', (string)$key ) ) {
+                        $countValue = (int)$value;
+                        break;
+                    }
+                }
+            }
+
+            if ( $countValue === null ) {
+                wfDebugLog( 'labkipack', "getOperationStats: missing count for status {$status}" );
+                continue;
+            }
+
+            $stats[$status] = $countValue;
         }
         
         return $stats;

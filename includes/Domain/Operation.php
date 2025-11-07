@@ -102,17 +102,27 @@ final class Operation {
     }
 
     public static function fromRow(object $row): self {
+        $status = null;
+        if ( property_exists( $row, 'status' ) && $row->status !== null ) {
+            $status = (string)$row->status;
+        } elseif ( property_exists( $row, 'STATUS' ) && $row->STATUS !== null ) {
+            $status = (string)$row->STATUS;
+        }
+        if ( $status === null ) {
+            $status = self::STATUS_QUEUED;
+        }
+
         return new self(
-            new OperationId((string)$row->operation_id),
+            new OperationId( (string)$row->operation_id ),
             (string)$row->operation_type,
-            (string)$row->status,
-            isset($row->progress) && $row->progress !== null ? (int)$row->progress : null,
-            $row->message ?? null,
-            $row->result_data ?? null,
-            isset($row->user_id) && $row->user_id !== null ? (int)$row->user_id : null,
-            isset($row->created_at) && $row->created_at !== null ? (int)$row->created_at : null,
-            isset($row->started_at) && $row->started_at !== null ? (int)$row->started_at : null,
-            isset($row->updated_at) && $row->updated_at !== null ? (int)$row->updated_at : null,
+            $status,
+            isset( $row->progress ) && $row->progress !== null ? (int)$row->progress : null,
+            property_exists( $row, 'message' ) ? $row->message : null,
+            property_exists( $row, 'result_data' ) ? $row->result_data : null,
+            isset( $row->user_id ) && $row->user_id !== null ? (int)$row->user_id : null,
+            isset( $row->created_at ) && $row->created_at !== null ? (int)$row->created_at : null,
+            isset( $row->started_at ) && $row->started_at !== null ? (int)$row->started_at : null,
+            isset( $row->updated_at ) && $row->updated_at !== null ? (int)$row->updated_at : null,
         );
     }
 }
