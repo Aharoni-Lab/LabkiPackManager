@@ -659,9 +659,9 @@ function onPageTitleChange(e: Event) {
   const target = e.target as HTMLInputElement;
   const val = target.value;
   if (pageTimer) clearTimeout(pageTimer);
-  pageTimer = setTimeout(() => {
+  pageTimer = setTimeout(async () => {
     const newTitle = displayPrefixWithSlash.value ? displayPrefixWithSlash.value + val : val;
-    sendRenamePageCommandLegacy(newTitle);
+    await sendRenamePageCommandLegacy(newTitle);
   }, 400);
 }
 
@@ -686,7 +686,7 @@ async function sendSetPackPrefixCommand(prefix: string) {
 }
 
 // Legacy function for standalone page nodes (edge case)
-function sendRenamePageCommandLegacy(newTitle: string) {
+async function sendRenamePageCommandLegacy(newTitle: string) {
   if (store.busy || !parentName.value) return;
   try {
     store.busy = true;
