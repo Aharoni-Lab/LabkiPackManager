@@ -4,7 +4,8 @@ import pluginVue from 'eslint-plugin-vue';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import tseslint from 'typescript-eslint';
 import vueParser from "vue-eslint-parser";
-import tsParser from "@typescript-eslint/parser"
+import tsParser from "@typescript-eslint/parser";
+import globals from 'globals';
 
 export default [
   js.configs.recommended,
@@ -21,11 +22,13 @@ export default [
         extraFileExtensions: [".vue"]
       },
       sourceType: 'module',
-      globals: { mw: 'readonly', require: 'readonly' }
+      globals: { mw: 'readonly', require: 'readonly', ...globals.browser }
     },
     rules: {
       'vue/component-definition-name-casing': 'off',
-      'no-unused-vars': 'error',
+      // disable base rule, use tslint's
+      'no-unused-vars': 'off',
+      "@typescript-eslint/no-unused-vars": "error",
       'vue/no-undef-components': "error",
       'vue/no-undef-properties': "error",
       'vue/no-unused-properties': "error",
@@ -46,14 +49,14 @@ export default [
       }
     },
     rules: {
-      'no-console': 'warn',
+      'no-console': 'off',
     }
   },
   {
     // js/ts files
     files: ['**/*.{js,ts}'],
     rules: {
-      'no-console': 'error',
+      'no-console': 'warn',
     }
   },
   {

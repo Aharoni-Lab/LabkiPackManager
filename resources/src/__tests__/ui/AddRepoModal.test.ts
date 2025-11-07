@@ -55,7 +55,7 @@ describe('AddRepoModal Component', () => {
     expect(wrapper.exists()).toBe(true);
   });
 
-  it('should emit close event', async () => {
+  it('should emit close event', () => {
     const wrapper = mount(AddRepoModal, {
       props: {
         open: true,
@@ -63,7 +63,7 @@ describe('AddRepoModal Component', () => {
     });
 
     // Component should be able to emit close
-    await wrapper.vm.$emit('close');
+    wrapper.vm.$emit('close');
     expect(wrapper.emitted('close')).toBeTruthy();
   });
 });
