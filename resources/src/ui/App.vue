@@ -34,7 +34,7 @@ onMounted(() => {
 });
 
 // Helper for i18n
-function $t(key) {
+function $t(key: string) {
   return mw.msg(key);
 }
 </script>

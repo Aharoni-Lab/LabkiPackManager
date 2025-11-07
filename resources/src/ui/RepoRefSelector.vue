@@ -47,9 +47,10 @@
 import { ref, computed, onMounted } from 'vue';
 import { CdxField, CdxSelect, CdxMessage } from '@wikimedia/codex';
 import { store } from '../state/store';
-import { reposList, graphGet, hierarchyGet, packsAction, pollOperation } from '../api/endpoints';
+import { reposList, graphGet, hierarchyGet, packsAction } from '../api/endpoints';
 import AddRepoModal from './AddRepoModal.vue';
 import AddRefModal from './AddRefModal.vue';
+import { PackGraph } from '../state/types';
 
 const ADD_REPO_VALUE = '__add_new_repo__';
 const ADD_REF_VALUE = '__add_new_ref__';
@@ -76,6 +77,7 @@ const repoMenuItems = computed(() => {
   const items = store.repos.map((repo) => ({
     label: repo.repo_url,
     value: repo.repo_url,
+    disabled: false,
   }));
 
   // Add separator and "Add new" option
@@ -87,6 +89,7 @@ const repoMenuItems = computed(() => {
   items.push({
     label: $t('labkipackmanager-add-repo-option'),
     value: ADD_REPO_VALUE,
+    disabled: false,
   });
 
   return items;
@@ -100,6 +103,7 @@ const refMenuItems = computed(() => {
   const items = store.selectedRepo.refs.map((ref) => ({
     label: `${ref.ref_name} ${ref.is_default ? '(default)' : ''}`,
     value: ref.ref,
+    disabled: false,
   }));
 
   // Add separator and "Add new" option
@@ -111,6 +115,7 @@ const refMenuItems = computed(() => {
   items.push({
     label: $t('labkipackmanager-add-ref-option'),
     value: ADD_REF_VALUE,
+    disabled: false,
   });
 
   return items;
@@ -159,7 +164,7 @@ async function loadRepos() {
   }
 }
 
-async function onRepoSelected(value) {
+async function onRepoSelected(value: string) {
   if (value === ADD_REPO_VALUE) {
     showAddRepoModal.value = true;
     // Reset selection
@@ -172,7 +177,7 @@ async function onRepoSelected(value) {
   }
 }
 
-async function selectRepo(url) {
+async function selectRepo(url: string) {
   try {
     store.busy = true;
     error.value = '';
@@ -202,7 +207,7 @@ async function selectRepo(url) {
   }
 }
 
-async function onRefSelected(value) {
+async function onRefSelected(value: string) {
   if (value === ADD_REF_VALUE) {
     showAddRefModal.value = true;
     // Reset selection
@@ -215,7 +220,7 @@ async function onRefSelected(value) {
   }
 }
 
-async function selectRef(refName) {
+async function selectRef(refName: string) {
   try {
     store.busy = true;
     error.value = '';
@@ -257,7 +262,7 @@ async function selectRef(refName) {
   }
 }
 
-async function onRepoAdded(eventData) {
+async function onRepoAdded(eventData: { repoUrl: string }) {
   // The repo was added and the modal already waited for completion
   // Now we just need to reload and select it
   try {
@@ -283,7 +288,7 @@ async function onRepoAdded(eventData) {
   }
 }
 
-async function onRefAdded(eventData) {
+async function onRefAdded(eventData: { refName: string }) {
   // The ref was added and the modal already waited for completion
   // Now we just need to reload and select it
   try {
@@ -315,11 +320,11 @@ async function onRefAdded(eventData) {
   }
 }
 
-function buildMermaidFromGraph(graph) {
+function buildMermaidFromGraph(graph: PackGraph) {
   const lines = ['graph TD'];
 
   // Create node definitions first
-  const nodes = new Set();
+  const nodes = new Set<string>();
   const edges = [];
 
   // Collect all nodes from edges
@@ -362,13 +367,13 @@ function buildMermaidFromGraph(graph) {
   return mermaidSrc;
 }
 
-function escapeNodeName(name) {
+function escapeNodeName(name: string) {
   // Replace spaces and special chars with underscores
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
 // Helper for i18n
-function $t(key) {
+function $t(key: string) {
   return mw.msg(key);
 }
 </script>

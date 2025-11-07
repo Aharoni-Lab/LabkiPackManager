@@ -308,7 +308,7 @@
             >
               <span class="arrow" :style="{ color: '#72777d', fontSize: '0.8em' }">→</span>
               <span
-                v-if="getDisplayPrefix(page.label)"
+                v-if="getDisplayPrefix()"
                 class="prefix-chip-inline"
                 :style="{
                   fontSize: '0.7em',
@@ -338,7 +338,7 @@
                   flex: '1',
                   minWidth: '100px',
                   border: getPageHasCollision(page.label) ? '1px solid #d33' : '1px solid #c8ccd1',
-                  borderRadius: getDisplayPrefix(page.label) ? '0 3px 3px 0' : '3px',
+                  borderRadius: getDisplayPrefix() ? '0 3px 3px 0' : '3px',
                   background: getPageHasCollision(page.label) ? '#fff5f5' : 'white',
                   fontFamily: 'Monaco, Menlo, Consolas, monospace',
                   transition: 'all 0.15s ease',
@@ -507,26 +507,22 @@ import { CdxButton } from '@wikimedia/codex';
 import { store } from '../state/store';
 import { packsAction } from '../api/endpoints';
 import { mergeDiff } from '../state/merge';
+import { HierarchyNode, PackStateAction } from '../state/types';
 
-const props = defineProps({
-  node: { type: Object, required: true },
-  depth: { type: Number, required: true },
-  parentPackName: { type: String, default: null },
-});
+const props = defineProps<{
+  node: HierarchyNode;
+  depth: number;
+  parentPackName?: string;
+}>();
 const emit = defineEmits(['set-pack-action']);
 
 const expanded = ref(false);
-let prefixTimer = null;
-let pageTimer = null;
+let prefixTimer: number | null = null;
+let pageTimer: number | null = null;
 
-const hasChildren = computed(() => !!(props.node.children && props.node.children.length));
 const packState = computed(() =>
   props.node.type === 'pack' ? store.packs[props.node.label] || null : null,
 );
-const isPackSelected = computed(() => {
-  const action = packState.value?.action;
-  return action && action !== 'unchanged';
-});
 const isPackEditable = computed(() => {
   const action = packState.value?.action;
   const installed = packState.value?.installed;
@@ -548,10 +544,6 @@ const parentPackState = computed(() =>
 const pageState = computed(() =>
   parentPackState.value?.pages ? parentPackState.value.pages[props.node.label] || null : null,
 );
-const isPageParentSelected = computed(() => {
-  const action = parentPackState.value?.action;
-  return action === 'install' || action === 'update';
-});
 const isPageEditable = computed(() => {
   // For pages in the right column, check the pack's state (this node is the pack)
   if (props.node.type === 'pack') {
@@ -599,7 +591,7 @@ const canUpdate = computed(() => {
   if (!ps) return false;
   if (ps.current_version === null) return false;
   if (!ps.target_version) return false;
-  return ps.target_version > ps.current_version;
+  return ps?.current_version ? ps.target_version > ps.current_version : false;
 });
 
 if (props.node.type === 'pack') {
@@ -614,8 +606,7 @@ if (props.node.type === 'pack') {
 }
 
 const subtreeHasAction = computed(() => {
-  store.stateHash;
-  const check = (n) => {
+  const check = (n: HierarchyNode) => {
     if (n.type === 'pack') {
       const s = store.packs[n.label];
       if (s && s.action && s.action !== 'unchanged') return true;
@@ -632,7 +623,7 @@ function toggleExpanded() {
   expanded.value = !expanded.value;
 }
 
-function toggleAction(action) {
+function toggleAction(action: PackStateAction) {
   const current = packState.value?.action;
   const next = current === action ? 'unchanged' : action;
   console.log(
@@ -654,27 +645,27 @@ function toggleUpdate() {
   toggleAction('update');
 }
 
-function onPrefixChange(e) {
-  if (!isPackEditable.value) return;
-  const val = e.target.value;
+function onPrefixChange(e: Event) {
+  if (!isPackEditable.value || e.target === null) return;
+  const target = e.target as HTMLInputElement;
+  const val = target.value;
   if (prefixTimer) clearTimeout(prefixTimer);
   prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 400);
 }
 
 // Legacy function for standalone page nodes (edge case)
-function onPageTitleChange(e) {
+function onPageTitleChange(e: Event) {
   if (!isPageEditable.value) return;
-  const editable = e.target.value;
+  const target = e.target as HTMLInputElement;
+  const val = target.value;
   if (pageTimer) clearTimeout(pageTimer);
   pageTimer = setTimeout(() => {
-    const newTitle = displayPrefixWithSlash.value
-      ? displayPrefixWithSlash.value + editable
-      : editable;
+    const newTitle = displayPrefixWithSlash.value ? displayPrefixWithSlash.value + val : val;
     sendRenamePageCommandLegacy(newTitle);
   }, 400);
 }
 
-async function sendSetPackPrefixCommand(prefix) {
+async function sendSetPackPrefixCommand(prefix: string) {
   if (store.busy) return;
   try {
     store.busy = true;
@@ -695,7 +686,7 @@ async function sendSetPackPrefixCommand(prefix) {
 }
 
 // Legacy function for standalone page nodes (edge case)
-async function sendRenamePageCommandLegacy(newTitle) {
+function sendRenamePageCommandLegacy(newTitle: string) {
   if (store.busy || !parentName.value) return;
   try {
     store.busy = true;
@@ -724,22 +715,16 @@ onBeforeUnmount(() => {
   if (pageTimer) clearTimeout(pageTimer);
 });
 
-function $t(k) {
+function $t(k: string) {
   return mw.msg(k);
 }
 
-function getPageTitle(pageName) {
-  const parentPack = store.packs[props.node.label];
-  const pageState = parentPack?.pages?.[pageName];
-  return pageState?.final_title || pageName;
-}
-
-function getPageState(pageName) {
+function getPageState(pageName: string) {
   const parentPack = store.packs[props.node.label];
   return parentPack?.pages?.[pageName] || null;
 }
 
-function getPageBackground(pageName) {
+function getPageBackground(pageName: string) {
   const pageState = getPageState(pageName);
   if (!pageState) return 'white';
 
@@ -749,16 +734,16 @@ function getPageBackground(pageName) {
   return 'white';
 }
 
-function getDisplayPrefix(pageName) {
+function getDisplayPrefix() {
   return packState.value?.prefix || '';
 }
 
-function getDisplayPrefixWithSlash(pageName) {
+function getDisplayPrefixWithSlash(pageName: string) {
   const prefix = getDisplayPrefix(pageName);
   return prefix ? (prefix.endsWith('/') ? prefix : prefix + '/') : '';
 }
 
-function getPageEditableTitle(pageName) {
+function getPageEditableTitle(pageName: string) {
   const pageState = getPageState(pageName);
   if (!pageState) return '';
 
@@ -773,25 +758,25 @@ function getPageEditableTitle(pageName) {
   return full;
 }
 
-function getPageHasCollision(pageName) {
+function getPageHasCollision(pageName: string) {
   const pageState = getPageState(pageName);
   const full = pageState?.final_title;
   if (!full || !props.node.label) return false;
   return store.warnings.some((w) => w.includes(full) && w.includes(props.node.label));
 }
 
-function getCollisionTooltip(pageName) {
+function getCollisionTooltip(pageName: string) {
   const pageState = getPageState(pageName);
   const full = pageState?.final_title;
   if (!full || !props.node.label) return '';
   return store.warnings.filter((w) => w.includes(full) && w.includes(props.node.label)).join('\n');
 }
 
-function getCollisionId(pageName) {
+function getCollisionId(pageName: string) {
   return `collision-${props.node.label}-${pageName}`;
 }
 
-function getPageEditable(pageName) {
+function getPageEditable(pageName: string) {
   // Check if this specific page can be edited
   const pageState = getPageState(pageName);
   if (!pageState) return false;
@@ -807,7 +792,7 @@ function getPageEditable(pageName) {
   return false;
 }
 
-function onPageTitleChangeForPage(e, pageName) {
+function onPageTitleChangeForPage(e: Event, pageName: string) {
   // Check if pack is editable
   const action = packState.value?.action;
   if (action !== 'install' && action !== 'update') {
@@ -827,11 +812,12 @@ function onPageTitleChangeForPage(e, pageName) {
     return;
   }
 
-  const editable = e.target.value;
+  const target = e.target as HTMLInputElement;
+  const editable = target.value;
   console.log('[onPageTitleChangeForPage] Page:', pageName, 'New value:', editable);
 
   if (pageTimer) clearTimeout(pageTimer);
-  pageTimer = setTimeout(() => {
+  pageTimer = setTimeout(async () => {
     const prefix = getDisplayPrefixWithSlash(pageName);
     const newTitle = prefix ? prefix + editable : editable;
     console.log(
@@ -842,11 +828,11 @@ function onPageTitleChangeForPage(e, pageName) {
       'Title:',
       newTitle,
     );
-    sendRenamePageCommand(pageName, newTitle);
+    await sendRenamePageCommand(pageName, newTitle);
   }, 400);
 }
 
-async function sendRenamePageCommand(pageName, newTitle) {
+async function sendRenamePageCommand(pageName: string, newTitle: string) {
   if (store.busy) return;
   try {
     store.busy = true;
@@ -870,22 +856,6 @@ async function sendRenamePageCommand(pageName, newTitle) {
   }
 }
 
-const sortedChildren = computed(() => {
-  if (!props.node.children) return [];
-  const arr = [...props.node.children];
-  const ci = (s) => (s || '').toLocaleLowerCase();
-  arr.sort((a, b) => {
-    if (a.type === 'page' && b.type !== 'page') return -1;
-    if (a.type !== 'page' && b.type === 'page') return 1;
-    const la = ci(a.label);
-    const lb = ci(b.label);
-    if (la < lb) return -1;
-    if (la > lb) return 1;
-    return 0;
-  });
-  return arr;
-});
-
 // Separate pages and nested packs
 const childPages = computed(() => {
   if (!props.node.children) return [];
@@ -898,17 +868,20 @@ const childPacks = computed(() => {
 });
 
 // Smooth expand/collapse animations
-function onChildrenEnter(el) {
+function onChildrenEnter(el: HTMLElement) {
   el.style.height = '0';
   el.style.opacity = '0';
+  // i don't think this does anything, but keeping it bc trying to make function-neutral PR -jls
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   el.offsetHeight; // Force reflow
   el.style.transition = 'height 0.3s ease, opacity 0.3s ease';
   el.style.height = el.scrollHeight + 'px';
   el.style.opacity = '1';
 }
 
-function onChildrenLeave(el) {
+function onChildrenLeave(el: HTMLElement) {
   el.style.height = el.scrollHeight + 'px';
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   el.offsetHeight; // Force reflow
   el.style.transition = 'height 0.3s ease, opacity 0.3s ease';
   el.style.height = '0';

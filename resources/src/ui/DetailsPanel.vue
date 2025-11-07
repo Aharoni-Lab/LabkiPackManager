@@ -561,7 +561,7 @@ async function onApply() {
   }
 }
 
-function updatePackStatusFromMessage(message) {
+function updatePackStatusFromMessage(message: string) {
   // Parse backend messages to update pack statuses
   // Messages like: "Installing pack: People", "Removing pack: Miniscopes", etc.
 
@@ -677,7 +677,7 @@ async function onClear() {
 }
 
 // Helper for i18n
-function $t(key) {
+function $t(key: string) {
   return mw.msg(key);
 }
 </script>

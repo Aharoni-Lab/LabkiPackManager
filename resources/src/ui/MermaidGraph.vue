@@ -27,7 +27,7 @@ const props = defineProps({
 });
 
 const hasMermaid = ref(false);
-const mermaidPre = ref(null);
+const mermaidPre = ref<InstanceType<typeof Element>>();
 
 onMounted(() => {
   checkMermaidAvailability();
@@ -85,12 +85,12 @@ function triggerMermaidRender() {
       }
 
       // Add a small delay to ensure DOM has fully updated
-      setTimeout(() => {
+      setTimeout(async () => {
         console.log('[MermaidGraph] Attempting to render mermaid diagrams');
 
         // Try different methods to trigger rendering
         if (typeof window.mermaid.run === 'function') {
-          window.mermaid.run();
+          await window.mermaid.run();
           console.log('[MermaidGraph] Called mermaid.run()');
         } else if (typeof window.mermaid.contentLoaded === 'function') {
           window.mermaid.contentLoaded();
@@ -106,7 +106,7 @@ function triggerMermaidRender() {
 }
 
 // Helper for i18n
-function $t(key) {
+function $t(key: string) {
   return mw.msg(key);
 }
 </script>

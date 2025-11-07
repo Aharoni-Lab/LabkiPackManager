@@ -53,12 +53,14 @@ export interface PackPageState {
   installed?: boolean;
 }
 
+export type PackStateAction = 'install' | 'update' | 'remove' | 'unchanged';
+
 /**
  * State for a pack including all its pages.
  */
 export interface PackState {
   /** Action type: install|update|remove|unchanged */
-  action?: 'install' | 'update' | 'remove' | 'unchanged';
+  action?: PackStateAction;
   /** Reason for auto-action (null if manually set by user, otherwise explains why) */
   auto_selected_reason?: string | null;
   /** Version currently installed (null if not installed) */
@@ -82,18 +84,38 @@ export type PacksState = Record<string, PackState>;
 // API Request/Response Types
 // ============================================================================
 
+export type PacksActionCommand =
+  | 'init'
+  | 'refresh'
+  | 'clear'
+  | 'set_pack_action'
+  | 'rename_page'
+  | 'set_pack_prefix'
+  | 'apply';
+
 /**
  * Payload for labkiPacksAction API.
  */
 export interface PacksActionPayload {
   /** Command name (init, set_pack_action, rename_page, etc.) */
-  command: string;
+  command: PacksActionCommand;
   /** Repository URL */
   repo_url: string;
   /** Reference (branch/tag) */
   ref: string;
   /** Command-specific data */
-  data: Record<string, unknown>;
+  data: PacksActionPayloadData;
+  pack_name?: string;
+}
+
+export interface PacksActionPayloadData {
+  action?: string;
+  pack_name?: string;
+}
+
+export interface SetPackActionPayload extends PacksActionPayload {
+  action: string;
+  pack_name: string;
 }
 
 export interface PacksActionRequest extends ActionAPIRequestBase<'labkiPacksAction'> {
@@ -260,16 +282,24 @@ export interface ReposAddResponse extends ActionAPIResponseBase {
 /**
  * Response from labkiGraphGet API.
  */
+
+export interface PackGraphEdge {
+  from: string;
+  to: string;
+}
+
+export interface PackGraph {
+  containsEdges: PackGraphEdge[];
+  dependsEdges: PackGraphEdge[];
+  roots: string[];
+  hasCycle: boolean;
+}
+
 export interface GraphGetResponse extends ActionAPIResponseBase {
   repo_url: string;
   ref: string;
   hash: string;
-  graph: {
-    containsEdges: { from: string; to: string }[];
-    dependsEdges: { from: string; to: string }[];
-    roots: string[];
-    hasCycle: boolean;
-  };
+  graph: PackGraph;
 }
 
 /**
@@ -283,13 +313,14 @@ export interface HierarchyGetResponse extends ActionAPIResponseBase {
 }
 
 export interface OperationsStatusRequest extends ActionAPIRequestBase<'labkiOperationsStatus'> {
-  operation_id: number;
+  operation_id: string;
 }
 
 export interface OperationsStatusResponse extends ActionAPIResponseBase {
   status: string;
   operation_id: string;
   message: string;
+  progress: number;
 }
 
 // Type unions for api.get and api.post methods

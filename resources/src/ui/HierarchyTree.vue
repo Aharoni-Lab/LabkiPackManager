@@ -30,12 +30,13 @@ import { store } from '../state/store';
 import { packsAction } from '../api/endpoints';
 import { mergeDiff } from '../state/merge';
 import TreeNode from './TreeNode.vue';
+import { PacksActionCommand, PacksActionPayloadData, SetPackActionPayload } from '../state/types';
 
 defineProps({
   hierarchy: Object,
 });
 
-async function onSetPackAction(payload) {
+async function onSetPackAction(payload: SetPackActionPayload) {
   // Send set_pack_action command to backend
   await sendCommand('set_pack_action', {
     pack_name: payload.pack_name,
@@ -43,7 +44,7 @@ async function onSetPackAction(payload) {
   });
 }
 
-async function sendCommand(command, data) {
+async function sendCommand(command: PacksActionCommand, data: PacksActionPayloadData) {
   if (store.busy) return;
 
   try {
@@ -81,7 +82,7 @@ async function sendCommand(command, data) {
 }
 
 // Helper for i18n
-function $t(key) {
+function $t(key: string) {
   return mw.msg(key);
 }
 </script>

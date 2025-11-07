@@ -22,7 +22,7 @@ export default [
         extraFileExtensions: [".vue"]
       },
       sourceType: 'module',
-      globals: { mw: 'readonly', require: 'readonly', ...globals.browser }
+      globals: { mw: 'readonly', require: 'readonly', } // ...globals.browser }
     },
     rules: {
       'vue/component-definition-name-casing': 'off',
@@ -69,6 +69,7 @@ export default [
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-return': "off",
       '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
     }
   },
   {

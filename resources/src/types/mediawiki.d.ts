@@ -17,7 +17,6 @@ declare global {
     loader: {
       using: (modules: string | string[]) => Promise<void>;
       getState: (module: string) => string | null;
-      require: (module: string) => any;
     };
     Api: new () => {
       get: <T extends keyof ActionAPIResponseMap>(
