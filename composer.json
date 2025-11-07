@@ -20,7 +20,8 @@
   "require-dev": {
     "phpunit/phpunit": "^9.6",
     "phpunit/php-code-coverage": "^9.2",
-    "mediawiki/mediawiki-codesniffer": "^43.0"
+    "mediawiki/mediawiki-codesniffer": "^48.0",
+    "mediawiki/core": "^1.44"
   },
   "scripts": {
     "test": [
@@ -35,5 +36,11 @@
     "lint": [
       "vendor/bin/phpcs"
     ]
+  },
+  "config": {
+    "allow-plugins": {
+      "wikimedia/composer-merge-plugin": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
   }
 }
