@@ -6,7 +6,7 @@
         {{ selectedPacks.length }} {{ selectedPacks.length === 1 ? 'pack' : 'packs' }}
       </div>
     </div>
-    
+
     <div class="panel-content">
       <!-- Warnings Section -->
       <div v-if="store.warnings.length > 0" class="warnings-section">
@@ -25,7 +25,7 @@
           </cdx-message>
         </div>
       </div>
-      
+
       <!-- Selected Packs Section -->
       <div v-if="selectedPacks.length > 0" class="selected-packs-section">
         <div class="section-header">
@@ -41,58 +41,83 @@
               position: 'relative',
               padding: '12px 14px',
               paddingLeft: packStatuses[pack.name] ? '20px' : '14px',
-              background: packStatuses[pack.name] === 'running' ? 'linear-gradient(135deg, #f0f5ff 0%, #ffffff 100%)' :
-                          packStatuses[pack.name] === 'complete' ? 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)' :
-                          packStatuses[pack.name] === 'failed' ? 'linear-gradient(135deg, #fff5f5 0%, #ffffff 100%)' :
-                          packStatuses[pack.name] === 'pending' ? '#fafbfc' :
-                          'white',
+              background:
+                packStatuses[pack.name] === 'running'
+                  ? 'linear-gradient(135deg, #f0f5ff 0%, #ffffff 100%)'
+                  : packStatuses[pack.name] === 'complete'
+                    ? 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)'
+                    : packStatuses[pack.name] === 'failed'
+                      ? 'linear-gradient(135deg, #fff5f5 0%, #ffffff 100%)'
+                      : packStatuses[pack.name] === 'pending'
+                        ? '#fafbfc'
+                        : 'white',
               border: '2px solid #eaecf0',
-              borderLeft: packStatuses[pack.name] === 'running' ? '4px solid #3366cc' :
-                          packStatuses[pack.name] === 'complete' ? '4px solid #14866d' :
-                          packStatuses[pack.name] === 'failed' ? '4px solid #d33' :
-                          packStatuses[pack.name] === 'pending' ? '4px solid #c8ccd1' :
-                          '2px solid #eaecf0',
+              borderLeft:
+                packStatuses[pack.name] === 'running'
+                  ? '4px solid #3366cc'
+                  : packStatuses[pack.name] === 'complete'
+                    ? '4px solid #14866d'
+                    : packStatuses[pack.name] === 'failed'
+                      ? '4px solid #d33'
+                      : packStatuses[pack.name] === 'pending'
+                        ? '4px solid #c8ccd1'
+                        : '2px solid #eaecf0',
               borderRadius: '10px',
               boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)',
               marginBottom: '10px',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              overflow: 'hidden'
+              overflow: 'hidden',
             }"
           >
-            
-            <div class="pack-header" :style="{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: '10px',
-              marginBottom: '10px'
-            }">
-              <div class="pack-title-section" :style="{
+            <div
+              class="pack-header"
+              :style="{
                 display: 'flex',
                 alignItems: 'flex-start',
+                justifyContent: 'space-between',
                 gap: '10px',
-                flex: '1'
-              }">
-                <div class="pack-icon" :style="{ fontSize: '1.6em', lineHeight: '1' }">📦</div>
-                <div class="pack-name-wrapper" :style="{
+                marginBottom: '10px',
+              }"
+            >
+              <div
+                class="pack-title-section"
+                :style="{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  minWidth: '0'
-                }">
-                  <strong class="pack-name" :style="{
-                    fontSize: '1em',
-                    color: '#202122',
-                    wordBreak: 'break-word'
-                  }">{{ pack.name }}</strong>
-                  <div class="pack-meta-row" :style="{
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  flex: '1',
+                }"
+              >
+                <div class="pack-icon" :style="{ fontSize: '1.6em', lineHeight: '1' }">📦</div>
+                <div
+                  class="pack-name-wrapper"
+                  :style="{
                     display: 'flex',
-                    alignItems: 'center',
+                    flexDirection: 'column',
                     gap: '6px',
-                    flexWrap: 'wrap'
-                  }">
-                    <span 
-                      v-if="pack.state.auto_selected_reason" 
+                    minWidth: '0',
+                  }"
+                >
+                  <strong
+                    class="pack-name"
+                    :style="{
+                      fontSize: '1em',
+                      color: '#202122',
+                      wordBreak: 'break-word',
+                    }"
+                    >{{ pack.name }}</strong
+                  >
+                  <div
+                    class="pack-meta-row"
+                    :style="{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                    }"
+                  >
+                    <span
+                      v-if="pack.state.auto_selected_reason"
                       class="pack-badge auto"
                       :title="pack.state.auto_selected_reason"
                       :style="{
@@ -103,158 +128,243 @@
                         background: 'linear-gradient(135deg, #fef6e7 0%, #fff8e1 100%)',
                         color: '#ac6600',
                         border: '1px solid #f0d86f',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
                       }"
                     >
                       🤖 Auto
                     </span>
-                    <span v-else class="pack-badge manual" :style="{
-                      fontSize: '0.7em',
-                      padding: '3px 8px',
-                      borderRadius: '5px',
-                      fontWeight: '600',
-                      background: 'linear-gradient(135deg, #eaf3ff 0%, #f0f6ff 100%)',
-                      color: '#36c',
-                      border: '1px solid #a8c9f0',
-                      whiteSpace: 'nowrap'
-                    }">
+                    <span
+                      v-else
+                      class="pack-badge manual"
+                      :style="{
+                        fontSize: '0.7em',
+                        padding: '3px 8px',
+                        borderRadius: '5px',
+                        fontWeight: '600',
+                        background: 'linear-gradient(135deg, #eaf3ff 0%, #f0f6ff 100%)',
+                        color: '#36c',
+                        border: '1px solid #a8c9f0',
+                        whiteSpace: 'nowrap',
+                      }"
+                    >
                       ✋ Manual
                     </span>
-                    <span class="action-badge" :style="{
-                      fontSize: '0.7em',
-                      padding: '3px 10px',
-                      borderRadius: '5px',
-                      fontWeight: '700',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.3px',
-                      whiteSpace: 'nowrap',
-                      background: pack.state.action === 'install' ? 'linear-gradient(135deg, #d5fdf0 0%, #e8fff8 100%)' :
-                                  pack.state.action === 'update' ? 'linear-gradient(135deg, #fff4e5 0%, #fff8ed 100%)' :
-                                  pack.state.action === 'remove' ? 'linear-gradient(135deg, #fee7e6 0%, #fff0ef 100%)' :
-                                  '#f8f9fa',
-                      color: pack.state.action === 'install' ? '#14866d' :
-                             pack.state.action === 'update' ? '#ac6600' :
-                             pack.state.action === 'remove' ? '#d33' :
-                             '#54595d',
-                      border: pack.state.action === 'install' ? '1px solid #7fd4bf' :
-                              pack.state.action === 'update' ? '1px solid #f0c77e' :
-                              pack.state.action === 'remove' ? '1px solid #faa' :
-                              '1px solid #c8ccd1'
-                    }">
+                    <span
+                      class="action-badge"
+                      :style="{
+                        fontSize: '0.7em',
+                        padding: '3px 10px',
+                        borderRadius: '5px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.3px',
+                        whiteSpace: 'nowrap',
+                        background:
+                          pack.state.action === 'install'
+                            ? 'linear-gradient(135deg, #d5fdf0 0%, #e8fff8 100%)'
+                            : pack.state.action === 'update'
+                              ? 'linear-gradient(135deg, #fff4e5 0%, #fff8ed 100%)'
+                              : pack.state.action === 'remove'
+                                ? 'linear-gradient(135deg, #fee7e6 0%, #fff0ef 100%)'
+                                : '#f8f9fa',
+                        color:
+                          pack.state.action === 'install'
+                            ? '#14866d'
+                            : pack.state.action === 'update'
+                              ? '#ac6600'
+                              : pack.state.action === 'remove'
+                                ? '#d33'
+                                : '#54595d',
+                        border:
+                          pack.state.action === 'install'
+                            ? '1px solid #7fd4bf'
+                            : pack.state.action === 'update'
+                              ? '1px solid #f0c77e'
+                              : pack.state.action === 'remove'
+                                ? '1px solid #faa'
+                                : '1px solid #c8ccd1',
+                      }"
+                    >
                       {{ getActionIcon(pack.state.action) }} {{ pack.state.action }}
                     </span>
                   </div>
                 </div>
               </div>
-              
+
               <!-- Operation Status Badge -->
-              <div v-if="packStatuses[pack.name]" class="operation-status" :style="{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
-                borderRadius: '16px',
-                fontSize: '0.8em',
-                fontWeight: '700',
-                whiteSpace: 'nowrap',
-                flexShrink: '0',
-                background: packStatuses[pack.name] === 'pending' ? 'linear-gradient(135deg, #f8f9fa 0%, #eaecf0 100%)' :
-                            packStatuses[pack.name] === 'running' ? 'linear-gradient(135deg, #3366cc 0%, #447ff5 100%)' :
-                            packStatuses[pack.name] === 'complete' ? 'linear-gradient(135deg, #14866d 0%, #00af89 100%)' :
-                            'linear-gradient(135deg, #d33 0%, #ff4444 100%)',
-                color: packStatuses[pack.name] === 'pending' ? '#54595d' : 'white',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                animation: packStatuses[pack.name] === 'running' ? 'pulse 2s ease-in-out infinite' : 'none'
-              }">
-                <span v-if="packStatuses[pack.name] === 'pending'" :style="{ fontSize: '1.2em' }">⏳</span>
-                <span v-else-if="packStatuses[pack.name] === 'running'" class="status-icon spinning" :style="{ fontSize: '1.2em' }">⚙️</span>
-                <span v-else-if="packStatuses[pack.name] === 'complete'" :style="{ fontSize: '1.2em' }">✅</span>
-                <span v-else-if="packStatuses[pack.name] === 'failed'" :style="{ fontSize: '1.2em' }">❌</span>
-                <span class="status-text" :style="{ fontWeight: '700' }">{{ getStatusText(packStatuses[pack.name]) }}</span>
+              <div
+                v-if="packStatuses[pack.name]"
+                class="operation-status"
+                :style="{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 12px',
+                  borderRadius: '16px',
+                  fontSize: '0.8em',
+                  fontWeight: '700',
+                  whiteSpace: 'nowrap',
+                  flexShrink: '0',
+                  background:
+                    packStatuses[pack.name] === 'pending'
+                      ? 'linear-gradient(135deg, #f8f9fa 0%, #eaecf0 100%)'
+                      : packStatuses[pack.name] === 'running'
+                        ? 'linear-gradient(135deg, #3366cc 0%, #447ff5 100%)'
+                        : packStatuses[pack.name] === 'complete'
+                          ? 'linear-gradient(135deg, #14866d 0%, #00af89 100%)'
+                          : 'linear-gradient(135deg, #d33 0%, #ff4444 100%)',
+                  color: packStatuses[pack.name] === 'pending' ? '#54595d' : 'white',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                  animation:
+                    packStatuses[pack.name] === 'running'
+                      ? 'pulse 2s ease-in-out infinite'
+                      : 'none',
+                }"
+              >
+                <span v-if="packStatuses[pack.name] === 'pending'" :style="{ fontSize: '1.2em' }"
+                  >⏳</span
+                >
+                <span
+                  v-else-if="packStatuses[pack.name] === 'running'"
+                  class="status-icon spinning"
+                  :style="{ fontSize: '1.2em' }"
+                  >⚙️</span
+                >
+                <span
+                  v-else-if="packStatuses[pack.name] === 'complete'"
+                  :style="{ fontSize: '1.2em' }"
+                  >✅</span
+                >
+                <span
+                  v-else-if="packStatuses[pack.name] === 'failed'"
+                  :style="{ fontSize: '1.2em' }"
+                  >❌</span
+                >
+                <span class="status-text" :style="{ fontWeight: '700' }">{{
+                  getStatusText(packStatuses[pack.name])
+                }}</span>
               </div>
             </div>
-            
-            <div class="pack-info-grid" :style="{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-              gap: '8px',
-              paddingTop: '10px',
-              marginTop: '2px',
-              borderTop: '1px solid #eaecf0'
-            }">
-              <div v-if="pack.state.target_version" class="info-item" :style="{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-                padding: '6px 10px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                border: '1px solid #eaecf0'
-              }">
-                <span class="info-label" :style="{
-                  fontSize: '0.65em',
-                  color: '#72777d',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.4px'
-                }">Version</span>
-                <span class="info-value" :style="{
-                  fontSize: '0.88em',
-                  color: '#202122',
-                  fontWeight: '600'
-                }">{{ pack.state.target_version }}</span>
-              </div>
-              <div v-if="pack.state.prefix" class="info-item" :style="{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-                padding: '6px 10px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                border: '1px solid #eaecf0'
-              }">
-                <span class="info-label" :style="{
-                  fontSize: '0.65em',
-                  color: '#72777d',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.4px'
-                }">Prefix</span>
-                <span class="info-value code" :style="{
-                  fontSize: '0.85em',
-                  color: '#202122',
-                  fontWeight: '500',
-                  fontFamily: 'Monaco, Menlo, Consolas, monospace',
-                  background: 'white',
-                  padding: '3px 6px',
-                  borderRadius: '3px',
-                  border: '1px solid #c8ccd1'
-                }">{{ pack.state.prefix }}</span>
-              </div>
-              <div v-if="pack.pageCount > 0" class="info-item" :style="{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                padding: '6px 10px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                border: '1px solid #eaecf0',
-                gridColumn: pack.state.prefix ? 'span 1' : 'span 2'
-              }">
-                <span class="info-label" :style="{
-                  fontSize: '0.65em',
-                  color: '#72777d',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.4px'
-                }">Pages ({{ pack.pageCount }})</span>
-                <div class="pages-list" :style="{
+
+            <div
+              class="pack-info-grid"
+              :style="{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                gap: '8px',
+                paddingTop: '10px',
+                marginTop: '2px',
+                borderTop: '1px solid #eaecf0',
+              }"
+            >
+              <div
+                v-if="pack.state.target_version"
+                class="info-item"
+                :style="{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '3px'
-                }">
-                  <div 
-                    v-for="(pageState, pageName) in pack.state.pages" 
+                  gap: '4px',
+                  padding: '6px 10px',
+                  background: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #eaecf0',
+                }"
+              >
+                <span
+                  class="info-label"
+                  :style="{
+                    fontSize: '0.65em',
+                    color: '#72777d',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
+                  }"
+                  >Version</span
+                >
+                <span
+                  class="info-value"
+                  :style="{
+                    fontSize: '0.88em',
+                    color: '#202122',
+                    fontWeight: '600',
+                  }"
+                  >{{ pack.state.target_version }}</span
+                >
+              </div>
+              <div
+                v-if="pack.state.prefix"
+                class="info-item"
+                :style="{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  padding: '6px 10px',
+                  background: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #eaecf0',
+                }"
+              >
+                <span
+                  class="info-label"
+                  :style="{
+                    fontSize: '0.65em',
+                    color: '#72777d',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
+                  }"
+                  >Prefix</span
+                >
+                <span
+                  class="info-value code"
+                  :style="{
+                    fontSize: '0.85em',
+                    color: '#202122',
+                    fontWeight: '500',
+                    fontFamily: 'Monaco, Menlo, Consolas, monospace',
+                    background: 'white',
+                    padding: '3px 6px',
+                    borderRadius: '3px',
+                    border: '1px solid #c8ccd1',
+                  }"
+                  >{{ pack.state.prefix }}</span
+                >
+              </div>
+              <div
+                v-if="pack.pageCount > 0"
+                class="info-item"
+                :style="{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  padding: '6px 10px',
+                  background: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #eaecf0',
+                  gridColumn: pack.state.prefix ? 'span 1' : 'span 2',
+                }"
+              >
+                <span
+                  class="info-label"
+                  :style="{
+                    fontSize: '0.65em',
+                    color: '#72777d',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
+                  }"
+                  >Pages ({{ pack.pageCount }})</span
+                >
+                <div
+                  class="pages-list"
+                  :style="{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px',
+                  }"
+                >
+                  <div
+                    v-for="(pageState, pageName) in pack.state.pages"
                     :key="pageName"
                     :style="{
                       fontSize: '0.75em',
@@ -266,7 +376,7 @@
                       fontFamily: 'Monaco, Menlo, Consolas, monospace',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
                     }"
                     :title="`${pageName} → ${pageState.final_title}`"
                   >
@@ -279,13 +389,13 @@
           </div>
         </div>
       </div>
-      
+
       <div v-else class="empty-state">
         <div class="empty-icon">📋</div>
         <p class="empty-text">{{ $t('labkipackmanager-no-packs-selected') }}</p>
         <p class="empty-hint">Select packs from the hierarchy tree to see details here</p>
       </div>
-      
+
       <!-- Action Buttons -->
       <div class="actions-section">
         <div class="action-buttons">
@@ -297,45 +407,30 @@
           >
             ✓ {{ $t('labkipackmanager-apply') }}
           </cdx-button>
-          
-          <cdx-button
-            action="default"
-            :disabled="store.busy"
-            @click="onRefresh"
-          >
+
+          <cdx-button action="default" :disabled="store.busy" @click="onRefresh">
             🔄 {{ $t('labkipackmanager-refresh') }}
           </cdx-button>
-          
-          <cdx-button
-            action="destructive"
-            weight="quiet"
-            :disabled="store.busy"
-            @click="onClear"
-          >
+
+          <cdx-button action="destructive" weight="quiet" :disabled="store.busy" @click="onClear">
             ✕ {{ $t('labkipackmanager-clear') }}
           </cdx-button>
         </div>
-        
+
         <!-- Operation Status -->
-        <cdx-message
-          v-if="operationMessage"
-          type="success"
-          :inline="true"
-        >
+        <cdx-message v-if="operationMessage" type="success" :inline="true">
           {{ operationMessage }}
         </cdx-message>
-        
-        <cdx-message
-          v-if="errorMessage"
-          type="error"
-          :inline="true"
-        >
+
+        <cdx-message v-if="errorMessage" type="error" :inline="true">
           {{ errorMessage }}
         </cdx-message>
-        
+
         <!-- State Hash (Debug) -->
         <div v-if="store.stateHash" class="state-info">
-          <small>{{ $t('labkipackmanager-state-hash') }}: <code>{{ store.stateHash }}</code></small>
+          <small
+            >{{ $t('labkipackmanager-state-hash') }}: <code>{{ store.stateHash }}</code></small
+          >
         </div>
       </div>
     </div>
@@ -355,7 +450,7 @@ const packStatuses = ref({}); // Track status of each pack during apply
 
 const selectedPacks = computed(() => {
   const packs = [];
-  
+
   for (const [name, state] of Object.entries(store.packs)) {
     // Show packs that have any action set (not 'unchanged')
     // This includes install, update, and remove actions
@@ -367,27 +462,27 @@ const selectedPacks = computed(() => {
       });
     }
   }
-  
+
   return packs;
 });
 
 async function onApply() {
   if (store.busy) return;
-  
+
   try {
     store.busy = true;
     operationMessage.value = '';
     errorMessage.value = '';
-    
+
     // Initialize all selected packs as 'pending'
     packStatuses.value = {};
     for (const pack of selectedPacks.value) {
       packStatuses.value[pack.name] = 'pending';
     }
-    
+
     // Step 1: Send apply command (queues background job)
     operationMessage.value = 'Queueing pack operations...';
-    
+
     const response = await packsAction({
       command: 'apply',
       repo_url: store.repoUrl,
@@ -399,19 +494,19 @@ async function onApply() {
         state_hash: store.stateHash,
       },
     });
-    
+
     console.log('[onApply] Apply response:', response);
-    
+
     // Merge diff (session state is cleared by backend)
     mergeDiff(store.packs, response.diff);
     store.stateHash = response.state_hash;
     store.warnings = response.warnings;
-    
+
     // Step 2: If we got an operation_id, poll for completion
     if (response.operation?.operation_id) {
       const operationId = response.operation.operation_id;
       console.log(`[onApply] Polling operation ${operationId}...`);
-      
+
       // Poll with status updates
       await pollOperation(
         operationId,
@@ -421,7 +516,7 @@ async function onApply() {
           // Update message based on operation status
           if (status.message) {
             operationMessage.value = status.message;
-            
+
             // Parse message to update pack statuses
             updatePackStatusFromMessage(status.message);
           } else if (status.status === 'queued') {
@@ -429,20 +524,20 @@ async function onApply() {
           } else if (status.status === 'running') {
             operationMessage.value = `Applying packs... (${status.progress || 0}%)`;
           }
-        }
+        },
       );
-      
+
       console.log('[onApply] Operation completed successfully');
-      
+
       // Mark all remaining as complete
       for (const packName in packStatuses.value) {
         if (packStatuses.value[packName] !== 'failed') {
           packStatuses.value[packName] = 'complete';
         }
       }
-      
+
       operationMessage.value = 'All packs applied successfully!';
-      
+
       // Clear statuses after a delay
       setTimeout(() => {
         packStatuses.value = {};
@@ -456,7 +551,7 @@ async function onApply() {
     console.error('[onApply] Error:', e);
     errorMessage.value = e instanceof Error ? e.message : String(e);
     operationMessage.value = '';
-    
+
     // Mark all as failed
     for (const packName in packStatuses.value) {
       packStatuses.value[packName] = 'failed';
@@ -469,12 +564,12 @@ async function onApply() {
 function updatePackStatusFromMessage(message) {
   // Parse backend messages to update pack statuses
   // Messages like: "Installing pack: People", "Removing pack: Miniscopes", etc.
-  
+
   const installMatch = message.match(/Installing pack[:\s]+(.+)/i);
   const updateMatch = message.match(/Updating pack[:\s]+(.+)/i);
   const removeMatch = message.match(/Removing pack[:\s]+(.+)/i);
   const completeMatch = message.match(/Completed pack[:\s]+(.+)/i);
-  
+
   if (installMatch || updateMatch || removeMatch) {
     const packName = (installMatch || updateMatch || removeMatch)[1].trim();
     if (packStatuses.value[packName] !== undefined) {
@@ -490,43 +585,52 @@ function updatePackStatusFromMessage(message) {
 
 function getStatusText(status) {
   switch (status) {
-    case 'pending': return 'Pending';
-    case 'running': return 'In Progress';
-    case 'complete': return 'Complete';
-    case 'failed': return 'Failed';
-    default: return '';
+    case 'pending':
+      return 'Pending';
+    case 'running':
+      return 'In Progress';
+    case 'complete':
+      return 'Complete';
+    case 'failed':
+      return 'Failed';
+    default:
+      return '';
   }
 }
 
 function getActionIcon(action) {
   switch (action) {
-    case 'install': return '⬇️';
-    case 'update': return '🔄';
-    case 'remove': return '🗑️';
-    default: return '';
+    case 'install':
+      return '⬇️';
+    case 'update':
+      return '🔄';
+    case 'remove':
+      return '🗑️';
+    default:
+      return '';
   }
 }
 
 async function onRefresh() {
   if (store.busy) return;
-  
+
   try {
     store.busy = true;
     operationMessage.value = '';
     errorMessage.value = '';
-    
+
     const response = await packsAction({
       command: 'refresh',
       repo_url: store.repoUrl,
       ref: store.ref,
       data: {},
     });
-    
+
     // Merge diff
     mergeDiff(store.packs, response.diff);
     store.stateHash = response.state_hash;
     store.warnings = response.warnings;
-    
+
     operationMessage.value = $t('labkipackmanager-refresh-success');
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : String(e);
@@ -537,33 +641,33 @@ async function onRefresh() {
 
 async function onClear() {
   if (store.busy) return;
-  
+
   if (!confirm($t('labkipackmanager-clear-confirm'))) {
     return;
   }
-  
+
   try {
     store.busy = true;
     operationMessage.value = '';
     errorMessage.value = '';
-    
+
     // Reset state before clear - like init, clear returns full initial state
     store.packs = {};
     store.warnings = [];
-    
+
     const response = await packsAction({
       command: 'clear',
       repo_url: store.repoUrl,
       ref: store.ref,
       data: {},
     });
-    
+
     // For Clear, replace the entire packs state (don't merge)
     // This ensures all actions are reset to their initial state
     store.packs = response.diff;
     store.stateHash = response.state_hash;
     store.warnings = response.warnings;
-    
+
     operationMessage.value = $t('labkipackmanager-clear-success');
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : String(e);
@@ -683,7 +787,9 @@ function $t(key) {
 }
 
 .pack-card:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.15),
+    0 2px 6px rgba(0, 0, 0, 0.1) !important;
   transform: translateY(-3px);
 }
 
@@ -788,13 +894,22 @@ function $t(key) {
 /* ==================== ANIMATIONS ==================== */
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 @keyframes slideIn {
@@ -815,35 +930,31 @@ function $t(key) {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .operation-status {
     align-self: flex-start;
   }
-  
+
   .pack-info-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .action-buttons {
     flex-direction: column;
   }
-  
+
   .action-buttons :deep(.cdx-button) {
     width: 100%;
   }
-  
+
   .panel-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .pack-count-badge {
     align-self: flex-start;
   }
 }
 </style>
-
-
-
-

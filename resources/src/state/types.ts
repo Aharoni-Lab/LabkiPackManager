@@ -1,6 +1,6 @@
 /**
  * TypeScript type definitions for Labki Pack Manager state management.
- * 
+ *
  * These types mirror the PHP PackSessionState domain model and API response structures.
  */
 
@@ -259,4 +259,3 @@ export interface HierarchyGetResponse {
     from_cache: boolean;
   };
 }
-

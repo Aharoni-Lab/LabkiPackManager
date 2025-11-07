@@ -11,7 +11,7 @@ export function getApi() {
 
 /**
  * Wrap an API call with error handling.
- * 
+ *
  * @param fn - API call function
  * @returns Promise with typed result
  */
@@ -23,4 +23,3 @@ export async function apiCall<T>(fn: () => Promise<T>): Promise<T> {
     throw error;
   }
 }
-

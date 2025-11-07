@@ -1,6 +1,6 @@
 /**
  * Basic MediaWiki type declarations.
- * 
+ *
  * Minimal type definitions for MediaWiki global objects.
  */
 
@@ -20,4 +20,3 @@ declare global {
 }
 
 export {};
-

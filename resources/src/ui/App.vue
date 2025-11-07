@@ -4,29 +4,19 @@
       <h1>{{ $t('labkipackmanager-special-title') }}</h1>
       <p class="app-description">{{ $t('labkipackmanager-special-description') }}</p>
     </header>
-    
+
     <div v-if="store.busy" class="loading-overlay">
-      <div class="loading-spinner">
-        {{ $t('labkipackmanager-loading') }}...
-      </div>
+      <div class="loading-spinner">{{ $t('labkipackmanager-loading') }}...</div>
     </div>
-    
+
     <main class="app-main">
       <repo-ref-selector />
-      
-      <mermaid-graph
-        v-if="store.repoUrl && store.ref"
-        :mermaid-src="store.mermaidSrc"
-      />
-      
-      <hierarchy-tree
-        v-if="store.repoUrl && store.ref"
-        :hierarchy="store.hierarchy"
-      />
-      
-      <details-panel
-        v-if="store.repoUrl && store.ref"
-      />
+
+      <mermaid-graph v-if="store.repoUrl && store.ref" :mermaid-src="store.mermaidSrc" />
+
+      <hierarchy-tree v-if="store.repoUrl && store.ref" :hierarchy="store.hierarchy" />
+
+      <details-panel v-if="store.repoUrl && store.ref" />
     </main>
   </div>
 </template>
@@ -104,4 +94,3 @@ function $t(key) {
   gap: 20px;
 }
 </style>
-

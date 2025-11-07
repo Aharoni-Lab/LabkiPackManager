@@ -1,6 +1,6 @@
 /**
  * State diff merge logic.
- * 
+ *
  * Merges API response diffs into local state, preserving unchanged fields.
  */
 
@@ -8,7 +8,7 @@ import type { PacksState, PackState, PackPageState } from './types';
 
 /**
  * Merge a diff into the target packs state.
- * 
+ *
  * @param target - Target state to merge into (mutated in place)
  * @param diff - Diff from API response
  */
@@ -21,7 +21,7 @@ export function mergeDiff(target: PacksState, diff: PacksState): void {
 
 /**
  * Merge pack-level changes.
- * 
+ *
  * @param dst - Destination pack state
  * @param src - Source pack changes
  * @returns Merged pack state
@@ -45,7 +45,7 @@ function mergePack(dst: PackState, src: PackState): PackState {
 
 /**
  * Merge page-level changes.
- * 
+ *
  * @param dst - Destination page state
  * @param src - Source page changes
  * @returns Merged page state
@@ -53,4 +53,3 @@ function mergePack(dst: PackState, src: PackState): PackState {
 function mergePage(dst: PackPageState, src: PackPageState): PackPageState {
   return { ...dst, ...src };
 }
-

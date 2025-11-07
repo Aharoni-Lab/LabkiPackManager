@@ -76,4 +76,3 @@ describe('App Component', () => {
     expect(wrapper.find('.loading-overlay').exists()).toBe(false);
   });
 });
-

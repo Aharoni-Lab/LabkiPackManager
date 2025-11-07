@@ -8,16 +8,20 @@ import AddRepoModal from '../../ui/AddRepoModal.vue';
 
 // Mock API endpoints
 vi.mock('../../api/endpoints', () => ({
-  reposAdd: vi.fn(() => Promise.resolve({ 
-    success: true, 
-    operation_id: 'repo_add_123',
-    status: 'queued',
-    message: 'Repository queued',
-  })),
-  pollOperation: vi.fn(() => Promise.resolve({ 
-    status: 'success',
-    operation_id: 'repo_add_123',
-  })),
+  reposAdd: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      operation_id: 'repo_add_123',
+      status: 'queued',
+      message: 'Repository queued',
+    }),
+  ),
+  pollOperation: vi.fn(() =>
+    Promise.resolve({
+      status: 'success',
+      operation_id: 'repo_add_123',
+    }),
+  ),
 }));
 
 describe('AddRepoModal Component', () => {
@@ -46,7 +50,7 @@ describe('AddRepoModal Component', () => {
         open: true,
       },
     });
-    
+
     // Should have input fields (either as CdxTextInput or regular inputs)
     expect(wrapper.exists()).toBe(true);
   });
@@ -63,4 +67,3 @@ describe('AddRepoModal Component', () => {
     expect(wrapper.emitted('close')).toBeTruthy();
   });
 });
-
