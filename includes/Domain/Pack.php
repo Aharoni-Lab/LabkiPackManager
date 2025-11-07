@@ -92,7 +92,9 @@ final class Pack {
             isset( $row->installed_at ) && $row->installed_at !== null ? (int)$row->installed_at : null,
 			isset( $row->installed_by ) && $row->installed_by !== null ? (int)$row->installed_by : null,
 			isset( $row->updated_at ) && $row->updated_at !== null ? (int)$row->updated_at : null,
-			isset( $row->status ) && $row->status !== null ? (string)$row->status : null,
+			// Handle both lowercase 'status' and uppercase 'STATUS' (generated SQL may vary)
+		isset( $row->status ) && $row->status !== null ? (string)$row->status : 
+		(isset( $row->STATUS ) && $row->STATUS !== null ? (string)$row->STATUS : null),
         );
     }
 }

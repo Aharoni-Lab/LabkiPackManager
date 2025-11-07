@@ -136,6 +136,9 @@
       "LabkiPacksManager": "labki",
       "LabkiDBViewer": "labki"
   },
+  "ServiceWiringFiles": [
+    "includes/ServiceWiring.php"
+  ],
   "config": {
     "LabkiContentSources": {
       "value": [

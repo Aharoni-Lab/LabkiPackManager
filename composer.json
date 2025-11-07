@@ -21,7 +21,8 @@
     "phpunit/phpunit": "^9.6",
     "phpunit/php-code-coverage": "^9.2",
     "mediawiki/mediawiki-codesniffer": "^48.0",
-    "mediawiki/core": "^1.44"
+    "mediawiki/core": "^1.44",
+    "doctrine/dbal": "^3.6"
   },
   "scripts": {
     "test": [

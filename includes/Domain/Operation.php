@@ -102,10 +102,13 @@ final class Operation {
     }
 
     public static function fromRow(object $row): self {
+        // Handle both lowercase 'status' and uppercase 'STATUS' (generated SQL may vary)
+        $status = $row->status ?? $row->STATUS;
+        
         return new self(
             new OperationId((string)$row->operation_id),
             (string)$row->operation_type,
-            (string)$row->status,
+            (string)$status,
             isset($row->progress) && $row->progress !== null ? (int)$row->progress : null,
             $row->message ?? null,
             $row->result_data ?? null,
