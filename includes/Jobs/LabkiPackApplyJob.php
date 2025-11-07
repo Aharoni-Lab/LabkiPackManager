@@ -323,12 +323,11 @@ final class LabkiPackApplyJob extends Job {
 			}
 
 			$packName = $op['pack_name'];
-			$targetVersion = $op['target_version'];
 
 			$operationRegistry->setProgress( $operationId, (int)$currentProgress, "Updating pack: {$packName}" );
 			
 			try {
-				$updateResult = $packManager->updatePackByName( $refId, $packName, $userId, $targetVersion );
+				$updateResult = $packManager->updatePackByName( $refId, $packName, $userId );
 					
 					if ( $updateResult['success'] ) {
 						$results['updates'][] = [
