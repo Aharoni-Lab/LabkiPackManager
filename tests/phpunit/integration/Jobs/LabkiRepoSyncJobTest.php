@@ -72,7 +72,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testRun_WithMissingOperationId_ReturnsFalse(): void {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			// Missing operation_id parameter
 		] );
@@ -87,7 +87,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testRun_WithEmptyUrl_ReturnsFalse(): void {
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => '', // Empty URL
+			'repo_url' => '', // Empty URL
 			'refs' => ['main'],
 			'operation_id' => 'test_op_123',
 		] );
@@ -123,7 +123,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Create and run job for full repo sync (no refs specified)
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			// No refs parameter = full repo sync
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -165,7 +165,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Create and run job for selective ref sync
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -213,7 +213,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Try to sync the entire repo
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			// No refs = full repo sync
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -250,7 +250,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => $userId,
@@ -275,7 +275,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0', 'v2.0'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -303,7 +303,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => [], // Empty refs array should trigger full sync
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -332,7 +332,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 
 		// Create job with invalid URL to trigger exception
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'invalid://not-a-real-url',
+			'repo_url' => 'invalid://not-a-real-url',
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -362,7 +362,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/nonexistent/repo-' . uniqid(),
+			'repo_url' => 'https://github.com/nonexistent/repo-' . uniqid(),
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -390,7 +390,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testConstruct_WithValidParams_StoresParams(): void {
 		$params = [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop'],
 			'operation_id' => 'test_op_123',
 			'user_id' => 1,
@@ -407,7 +407,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testConstruct_WithFullSyncParams_StoresParams(): void {
 		$params = [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			// No refs parameter = full repo sync
 			'operation_id' => 'test_op_123',
 			'user_id' => 1,
@@ -432,7 +432,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => null, // Null refs should trigger full sync
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -460,7 +460,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'develop', 'v1.0'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -489,7 +489,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,
@@ -518,7 +518,7 @@ class LabkiRepoSyncJobTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$job = new LabkiRepoSyncJob( Title::newMainPage(), [
-			'url' => 'https://github.com/test/repo',
+			'repo_url' => 'https://github.com/test/repo',
 			'refs' => ['main', 'nonexistent-ref'],
 			'operation_id' => $operationIdStr,
 			'user_id' => 1,

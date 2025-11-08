@@ -84,6 +84,42 @@ export async function reposAdd(
 }
 
 /**
+ * Sync a repository from remote.
+ * 
+ * @param repoUrl - Repository URL
+ * @param refs - Optional array of specific refs to sync (if not provided, syncs entire repo)
+ */
+export async function reposSync(
+  repoUrl: string,
+  refs?: string[]
+): Promise<any> {
+  return apiCall(async () => {
+    const api = getApi();
+    console.log('[reposSync] Sending request:', { repo_url: repoUrl, refs });
+    
+    const params: any = {
+      action: 'labkiReposSync',
+      format: 'json',
+      repo_url: repoUrl,
+    };
+    
+    if (refs && refs.length > 0) {
+      params.refs = refs.join('|');
+    }
+    
+    const response = await api.post(params);
+    
+    console.log('[reposSync] Raw API response:', response);
+    
+    // MediaWiki might wrap or not wrap depending on context
+    const data = response.labkiReposSync || response;
+    console.log('[reposSync] Returning data:', data);
+    
+    return data;
+  });
+}
+
+/**
  * Get dependency graph for a repository/ref.
  * 
  * @param repoUrl - Repository URL
@@ -201,9 +237,15 @@ export async function operationStatus(operationId: string) {
     
     console.log('[operationStatus] Raw response:', response);
     console.log('[operationStatus] Response keys:', Object.keys(response));
-    console.log('[operationStatus] status field:', response?.status);
-    console.log('[operationStatus] operation_id field:', response?.operation_id);
-    return response;
+    
+    // MediaWiki API might wrap the response in the action name
+    let data = response.labkiOperationsStatus || response;
+    
+    console.log('[operationStatus] Unwrapped data:', data);
+    console.log('[operationStatus] status field:', data?.status);
+    console.log('[operationStatus] operation_id field:', data?.operation_id);
+    
+    return data;
   });
 }
 
@@ -236,12 +278,12 @@ export async function pollOperation(
     }
     
     if (status.status === 'success') {
-      console.log('[pollOperation] Operation completed successfully:', status);
+      console.log('[pollOperation] ✓ SUCCESS detected! Operation completed successfully:', status);
       return status;
     }
     
     if (status.status === 'failed') {
-      console.error('[pollOperation] Operation failed:', status.message);
+      console.error('[pollOperation] ✗ FAILED detected! Operation failed:', status.message);
       throw new Error(`Operation failed: ${status.message}`);
     }
     
@@ -251,6 +293,7 @@ export async function pollOperation(
     }
   }
   
+  console.error('[pollOperation] ⏱ TIMEOUT after', maxAttempts, 'attempts');
   throw new Error(`Operation timed out after ${maxAttempts} attempts`);
 }
 

@@ -33,6 +33,21 @@
       {{ selectedRepoUrl }} @ {{ selectedRefName }}
     </div>
     
+    <div v-if="selectedRepoUrl" class="sync-section">
+      <cdx-button
+        action="progressive"
+        weight="quiet"
+        :disabled="store.busy || syncInProgress"
+        @click="onSync"
+      >
+        🔄 {{ $t('labkipackmanager-sync-from-remote') }}
+      </cdx-button>
+    </div>
+    
+    <cdx-message v-if="syncMessage" type="success" :inline="true">
+      {{ syncMessage }}
+    </cdx-message>
+    
     <cdx-message v-if="error" type="error" :inline="true">
       {{ error }}
     </cdx-message>
@@ -52,9 +67,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { CdxField, CdxSelect, CdxMessage } from '@wikimedia/codex';
+import { CdxField, CdxSelect, CdxMessage, CdxButton } from '@wikimedia/codex';
 import { store } from '../state/store';
-import { reposList, graphGet, hierarchyGet, packsAction, pollOperation } from '../api/endpoints';
+import { reposList, reposSync, graphGet, hierarchyGet, packsAction, pollOperation } from '../api/endpoints';
 import AddRepoModal from './AddRepoModal.vue';
 import AddRefModal from './AddRefModal.vue';
 
@@ -66,6 +81,8 @@ const selectedRefName = ref('');
 const showAddRepoModal = ref(false);
 const showAddRefModal = ref(false);
 const error = ref('');
+const syncMessage = ref('');
+const syncInProgress = ref(false);
 
 const repoMenuItems = computed(()  => {
   console.log('Computing repoMenuItems, store.repos:', store.repos);
@@ -320,6 +337,73 @@ async function onRefAdded(eventData) {
   }
 }
 
+async function onSync() {
+  if (store.busy || syncInProgress.value) return;
+  
+  try {
+    syncInProgress.value = true;
+    syncMessage.value = '';
+    error.value = '';
+    
+    console.log(`[onSync] Syncing repository ${selectedRepoUrl.value}`);
+    
+    // Step 1: Queue sync operation
+    syncMessage.value = 'Syncing from remote repository...';
+    const response = await reposSync(selectedRepoUrl.value);
+    
+    console.log('[onSync] Sync response:', response);
+    
+    // Step 2: If we got an operation_id, poll for completion
+    if (response.operation_id) {
+      const operationId = response.operation_id;
+      console.log(`[onSync] Polling operation ${operationId}...`);
+      
+      // Poll with status updates
+      await pollOperation(
+        operationId,
+        120, // 2 minutes max
+        1000,
+        (status) => {
+          // Update message based on operation status
+          if (status.message) {
+            syncMessage.value = status.message;
+          } else if (status.status === 'queued') {
+            syncMessage.value = 'Waiting for sync to start...';
+          } else if (status.status === 'running') {
+            syncMessage.value = `Syncing... (${status.progress || 0}%)`;
+          }
+        }
+      );
+      
+      console.log('[onSync] Sync completed successfully');
+      syncMessage.value = 'Repository synced successfully! Reloading...';
+      
+      // Reload the current ref to get latest data
+      if (selectedRefName.value) {
+        await selectRef(selectedRefName.value);
+      }
+      
+      syncMessage.value = 'Repository synced and refreshed!';
+      
+      // Clear message after delay
+      setTimeout(() => {
+        syncMessage.value = '';
+      }, 3000);
+    } else {
+      syncMessage.value = 'Repository synced!';
+      setTimeout(() => {
+        syncMessage.value = '';
+      }, 3000);
+    }
+  } catch (e) {
+    console.error('[onSync] Error:', e);
+    error.value = e instanceof Error ? e.message : String(e);
+    syncMessage.value = '';
+  } finally {
+    syncInProgress.value = false;
+  }
+}
+
 function buildMermaidFromGraph(graph) {
   const lines = ['graph TD'];
   
@@ -419,7 +503,22 @@ h2 {
   background: #eaf3ff;
   border-radius: 4px;
   font-size: 0.95em;
+  margin-bottom: 12px;
+}
+
+.sync-section {
   margin-bottom: 16px;
+}
+
+.sync-section :deep(.cdx-button) {
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.sync-section :deep(.cdx-button:hover:not(:disabled)) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 @media (max-width: 768px) {

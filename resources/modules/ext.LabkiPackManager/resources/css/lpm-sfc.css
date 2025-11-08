@@ -58,7 +58,19 @@ h2[data-v-a9c77630] {
   background: #eaf3ff;
   border-radius: 4px;
   font-size: 0.95em;
+  margin-bottom: 12px;
+}
+.sync-section[data-v-a9c77630] {
   margin-bottom: 16px;
+}
+.sync-section[data-v-a9c77630] .cdx-button {
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.sync-section[data-v-a9c77630] .cdx-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 @media (max-width: 768px) {
 .selector-row[data-v-a9c77630] {

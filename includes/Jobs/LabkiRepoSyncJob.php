@@ -35,7 +35,7 @@ final class LabkiRepoSyncJob extends Job {
 	/**
 	 * @param Title $title Title context (unused but required)
 	 * @param array $params Job parameters:
-	 *  - url: string (repository URL)
+	 *  - repo_url: string (repository URL)
 	 *  - refs: string[]|null (specific refs to sync, or null for all refs)
 	 *  - operation_id: string
 	 *  - user_id: int
@@ -50,7 +50,7 @@ final class LabkiRepoSyncJob extends Job {
 	 * @return bool Success status
 	 */
 	public function run(): bool {
-		$url = $this->params['url'] ?? '';
+		$url = $this->params['repo_url'] ?? '';
 		$refs = $this->params['refs'] ?? null;
 		$operationIdStr = $this->params['operation_id'] ?? '';
 
@@ -104,9 +104,9 @@ final class LabkiRepoSyncJob extends Job {
 				// Sync specific refs
 				wfDebugLog( 'labkipack', "LabkiRepoSyncJob: syncing " . count( $refs ) . " specific refs" );
 				
-				// First, fetch the bare repository (always do this)
+				// First, fetch the bare repository (always do this with forced refresh)
 				$operationRegistry->setProgress( $operationId, 10, 'Fetching repository updates' );
-				$contentManager->ensureBareRepo( $url );
+				$contentManager->ensureBareRepo( $url, true );
 
 				$totalRefs = count( $refs );
 				$successRefs = 0;

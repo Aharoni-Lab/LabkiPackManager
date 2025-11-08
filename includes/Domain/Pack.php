@@ -83,25 +83,27 @@ final class Pack {
      * Build from a database row having columns in self::FIELDS
      */
     public static function fromRow( object $row ): self {
-		$status = null;
-		if ( isset( $row->status ) && $row->status !== null ) {
-			$status = (string)$row->status;
-		} elseif ( isset( $row->STATUS ) && $row->STATUS !== null ) {
-			$status = (string)$row->STATUS;
-		}
-
+        // Handle case-insensitive column names (some DBs return uppercase, some lowercase)
+        $packId = $row->pack_id ?? $row->PACK_ID ?? null;
+        $contentRefId = $row->content_ref_id ?? $row->CONTENT_REF_ID ?? null;
+        $name = $row->name ?? $row->NAME ?? '';
+        $version = $row->version ?? $row->VERSION ?? null;
+        $sourceCommit = $row->source_commit ?? $row->SOURCE_COMMIT ?? null;
+        $installedAt = $row->installed_at ?? $row->INSTALLED_AT ?? null;
+        $installedBy = $row->installed_by ?? $row->INSTALLED_BY ?? null;
+        $updatedAt = $row->updated_at ?? $row->UPDATED_AT ?? null;
+        $status = $row->status ?? $row->STATUS ?? null;
+        
         return new self(
-            new PackId( (int)$row->pack_id ),
-            new ContentRefId( (int)$row->content_ref_id ),
-            (string)$row->name,
-            isset( $row->version ) && $row->version !== null ? (string)$row->version : null,
-            isset( $row->source_commit ) && $row->source_commit !== null ? (string)$row->source_commit : null,
-            isset( $row->installed_at ) && $row->installed_at !== null ? (int)$row->installed_at : null,
-			isset( $row->installed_by ) && $row->installed_by !== null ? (int)$row->installed_by : null,
-			isset( $row->updated_at ) && $row->updated_at !== null ? (int)$row->updated_at : null,
-			// Handle both lowercase 'status' and uppercase 'STATUS' (generated SQL may vary)
-		isset( $row->status ) && $row->status !== null ? (string)$row->status : 
-		(isset( $row->STATUS ) && $row->STATUS !== null ? (string)$row->STATUS : null),
+            new PackId( (int)$packId ),
+            new ContentRefId( (int)$contentRefId ),
+            (string)$name,
+            $version !== null ? (string)$version : null,
+            $sourceCommit !== null ? (string)$sourceCommit : null,
+            $installedAt !== null ? (int)$installedAt : null,
+            $installedBy !== null ? (int)$installedBy : null,
+            $updatedAt !== null ? (int)$updatedAt : null,
+            $status !== null ? (string)$status : null,
         );
     }
 }
