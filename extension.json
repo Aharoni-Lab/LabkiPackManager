@@ -95,7 +95,7 @@
         "labkipackmanager-error-repo-not-found",
         "labkipackmanager-error-invalid-url",
         "labkipackmanager-error-invalid-protocol",
-        "labkipackmanager-sync-from-remote"
+        "labkipackmanager-sync-from-remote",
         "labkipackmanager-sync-frontend-with-backend"
       ],
       "dependencies": [
