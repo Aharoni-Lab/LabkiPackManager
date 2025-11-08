@@ -199,6 +199,7 @@
 	"labkipackmanager-prefix": "Prefix",
 	"labkipackmanager-pages": "Pages",
 	"labkipackmanager-no-packs-selected": "No packs selected. Select packs from the hierarchy above to begin.",
+  "labkipackmanager-state-out-of-sync-title": "State out of sync",
 	"labkipackmanager-state-hash": "State Hash",
 	"labkipackmanager-apply": "Apply Changes",
 	"labkipackmanager-clear": "Clear Session",
@@ -209,6 +210,7 @@
 	"labkipackmanager-loading": "Loading",
 	"labkipackmanager-refresh": "Refresh",
 	"labkipackmanager-sync-from-remote": "Sync from Remote",
+  "labkipackmanager-sync-frontend-with-backend": "Sync frontend with backend",
 	"labkipackmanager-pack-prefix": "Pack Prefix",
 	"labkipackmanager-pack-prefix-placeholder": "MyNamespace/MyPack",
 	"labkipackmanager-page-title": "Page Title"

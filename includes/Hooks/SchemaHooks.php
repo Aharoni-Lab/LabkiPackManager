@@ -33,8 +33,8 @@ final class SchemaHooks {
      * maintenance tasks. This hook is called during MediaWiki installation and
      * when running update.php.
      *
-     * Current implementation uses SQLite syntax for all database types.
-     * TODO: Add support for MySQL/PostgreSQL-specific schemas.
+     * This extension uses MediaWiki's abstract schema format (sql/tables.json)
+     * with auto-generated database-specific patches for MySQL/MariaDB and SQLite.
      *
      * Tables registered:
      * - labki_content_repo: Stores Git repository URLs and metadata
@@ -51,6 +51,7 @@ final class SchemaHooks {
      * @return void
      *
      * @see https://www.mediawiki.org/wiki/Manual:Hooks/LoadExtensionSchemaUpdates
+     * @see https://www.mediawiki.org/wiki/Manual:Schema_changes#Automatically_generated
      */
     public static function onLoadExtensionSchemaUpdates( DatabaseUpdater $updater ): void {
         // Determine SQL directory path
@@ -59,17 +60,23 @@ final class SchemaHooks {
         // Get database type (mysql, postgres, sqlite, etc.)
         $dbType = $updater->getDB()->getType();
         
-        // Currently using SQLite syntax for all database types
-        // TODO: Add support for MySQL/PostgreSQL with proper schema files
-        $suffix = 'sqlite';
+        // Map database type to schema directory
+        // MySQL and MariaDB share the same schema
+        $dbDir = match ( $dbType ) {
+            'mysql', 'mariadb' => 'mysql',
+            'sqlite' => 'sqlite',
+            'postgres' => 'postgres',
+            default => 'mysql', // Fallback to MySQL for unknown types
+        };
         
-        // Construct path to tables.sql file
-        $tablesFile = $dir . '/' . $suffix . '/tables.sql';
+        // Construct path to generated tables SQL file
+        $tablesFile = $dir . '/' . $dbDir . '/tables-generated.sql';
         
         // Register tables if schema file exists
         if ( file_exists( $tablesFile ) ) {
             // Register each table with the updater
             // All tables are defined in the same file, but each needs to be registered separately
+            // The order matters for foreign key constraints
             $updater->addExtensionTable( 'labki_content_repo', $tablesFile );
             $updater->addExtensionTable( 'labki_content_ref', $tablesFile );
             $updater->addExtensionTable( 'labki_pack', $tablesFile );

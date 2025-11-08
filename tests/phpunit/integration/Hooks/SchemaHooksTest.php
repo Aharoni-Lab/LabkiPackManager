@@ -16,6 +16,9 @@ use Wikimedia\Rdbms\IDatabase;
  * SchemaHooks registers database tables and schedules post-update maintenance tasks.
  * These tests verify that tables are correctly registered and maintenance tasks are scheduled.
  *
+ * The extension uses MediaWiki's abstract schema format (sql/tables.json) with auto-generated
+ * database-specific patches for MySQL/MariaDB and SQLite.
+ *
  * @coversDefaultClass \LabkiPackManager\Hooks\SchemaHooks
  */
 final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
@@ -180,7 +183,7 @@ final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
                     $this->equalTo('labki_pack_dependency'),
                     $this->equalTo('labki_operations')
                 ),
-                $this->stringContains('sql/sqlite/tables.sql')
+                $this->stringContains('sql/sqlite/tables-generated.sql')
             );
 
         SchemaHooks::onLoadExtensionSchemaUpdates($updater);
@@ -207,26 +210,38 @@ final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
     /**
      * @covers ::onLoadExtensionSchemaUpdates
      */
-    public function testOnLoadExtensionSchemaUpdates_UsesSqliteSchemaForAllDatabaseTypes(): void {
-        $databaseTypes = ['sqlite', 'mysql', 'postgres'];
+    public function testOnLoadExtensionSchemaUpdates_UsesCorrectSchemaForDatabaseType(): void {
+        // Test SQLite uses SQLite schema
+        $db = $this->createMock(IDatabase::class);
+        $db->method('getType')->willReturn('sqlite');
 
-        foreach ($databaseTypes as $dbType) {
-            $db = $this->createMock(IDatabase::class);
-            $db->method('getType')->willReturn($dbType);
+        $updater = $this->createMock(DatabaseUpdater::class);
+        $updater->method('getDB')->willReturn($db);
 
-            $updater = $this->createMock(DatabaseUpdater::class);
-            $updater->method('getDB')->willReturn($db);
+        $updater->expects($this->atLeastOnce())
+            ->method('addExtensionTable')
+            ->with(
+                $this->anything(),
+                $this->stringContains('sql/sqlite/tables-generated.sql')
+            );
 
-            // All database types should use sqlite schema (for now)
-            $updater->expects($this->atLeastOnce())
-                ->method('addExtensionTable')
-                ->with(
-                    $this->anything(),
-                    $this->stringContains('sql/sqlite/tables.sql')
-                );
+        SchemaHooks::onLoadExtensionSchemaUpdates($updater);
 
-            SchemaHooks::onLoadExtensionSchemaUpdates($updater);
-        }
+        // Test MySQL uses MySQL schema
+        $db2 = $this->createMock(IDatabase::class);
+        $db2->method('getType')->willReturn('mysql');
+
+        $updater2 = $this->createMock(DatabaseUpdater::class);
+        $updater2->method('getDB')->willReturn($db2);
+
+        $updater2->expects($this->atLeastOnce())
+            ->method('addExtensionTable')
+            ->with(
+                $this->anything(),
+                $this->stringContains('sql/mysql/tables-generated.sql')
+            );
+
+        SchemaHooks::onLoadExtensionSchemaUpdates($updater2);
     }
 
     /**
@@ -253,7 +268,7 @@ final class SchemaHooksTest extends MediaWikiIntegrationTestCase {
         $this->assertNotNull($capturedPath, 'Path should be captured');
         $this->assertStringContainsString('sql', $capturedPath, 'Path should contain sql directory');
         $this->assertStringContainsString('sqlite', $capturedPath, 'Path should contain sqlite directory');
-        $this->assertStringContainsString('tables.sql', $capturedPath, 'Path should contain tables.sql file');
+        $this->assertStringContainsString('tables-generated.sql', $capturedPath, 'Path should contain tables-generated.sql file');
     }
 
     /**

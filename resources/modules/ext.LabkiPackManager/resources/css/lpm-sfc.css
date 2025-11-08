@@ -548,6 +548,191 @@ h3[data-v-adb05fca] {
 }
 
 
+.state-sync-modal-content[data-v-3a6ca86e] {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.state-sync-intro[data-v-3a6ca86e] {
+  margin: 0;
+  color: #54595d;
+  line-height: 1.4;
+}
+.modal-warning[data-v-3a6ca86e] {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fff8ed;
+  border: 1px solid #f7d9a8;
+  color: #6b4b16;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.92em;
+}
+.warning-icon[data-v-3a6ca86e] {
+  font-size: 1.4em;
+  line-height: 1;
+  margin-top: 2px;
+}
+.warning-copy[data-v-3a6ca86e] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.diff-summary[data-v-3a6ca86e] {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #202122;
+  background: #eef6ff;
+  border: 1px solid #cde3ff;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.diff-container[data-v-3a6ca86e] {
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #eaecf0;
+  padding: 12px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.diff-empty[data-v-3a6ca86e] {
+  color: #54595d;
+  font-style: italic;
+}
+.diff-list[data-v-3a6ca86e] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.diff-pack[data-v-3a6ca86e] {
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.diff-pack-header[data-v-3a6ca86e] {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.diff-pack-name[data-v-3a6ca86e] {
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 700;
+  color: #202122;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.diff-chip[data-v-3a6ca86e] {
+  background: #edf2ff;
+  color: #3246d3;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.75em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.diff-section[data-v-3a6ca86e] {
+  margin-bottom: 8px;
+  padding-left: 8px;
+  border-left: 3px solid #c8ccd1;
+}
+.diff-section-title[data-v-3a6ca86e] {
+  font-size: 0.85em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #72777d;
+  margin-bottom: 4px;
+}
+.diff-page-name[data-v-3a6ca86e] {
+  color: #202122;
+}
+.diff-row[data-v-3a6ca86e] {
+  display: grid;
+  grid-template-columns: 130px 1fr 20px 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  align-items: center;
+  font-size: 0.9em;
+}
+.diff-label[data-v-3a6ca86e] {
+  font-weight: 600;
+  color: #202122;
+  text-transform: capitalize;
+}
+.diff-label[data-v-3a6ca86e]::after {
+  content: ':';
+  margin-left: 4px;
+}
+.diff-value[data-v-3a6ca86e] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+  word-break: break-word;
+}
+.diff-value.diff-client[data-v-3a6ca86e] {
+  background: #ffe6e2;
+  color: #b42318;
+  border: 1px solid #f5b5ac;
+}
+.diff-value.diff-server[data-v-3a6ca86e] {
+  background: #e6f6ec;
+  color: #11743a;
+  border: 1px solid #9fdcc2;
+}
+.diff-pill[data-v-3a6ca86e] {
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+}
+.diff-pill-old[data-v-3a6ca86e] {
+  background: rgba(171, 31, 38, 0.12);
+  color: #ab1f26;
+}
+.diff-pill-new[data-v-3a6ca86e] {
+  background: rgba(11, 96, 59, 0.12);
+  color: #0b603b;
+}
+.diff-text[data-v-3a6ca86e] {
+  white-space: pre-wrap;
+}
+.diff-arrow[data-v-3a6ca86e] {
+  text-align: center;
+  color: #54595d;
+  font-size: 1.2em;
+}
+.modal-actions[data-v-3a6ca86e] {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+.modal-status[data-v-3a6ca86e] {
+  font-size: 0.9em;
+  color: #202122;
+  background: #eef2ff;
+  border: 1px solid #a8c9f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+
 /*
   ============================================================================
   DETAILS PANEL - CARD-BASED DESIGN WITH INLINE STYLES
@@ -566,8 +751,6 @@ h3[data-v-adb05fca] {
   
   ============================================================================
 */
-
-/* ==================== PANEL CONTAINER ==================== */
 .details-panel[data-v-348c6e2c] {
   padding: 20px;
   background: white;
