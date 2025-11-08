@@ -169,7 +169,7 @@ class LabkiPageRegistryTest extends MediaWikiIntegrationTestCase {
 		$this->assertNull( $result );
 	}
 
-	public function testGetPageByTitle_FindsPage(): void {
+	public function testgetPagebyFinalTItle_FindsPage(): void {
 		$packId = $this->createTestPack();
 		$registry = $this->newRegistry();
 
@@ -179,17 +179,17 @@ class LabkiPageRegistryTest extends MediaWikiIntegrationTestCase {
 			'page_namespace' => 0,
 		] );
 		
-		$page = $registry->getPageByTitle( 'Unique Title For Search' );
+		$page = $registry->getPagebyFinalTItle( 'Unique Title For Search' );
 		
 		$this->assertNotNull( $page );
 		$this->assertSame( $pageId->toInt(), $page->id()->toInt() );
 		$this->assertSame( 'TitleTest', $page->name() );
 	}
 
-	public function testGetPageByTitle_WhenNotExists_ReturnsNull(): void {
+	public function testgetPagebyFinalTItle_WhenNotExists_ReturnsNull(): void {
 		$registry = $this->newRegistry();
 
-		$result = $registry->getPageByTitle( 'NonExistent Title' );
+		$result = $registry->getPagebyFinalTItle( 'NonExistent Title' );
 		
 		$this->assertNull( $result );
 	}
@@ -475,12 +475,12 @@ class LabkiPageRegistryTest extends MediaWikiIntegrationTestCase {
 			'page_namespace' => 0,
 		] );
 		
-		$this->assertNotNull( $registry->getPageByTitle( 'Remove By Title Test' ) );
+		$this->assertNotNull( $registry->getPagebyFinalTItle( 'Remove By Title Test' ) );
 
 		$result = $registry->removePageByFinalTitle( 'Remove By Title Test' );
 		
 		$this->assertTrue( $result );
-		$this->assertNull( $registry->getPageByTitle( 'Remove By Title Test' ) );
+		$this->assertNull( $registry->getPagebyFinalTItle( 'Remove By Title Test' ) );
 	}
 
 	public function testRemovePagesByPack_WithIntPackId_RemovesAllPages(): void {

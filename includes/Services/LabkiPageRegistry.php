@@ -91,9 +91,11 @@ class LabkiPageRegistry extends BaseRegistry {
 
     /**
      * Find an installed page by final title.
+     *
+     * @param string $finalTitle
      * @return DomainPage|null
      */
-    public function getPageByTitle( string $finalTitle ): ?DomainPage {
+    public function getPageByFinalTitle( string $finalTitle ): ?DomainPage {
         $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
         $row = $dbr->newSelectQueryBuilder()
             ->select( DomainPage::FIELDS )
@@ -167,6 +169,32 @@ class LabkiPageRegistry extends BaseRegistry {
             ->caller( __METHOD__ )
             ->fetchRow();
         return $row ? (int)$row->cnt : 0;
+    }
+
+    /**
+     * Find a page by the underlying MediaWiki page_id.
+     *
+     * @param int $wikiPageId
+     * @return DomainPage|null
+     */
+    public function getPageByWikiPageId( int $wikiPageId ): ?DomainPage {
+        if ( $wikiPageId <= 0 ) {
+            return null;
+        }
+
+        $dbr = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection( DB_REPLICA );
+        $row = $dbr->newSelectQueryBuilder()
+            ->select( DomainPage::FIELDS )
+            ->from( self::TABLE )
+            ->where( [ 'wiki_page_id' => $wikiPageId ] )
+            ->caller( __METHOD__ )
+            ->fetchRow();
+
+        if ( !$row ) {
+            return null;
+        }
+
+        return DomainPage::fromRow( $row );
     }
 
     /**
