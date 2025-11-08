@@ -249,16 +249,43 @@
                 minHeight: '32px'
               }"
             >
-              <span :style="{ 
-                fontSize: '0.8em', 
-                color: '#202122',
-                fontWeight: '500',
-                minWidth: '60px',
-                maxWidth: '80px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }" :title="page.label">{{ page.label }}</span>
+              <a
+                v-if="isPageInstalled(page.label)"
+                :href="getPageUrl(page.label)"
+                target="_blank"
+                rel="noopener noreferrer"
+                :style="{ 
+                  fontSize: '0.8em', 
+                  color: '#3366cc',
+                  fontWeight: '500',
+                  minWidth: '60px',
+                  maxWidth: '80px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  textDecoration: 'underline',
+                  cursor: 'pointer'
+                }"
+                :title="getPageTitle(page.label)"
+              >
+                {{ getPageTitle(page.label) }}
+              </a>
+              <span
+                v-else
+                :style="{ 
+                  fontSize: '0.8em', 
+                  color: '#202122',
+                  fontWeight: '500',
+                  minWidth: '60px',
+                  maxWidth: '80px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }"
+                :title="page.label"
+              >
+                {{ getPageTitle(page.label) }}
+              </span>
               
               <!-- Page rename editor (show if pack is selected for install/update or installed) -->
               <span v-if="showPackEditor" class="page-rename-inline" :style="{
@@ -573,6 +600,18 @@ function getPageTitle(pageName) {
 function getPageState(pageName) {
   const parentPack = store.packs[props.node.label]
   return parentPack?.pages?.[pageName] || null
+}
+
+function isPageInstalled(pageName) {
+  return !!getPageState(pageName)?.installed
+}
+
+function getPageUrl(pageName) {
+  const pageTitle = getPageTitle(pageName)
+  if (!pageTitle) return null
+
+  return mw.util.getUrl(pageTitle)
+    
 }
 
 function getPageBackground(pageName) {
