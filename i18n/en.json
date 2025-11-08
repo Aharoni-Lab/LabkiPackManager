@@ -199,7 +199,7 @@
 	"labkipackmanager-prefix": "Prefix",
 	"labkipackmanager-pages": "Pages",
 	"labkipackmanager-no-packs-selected": "No packs selected. Select packs from the hierarchy above to begin.",
-  "labkipackmanager-state-out-of-sync-title": "State out of sync",
+	"labkipackmanager-state-out-of-sync-title": "State out of sync",
 	"labkipackmanager-state-hash": "State Hash",
 	"labkipackmanager-apply": "Apply Changes",
 	"labkipackmanager-clear": "Clear Session",
@@ -210,10 +210,14 @@
 	"labkipackmanager-loading": "Loading",
 	"labkipackmanager-refresh": "Refresh",
 	"labkipackmanager-sync-from-remote": "Sync from Remote",
-  "labkipackmanager-sync-frontend-with-backend": "Sync frontend with backend",
+	"labkipackmanager-sync-frontend-with-backend": "Sync frontend with backend",
 	"labkipackmanager-pack-prefix": "Pack Prefix",
 	"labkipackmanager-pack-prefix-placeholder": "MyNamespace/MyPack",
-	"labkipackmanager-page-title": "Page Title"
+	"labkipackmanager-page-title": "Page Title",
+	"labkipackmanager-import-footer": "Imported from $1 ($2 @ $3$4$5).",
+	"labkipackmanager-import-footer-version": ", version $1",
+	"labkipackmanager-import-footer-commit": ", commit $1",
+	"labkipackmanager-import-footer-aria": "Imported page metadata: pack $1 from $2"
 
 }
 

@@ -149,6 +149,7 @@ docker compose exec -T mediawiki bash -lc "
     echo 'wfLoadExtension( \"LabkiPackManager\" );'
     echo 'wfLoadExtension( \"Mermaid\" );'
     echo '\$wgLabkiEnableDBViewer = true;'
+    echo '\$wgLabkiShowImportFooter = true;'
     echo '\$wgDebugLogGroups[\"labkipack\"] = \"$CONTAINER_LOG_FILE\";'
     echo ''
     echo '// Set cache directory to shared volume (accessible to jobrunner)'

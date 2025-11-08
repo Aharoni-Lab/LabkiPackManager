@@ -104,6 +104,15 @@
         "@wikimedia/codex",
         "codex-styles"
       ]
+    },
+    "ext.LabkiPackManager.importFooter": {
+      "styles": [
+        "resources/css/labki-import-footer.css"
+      ],
+      "targets": [
+        "desktop",
+        "mobile"
+      ]
     }
   },
   "APIModules": {
@@ -126,7 +135,8 @@
 	},
   "Hooks": {
     "LoadExtensionSchemaUpdates": "LabkiPackManager\\Hooks\\SchemaHooks::onLoadExtensionSchemaUpdates",
-    "SkinBuildSidebar": "LabkiPackManager\\Hooks\\SidebarHook::onSkinBuildSidebar"
+    "SkinBuildSidebar": "LabkiPackManager\\Hooks\\SidebarHook::onSkinBuildSidebar",
+    "SkinAfterContent": "LabkiPackManager\\Hooks\\FooterHook::onSkinAfterContent"
   },
   "MaintenanceScripts": {
     "BackfillLabkiRegistry": "maintenance/BackfillLabkiRegistry.php"
@@ -178,6 +188,10 @@
     "LabkiEnableDBViewer": {
       "value": false,
       "description": "If true, enables the Labki database viewer special page."
+    },
+    "LabkiShowImportFooter": {
+      "value": true,
+      "description": "If true, appends import metadata to the footer of pages installed from Labki packs."
     }
   },
   "AvailableRights": [
