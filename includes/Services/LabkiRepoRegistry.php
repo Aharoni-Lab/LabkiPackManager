@@ -238,8 +238,9 @@ class LabkiRepoRegistry extends BaseRegistry {
     /**
      * Delete a repository entry.
      *
-     * Removes the repository record from the database. Due to foreign key constraints,
-     * this will cascade delete all associated refs, packs, and pages.
+     * Removes the repository record from the database and manually cascades deletion
+     * to all associated refs, packs, and pages (since we don't use database-level
+     * foreign key constraints per MediaWiki convention).
      *
      * Warning: This is a destructive operation. Ensure all associated data should
      * be removed before calling this method.
@@ -251,13 +252,29 @@ class LabkiRepoRegistry extends BaseRegistry {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $repoId instanceof ContentRepoId ? $repoId->toInt() : $repoId;
 
+        // Manually cascade: Delete all refs for this repo (which will cascade to packs/pages)
+        $refs = $dbw->newSelectQueryBuilder()
+            ->select('content_ref_id')
+            ->from('labki_content_ref')
+            ->where(['content_repo_id' => $id])
+            ->caller(__METHOD__)
+            ->fetchResultSet();
+
+        $refRegistry = MediaWikiServices::getInstance()->getService('LabkiRefRegistry');
+        $deletedRefs = 0;
+        foreach ($refs as $row) {
+            $refRegistry->deleteRef((int)$row->content_ref_id);
+            $deletedRefs++;
+        }
+
+        // Now delete the repo itself
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom(self::TABLE)
             ->where(['content_repo_id' => $id])
             ->caller(__METHOD__)
             ->execute();
 
-        wfDebugLog('labkipack', "deleteRepo(): deleted repo ID={$id}");
+        wfDebugLog('labkipack', "deleteRepo(): deleted repo ID={$id} and {$deletedRefs} associated refs");
     }
 
 }

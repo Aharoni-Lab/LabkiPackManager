@@ -80,6 +80,34 @@ jobs:
           echo "\$wgCacheDirectory = \"\$IP/cache\";" >> mediawiki/LocalSettings.php
 
 
+      - name: Check schema SQL freshness
+        working-directory: mediawiki
+        run: |
+          # Regenerate schemas from abstract definition
+          php maintenance/run.php generateSchemaSql \
+            --json=extensions/LabkiPackManager/sql/tables.json \
+            --sql=extensions/LabkiPackManager/sql/mysql/tables-generated.sql \
+            --type=mysql
+          php maintenance/run.php generateSchemaSql \
+            --json=extensions/LabkiPackManager/sql/tables.json \
+            --sql=extensions/LabkiPackManager/sql/sqlite/tables-generated.sql \
+            --type=sqlite
+          
+          # Normalize source path comment (line 2) for consistent comparison
+          # The absolute path differs between local dev and CI environments
+          cd extensions/LabkiPackManager
+          sed -i '2s|Source: .*sql/tables.json|Source: sql/tables.json|' sql/mysql/tables-generated.sql
+          sed -i '2s|Source: .*sql/tables.json|Source: sql/tables.json|' sql/sqlite/tables-generated.sql
+          
+          # Check if generated files differ from committed versions
+          if ! git diff --quiet -- sql/mysql/tables-generated.sql sql/sqlite/tables-generated.sql; then
+            echo "::error ::Generated SQL schemas are out of date with tables.json"
+            echo "::error ::Please run './maintenance/regenerateSchema.sh' and commit the changes."
+            git diff sql/mysql/tables-generated.sql sql/sqlite/tables-generated.sql
+            exit 1
+          fi
+          echo "✓ Schema SQL files are up to date"
+
       - name: Update DB schema
         working-directory: mediawiki
         run: php maintenance/update.php --quick

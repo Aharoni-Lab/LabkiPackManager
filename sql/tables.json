@@ -1,0 +1,400 @@
+[
+	{
+		"name": "labki_content_repo",
+		"columns": [
+			{
+				"name": "content_repo_id",
+				"type": "integer",
+				"options": { "notnull": true, "autoincrement": true, "unsigned": true }
+			},
+			{
+				"name": "content_repo_url",
+				"type": "string",
+				"options": { "notnull": true, "length": 255 }
+			},
+			{
+				"name": "default_ref",
+				"type": "string",
+				"options": { "notnull": false, "default": "main", "length": 100 }
+			},
+			{
+				"name": "bare_path",
+				"type": "string",
+				"options": { "notnull": false, "length": 500 }
+			},
+			{
+				"name": "last_fetched",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "created_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "updated_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			}
+		],
+		"indexes": [
+			{
+				"name": "content_repo_url_unique",
+				"columns": [ "content_repo_url" ],
+				"unique": true
+			},
+			{
+				"name": "idx_labki_repo_url",
+				"columns": [ "content_repo_url" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_repo_last_fetched",
+				"columns": [ "last_fetched" ],
+				"unique": false
+			}
+		],
+		"pk": [ "content_repo_id" ]
+	},
+	{
+		"name": "labki_content_ref",
+		"columns": [
+			{
+				"name": "content_ref_id",
+				"type": "integer",
+				"options": { "notnull": true, "autoincrement": true, "unsigned": true }
+			},
+			{
+				"name": "content_repo_id",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "source_ref",
+				"type": "string",
+				"options": { "notnull": true, "length": 255 }
+			},
+			{
+				"name": "content_ref_name",
+				"type": "string",
+				"options": { "notnull": false, "length": 255 }
+			},
+			{
+				"name": "last_commit",
+				"type": "string",
+				"options": { "notnull": false, "length": 40 }
+			},
+			{
+				"name": "manifest_hash",
+				"type": "string",
+				"options": { "notnull": false, "length": 64 }
+			},
+			{
+				"name": "manifest_last_parsed",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "worktree_path",
+				"type": "string",
+				"options": { "notnull": false, "length": 500 }
+			},
+			{
+				"name": "created_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "updated_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			}
+		],
+		"indexes": [
+			{
+				"name": "content_repo_ref_unique",
+				"columns": [ "content_repo_id", "source_ref" ],
+				"unique": true
+			},
+			{
+				"name": "idx_labki_ref_repo",
+				"columns": [ "content_repo_id" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_ref_name",
+				"columns": [ "content_ref_name" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_ref_source_ref",
+				"columns": [ "source_ref" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_ref_last_commit",
+				"columns": [ "last_commit" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_ref_manifest_hash",
+				"columns": [ "manifest_hash" ],
+				"unique": false
+			}
+		],
+		"pk": [ "content_ref_id" ]
+	},
+	{
+		"name": "labki_pack",
+		"columns": [
+			{
+				"name": "pack_id",
+				"type": "integer",
+				"options": { "notnull": true, "autoincrement": true, "unsigned": true }
+			},
+			{
+				"name": "content_ref_id",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "name",
+				"type": "string",
+				"options": { "notnull": true, "length": 255 }
+			},
+			{
+				"name": "version",
+				"type": "string",
+				"options": { "notnull": false, "length": 50 }
+			},
+			{
+				"name": "source_commit",
+				"type": "string",
+				"options": { "notnull": false, "length": 40 }
+			},
+			{
+				"name": "installed_at",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "installed_by",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "updated_at",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "status",
+				"type": "string",
+				"options": { "notnull": false, "default": "installed", "length": 20 }
+			}
+		],
+		"indexes": [
+			{
+				"name": "content_ref_name_unique",
+				"columns": [ "content_ref_id", "name" ],
+				"unique": true
+			},
+			{
+				"name": "idx_labki_pack_ref",
+				"columns": [ "content_ref_id" ],
+				"unique": false
+			}
+		],
+		"pk": [ "pack_id" ]
+	},
+	{
+		"name": "labki_page",
+		"columns": [
+			{
+				"name": "page_id",
+				"type": "integer",
+				"options": { "notnull": true, "autoincrement": true, "unsigned": true }
+			},
+			{
+				"name": "pack_id",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "name",
+				"type": "string",
+				"options": { "notnull": true, "length": 255 }
+			},
+			{
+				"name": "final_title",
+				"type": "string",
+				"options": { "notnull": true, "length": 255 }
+			},
+			{
+				"name": "page_namespace",
+				"type": "integer",
+				"options": { "notnull": true }
+			},
+			{
+				"name": "wiki_page_id",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "last_rev_id",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "content_hash",
+				"type": "string",
+				"options": { "notnull": false, "length": 64 }
+			},
+			{
+				"name": "created_at",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "updated_at",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			}
+		],
+		"indexes": [
+			{
+				"name": "pack_name_unique",
+				"columns": [ "pack_id", "name" ],
+				"unique": true
+			},
+			{
+				"name": "pack_final_title_unique",
+				"columns": [ "pack_id", "final_title" ],
+				"unique": true
+			},
+			{
+				"name": "idx_labki_page_pack",
+				"columns": [ "pack_id" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_page_final_title",
+				"columns": [ "final_title" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_page_wiki_page_id",
+				"columns": [ "wiki_page_id" ],
+				"unique": false
+			}
+		],
+		"pk": [ "page_id" ]
+	},
+	{
+		"name": "labki_pack_dependency",
+		"columns": [
+			{
+				"name": "pack_id",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "depends_on_pack_id",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "created_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			}
+		],
+		"indexes": [
+			{
+				"name": "idx_labki_pack_dependency_depends_on",
+				"columns": [ "depends_on_pack_id" ],
+				"unique": false
+			}
+		],
+		"pk": [ "pack_id", "depends_on_pack_id" ]
+	},
+	{
+		"name": "labki_operations",
+		"columns": [
+			{
+				"name": "operation_id",
+				"type": "string",
+				"options": { "notnull": true, "length": 100 }
+			},
+			{
+				"name": "operation_type",
+				"type": "string",
+				"options": { "notnull": true, "length": 50 }
+			},
+			{
+				"name": "status",
+				"type": "string",
+				"options": { "notnull": true, "default": "queued", "length": 20 }
+			},
+			{
+				"name": "progress",
+				"type": "integer",
+				"options": { "notnull": false, "default": 0, "unsigned": true }
+			},
+			{
+				"name": "message",
+				"type": "string",
+				"options": { "notnull": false, "default": "", "length": 500 }
+			},
+			{
+				"name": "result_data",
+				"type": "blob",
+				"options": { "notnull": false, "length": 65535 }
+			},
+			{
+				"name": "user_id",
+				"type": "integer",
+				"options": { "notnull": false, "default": 0, "unsigned": true }
+			},
+			{
+				"name": "created_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "started_at",
+				"type": "integer",
+				"options": { "notnull": false, "unsigned": true }
+			},
+			{
+				"name": "updated_at",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			}
+		],
+		"indexes": [
+			{
+				"name": "idx_labki_operations_status",
+				"columns": [ "status" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_operations_type",
+				"columns": [ "operation_type" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_operations_user",
+				"columns": [ "user_id" ],
+				"unique": false
+			},
+			{
+				"name": "idx_labki_operations_updated",
+				"columns": [ "updated_at" ],
+				"unique": false
+			}
+		],
+		"pk": [ "operation_id" ]
+	}
+]

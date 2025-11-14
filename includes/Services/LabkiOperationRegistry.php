@@ -364,7 +364,10 @@ final class LabkiOperationRegistry extends BaseRegistry {
         
         $stats = [];
         foreach ( $res as $row ) {
-            $stats[$row->status] = (int)$row->count;
+            // Handle case-insensitive column names
+            $status = $row->status ?? $row->STATUS ?? 'unknown';
+            $count = $row->count ?? $row->COUNT ?? 0;
+            $stats[$status] = (int)$count;
         }
         
         return $stats;

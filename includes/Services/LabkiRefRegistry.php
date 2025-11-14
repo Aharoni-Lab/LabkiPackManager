@@ -241,19 +241,39 @@ class LabkiRefRegistry extends BaseRegistry {
     }
 
     /**
-     * Delete a ref entry (cascade removes packs/pages under it).
+     * Delete a ref entry and manually cascade to packs/pages.
+     *
+     * Since we don't use database-level foreign key constraints per MediaWiki
+     * convention, this method manually cascades deletion to all associated packs
+     * and pages.
      */
     public function deleteRef(int|ContentRefId $refId): void {
         $dbw = MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(DB_PRIMARY);
         $id = $refId instanceof ContentRefId ? $refId->toInt() : (int) $refId;
 
+        // Manually cascade: Delete all packs for this ref (which will cascade to pages)
+        $packs = $dbw->newSelectQueryBuilder()
+            ->select('pack_id')
+            ->from('labki_pack')
+            ->where(['content_ref_id' => $id])
+            ->caller(__METHOD__)
+            ->fetchResultSet();
+
+        $packRegistry = MediaWikiServices::getInstance()->getService('LabkiPackRegistry');
+        $deletedPacks = 0;
+        foreach ($packs as $row) {
+            $packRegistry->removePack((int)$row->pack_id);
+            $deletedPacks++;
+        }
+
+        // Now delete the ref itself
         $dbw->newDeleteQueryBuilder()
             ->deleteFrom(self::TABLE)
             ->where(['content_ref_id' => $id])
             ->caller(__METHOD__)
             ->execute();
 
-        wfDebugLog('labkipack', "deleteRef(): deleted ref ID={$id}");
+        wfDebugLog('labkipack', "deleteRef(): deleted ref ID={$id} and {$deletedPacks} associated packs");
     }
 
     public function getWorktreePath(int|string|ContentRepoId $contentRepoIdentifier, string $ref): string {

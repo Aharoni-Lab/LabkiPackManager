@@ -14,6 +14,7 @@ use LabkiPackManager\Services\LabkiRepoRegistry;
 use LabkiPackManager\Services\LabkiRefRegistry;
 use LabkiPackManager\Services\PackStateStore;
 use MediaWiki\Status\Status;
+use LabkiPackManager\Handlers\Packs\StateOutOfSyncException;
 
 /**
  * Unified, intent-driven endpoint for pack interactions.
@@ -174,6 +175,27 @@ final class ApiLabkiPacksAction extends PackApiBase {
 		try {
 			// Handlers mutate or create PackSessionState and return warnings + optional flags.
 			$result = $handler->handle( $state, $manifest, $data, $ctx );
+		} catch ( StateOutOfSyncException $e ) {
+			wfDebugLog( 'labkipack', 'ApiLabkiPacksAction: state out of sync detected during apply command' );
+
+			$responseData = [
+				'ok' => false,
+				'error' => 'state_out_of_sync',
+				'message' => $e->getMessage(),
+				'state_hash' => $e->getServerHash(),
+				'server_packs' => $e->getServerPacks(),
+				'differences' => $e->getDifferences(),
+				'reconcile_commands' => $e->getReconcileCommands(),
+			];
+
+			$responseData['meta'] = [
+				'schemaVersion' => 1,
+				'timestamp' => wfTimestampNow(),
+			];
+
+			$responseData = $this->prepareDiffForApi( $responseData );
+			$this->getResult()->addValue( null, 'labkiPacksAction', $responseData );
+			return;
 		} catch ( \InvalidArgumentException $e ) {
 			$this->dieWithError( $e->getMessage(), 'invalid_argument' );
 		} catch ( \RuntimeException $e ) {

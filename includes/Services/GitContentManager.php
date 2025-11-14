@@ -52,13 +52,14 @@ final class GitContentManager {
      *
      * This function:
      *  - Creates the mirror under /cache if missing.
-     *  - Fetches updates if the last sync was >1 hour ago.
+     *  - Fetches updates if the last sync was >1 hour ago (or if forced).
      *  - Registers or updates the repository entry in labki_content_repo.
      *
      * @param string $repoUrl Repository URL (e.g., GitHub HTTPS)
+     * @param bool $forceRefresh If true, fetch updates regardless of last fetch time
      * @return string Absolute path to the local bare repository
      */
-    public function ensureBareRepo(string $repoUrl): string {
+    public function ensureBareRepo(string $repoUrl, bool $forceRefresh = false): string {
         wfDebugLog('labkipack', "ensureBareRepo() called for {$repoUrl}");
     
         $safeName = $this->generateRepoDirName($repoUrl);
@@ -92,13 +93,15 @@ final class GitContentManager {
                 ? (int)wfTimestamp(TS_UNIX, $repo->lastFetched())
                 : 0;
     
-            $oneHourAgo = time() - 3600;
+            $fiveMinutesAgo = time() - 300;
+            $tenSecondsAgo = time() - 10;
 
-            // Fetch latest updates if the last fetch was more than 1 hour ago
+            // Fetch latest updates if forced or if the last fetch was more than 1 hour ago
     
-            if ($lastFetched < $oneHourAgo) {
+            if (($forceRefresh && ($lastFetched < $tenSecondsAgo)) || $lastFetched < $fiveMinutesAgo) {
                 // Fetch latest updates for the bare repository
-                wfDebugLog('labkipack', "Fetching latest updates for {$repoUrl}");
+                $reason = $forceRefresh ? "(forced)" : "(stale)";
+                wfDebugLog('labkipack', "Fetching latest updates for {$repoUrl} {$reason}");
                 try {
                     wfDebugLog('labkipack', "Fetching bare repo at {$barePath}");
                     // fetches all branches, tags, and prunes any branches that no longer exist
@@ -312,7 +315,7 @@ final class GitContentManager {
         }
 
         // Ensure bare repo is fetched (this will fetch updates)
-        $barePath = $this->ensureBareRepo($repoUrl);
+        $barePath = $this->ensureBareRepo($repoUrl, true);
         wfDebugLog('labkipack', "Bare repo updated at {$barePath}");
 
         // Ensure worktree is synced (this will reset to remote commit if needed)
@@ -344,7 +347,7 @@ final class GitContentManager {
         }
 
         // First, update the bare repository
-        $barePath = $this->ensureBareRepo($repoUrl);
+        $barePath = $this->ensureBareRepo($repoUrl, true);
         wfDebugLog('labkipack', "Bare repo updated at {$barePath}");
 
         // Get all refs for this repository

@@ -53,7 +53,7 @@
     :data-action="packState?.action || pageParentAction"
     :data-installed="node.type === 'pack' ? packState?.installed : pageState?.installed"
   >
-    <!-- 
+    <!--
         PACK CARD WRAPPER - Creates rounded rectangle container
         ⚠️ INLINE STYLES REQUIRED: CSS classes don't work due to MW/Codex specificity
         - Border creates card boundary
@@ -81,7 +81,7 @@
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)' /* Depth/elevation effect */,
       }"
     >
-      <!-- 
+      <!--
           TWO-COLUMN LAYOUT: Pack info on left, Pages on right
           ⚠️ Main content area splits into left (pack) and right (pages)
         -->
@@ -158,35 +158,31 @@
               paddingLeft: `${depth * 24 + 32}px`,
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-            }"
-          >
-            <span
-              class="prefix-label"
-              :style="{ fontSize: '0.75em', color: '#72777d', fontWeight: '600' }"
-              >Prefix:</span
-            >
-            <input
-              class="prefix-input"
-              type="text"
-              :value="prefixInputValue"
-              :placeholder="$t('labkipackmanager-pack-prefix-placeholder') || 'MyNamespace/MyPack'"
-              :disabled="!isPackEditable"
-              :readonly="!isPackEditable"
-              :style="{
-                fontSize: '0.72em',
-                padding: '4px 7px',
-                minWidth: '150px',
-                border: '1px solid #c8ccd1',
-                borderRadius: '3px',
-                background: 'white',
-                fontFamily: 'Monaco, Menlo, Consolas, monospace',
-                transition: 'all 0.15s ease',
-                cursor: isPackEditable ? 'text' : 'not-allowed',
-              }"
-              @input="onPrefixChange"
-            />
-          </div>
+              gap: '6px'
+            }">
+              <span class="prefix-label" :style="{ fontSize: '0.75em', color: '#72777d', fontWeight: '600' }">Prefix:</span>
+              <input
+                class="prefix-input"
+                type="text"
+                :value="prefixInputValue"
+                :placeholder="$t('labkipackmanager-pack-prefix-placeholder') || 'MyNamespace/MyPack'"
+                :disabled="!isPackEditable"
+                :readonly="!isPackEditable"
+                :data-pack-name="node.label"
+                @input="onPrefixChange"
+                :style="{
+                  fontSize: '0.72em',
+                  padding: '4px 7px',
+                  minWidth: '150px',
+                  border: '1px solid #c8ccd1',
+                  borderRadius: '3px',
+                  background: 'white',
+                  fontFamily: 'Monaco, Menlo, Consolas, monospace',
+                  transition: 'all 0.15s ease',
+                  cursor: isPackEditable ? 'text' : 'not-allowed'
+                }"
+              />
+            </div>
 
           <!-- Actions (for packs only) - on third row -->
           <div
@@ -319,50 +315,35 @@
                   borderRadius: '3px 0 0 3px',
                   color: '#54595d',
                   whiteSpace: 'nowrap',
-                  fontFamily: 'Monaco, Menlo, Consolas, monospace',
-                }"
-                >{{ getDisplayPrefixWithSlash(page.label) }}</span
-              >
-              <input
-                class="page-input"
-                :class="{ 'has-collision': getPageHasCollision(page.label) }"
-                type="text"
-                :value="getPageEditableTitle(page.label)"
-                :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
-                :disabled="!getPageEditable(page.label)"
-                :readonly="!getPageEditable(page.label)"
-                :aria-invalid="getPageHasCollision(page.label) ? 'true' : 'false'"
-                :style="{
-                  fontSize: '0.72em',
-                  padding: '4px 7px',
-                  flex: '1',
-                  minWidth: '100px',
-                  border: getPageHasCollision(page.label) ? '1px solid #d33' : '1px solid #c8ccd1',
-                  borderRadius: getDisplayPrefix() ? '0 3px 3px 0' : '3px',
-                  background: getPageHasCollision(page.label) ? '#fff5f5' : 'white',
-                  fontFamily: 'Monaco, Menlo, Consolas, monospace',
-                  transition: 'all 0.15s ease',
-                  cursor: getPageEditable(page.label) ? 'text' : 'not-allowed',
-                }"
-                @input="(e) => onPageTitleChangeForPage(e, page.label)"
-                @focus="
-                  () =>
-                    console.log(
-                      '[Page Input Focus] Page:',
-                      page.label,
-                      'Editable:',
-                      getPageEditable(page.label),
-                      'Pack action:',
-                      packState?.action,
-                    )
-                "
-              />
-              <span
-                v-if="getPageHasCollision(page.label)"
-                :id="getCollisionId(page.label)"
-                class="collision-icon"
-                :style="{
-                  fontSize: '1.1em',
+                  fontFamily: 'Monaco, Menlo, Consolas, monospace'
+                }">{{ getDisplayPrefixWithSlash(page.label) }}</span>
+                <input
+                  class="page-input"
+                  :class="{ 'has-collision': getPageHasCollision(page.label) }"
+                  type="text"
+                  :value="getPageEditableTitle(page.label)"
+                  :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
+                  :disabled="!getPageEditable(page.label)"
+                  :readonly="!getPageEditable(page.label)"
+                  :data-pack-name="node.label"
+                  :data-page-name="page.label"
+                  @input="(e) => onPageTitleChangeForPage(e, page.label)"
+                  :aria-invalid="getPageHasCollision(page.label) ? 'true' : 'false'"
+                  :style="{
+                    fontSize: '0.72em',
+                    padding: '4px 7px',
+                    flex: '1',
+                    minWidth: '100px',
+                    border: getPageHasCollision(page.label) ? '1px solid #d33' : '1px solid #c8ccd1',
+                    borderRadius: getDisplayPrefix(page.label) ? '0 3px 3px 0' : '3px',
+                    background: getPageHasCollision(page.label) ? '#fff5f5' : 'white',
+                    fontFamily: 'Monaco, Menlo, Consolas, monospace',
+                    transition: 'all 0.15s ease',
+                    cursor: getPageEditable(page.label) ? 'text' : 'not-allowed'
+                  }"
+                />
+                <span v-if="getPageHasCollision(page.label)" class="collision-icon" :style="{ 
+                  fontSize: '1.1em', 
                   cursor: 'help',
                   color: '#d33',
                 }"
@@ -419,85 +400,39 @@
         </div>
       </div>
 
-      <!-- 
+      <!--
           NESTED PACKS CONTAINER - Only renders nested PACKS (pages shown inline above)
           ⚠️ This is what creates the "recursive card nesting" effect
           - Children are inside the .pack-card div, not siblings
           - Each child pack creates its own card, nested inside this one
           - Visual indentation via left border + paddingLeft
         -->
-      <transition name="children" @enter="onChildrenEnter" @leave="onChildrenLeave">
-        <div
-          v-if="expanded && childPacks.length > 0"
-          class="children"
-          :style="{
-            marginTop: '8px' /* Space from parent content */,
-            paddingLeft: '16px' /* Indent nested items */,
-            borderLeft: '2px solid #eaecf0' /* Visual nesting indicator */,
-            paddingTop: '4px' /* Top spacing */,
-          }"
+        <transition
+          name="children"
+          @enter="onChildrenEnter"
+          @leave="onChildrenLeave"
         >
-          <tree-node
-            v-for="child in childPacks"
-            :key="child.id"
-            :node="child"
-            :depth="depth + 1"
-            :parent-pack-name="nodePackName"
-            @set-pack-action="$emit('set-pack-action', $event)"
-          />
-        </div>
-      </transition>
-    </div>
-
-    <!-- 
-        PAGE ROW - Only rendered for standalone pages (not in a pack's children)
-        This handles edge case where pages might be at root level
-      -->
-    <div
-      v-else-if="node.type === 'page'"
-      class="page-row"
-      :style="{
-        padding: '8px 12px',
-        background: pageState?.installed
-          ? 'rgba(232, 240, 248, 0.4)' /* Blue if installed */
-          : pageParentAction === 'install'
-            ? 'rgba(232, 245, 233, 0.6)' /* Green if installing */
-            : pageParentAction === 'remove'
-              ? 'rgba(255, 235, 238, 0.6)' /* Red if removing */
-              : 'rgba(255, 255, 255, 0.5)' /* Transparent white */,
-        borderRadius: '6px' /* Slightly rounded */,
-        marginBottom: '6px' /* Space between pages */,
-      }"
-    >
-      <span class="toggle-spacer"></span>
-      <span class="node-icon">📄</span>
-      <strong class="label">{{ node.label }}</strong>
-
-      <!-- Page rename editor -->
-      <span v-if="showPageEditor" class="page-rename-inline">
-        <span class="arrow">→</span>
-        <span v-if="displayPrefix" class="prefix-chip-inline">{{ displayPrefixWithSlash }}</span>
-        <input
-          class="page-input"
-          :class="{ 'has-collision': pageHasCollision }"
-          type="text"
-          :value="pageEditableTitle"
-          :placeholder="$t('labkipackmanager-page-title-placeholder') || 'PageTitle'"
-          :disabled="!isPageEditable"
-          :readonly="!isPageEditable"
-          :aria-invalid="pageHasCollision ? 'true' : 'false'"
-          :aria-describedby="pageHasCollision ? collisionId : undefined"
-          @input="onPageTitleChange"
-        />
-        <span
-          v-if="pageHasCollision"
-          :id="collisionId"
-          class="collision-icon"
-          :title="collisionTooltip"
-          >⚠️</span
-        >
-      </span>
-    </div>
+          <div
+            v-if="expanded && childPacks.length > 0"
+            class="children"
+            :style="{
+              marginTop: '8px',             /* Space from parent content */
+              paddingLeft: '16px',          /* Indent nested items */
+              borderLeft: '2px solid #eaecf0',  /* Visual nesting indicator */
+              paddingTop: '4px'             /* Top spacing */
+            }"
+          >
+            <tree-node
+              v-for="child in childPacks"
+              :key="child.id"
+              :node="child"
+              :depth="depth + 1"
+              :parent-pack-name="nodePackName"
+              @set-pack-action="$emit('set-pack-action', $event)"
+            />
+          </div>
+        </transition>
+      </div>
   </div>
 </template>
 
@@ -520,6 +455,38 @@ const expanded = ref(false);
 let prefixTimer: number | null = null;
 let pageTimer: number | null = null;
 
+/**
+ * Get the current value from the page's textbox in the DOM.
+ * This is used to check if API responses are stale.
+ */
+function getCurrentTextboxValue(packName, pageName) {
+  const input = document.querySelector(
+    `input.page-input[data-pack-name="${packName}"][data-page-name="${pageName}"]`
+  )
+  if (!input) return null
+
+  const editableValue = input.value
+  const pack = store.packs[packName]
+  const prefix = pack?.prefix || ''
+  const prefixWithSlash = prefix ? (prefix.endsWith('/') ? prefix : prefix + '/') : ''
+
+  return prefixWithSlash ? prefixWithSlash + editableValue : editableValue
+}
+
+/**
+ * Get the current value from the pack prefix input in the DOM.
+ * This is used to check if API responses are stale.
+ */
+function getCurrentPrefixValue(packName) {
+  const input = document.querySelector(
+    `input.prefix-input[data-pack-name="${packName}"]`
+  )
+  return input ? input.value : null
+}
+
+const hasChildren = computed(
+  () => !!(props.node.children && props.node.children.length)
+)
 const packState = computed(() =>
   props.node.type === 'pack' ? store.packs[props.node.label] || null : null,
 );
@@ -529,63 +496,14 @@ const isPackEditable = computed(() => {
   return action === 'install' && !installed;
 });
 const showPackEditor = computed(() => {
-  const action = packState.value?.action;
-  const installed = packState.value?.installed;
-  return action === 'install' || action === 'update' || installed;
-});
-const prefixInputValue = computed(() => packState.value?.prefix || '');
-const nodePackName = computed(() => (props.node.type === 'pack' ? props.node.label : null));
-const parentName = computed(() =>
-  props.node.type === 'page' ? props.parentPackName || null : null,
-);
-const parentPackState = computed(() =>
-  parentName.value ? store.packs[parentName.value] || null : null,
-);
-const pageState = computed(() =>
-  parentPackState.value?.pages ? parentPackState.value.pages[props.node.label] || null : null,
-);
-const isPageEditable = computed(() => {
-  // For pages in the right column, check the pack's state (this node is the pack)
-  if (props.node.type === 'pack') {
-    const action = packState.value?.action;
-    return action === 'install' || action === 'update';
-  }
-
-  // For standalone page nodes (legacy), check parent pack
-  const action = parentPackState.value?.action;
-  const installed = pageState.value?.installed;
-  return action === 'install' && !installed;
-});
-const showPageEditor = computed(() => {
-  const action = parentPackState.value?.action;
-  const installed = pageState.value?.installed;
-  return action === 'install' || action === 'update' || installed;
-});
-const pageParentAction = computed(() => parentPackState.value?.action || 'unchanged');
-const displayPrefix = computed(() => parentPackState.value?.prefix || '');
-const displayPrefixWithSlash = computed(() =>
-  displayPrefix.value
-    ? displayPrefix.value.endsWith('/')
-      ? displayPrefix.value
-      : displayPrefix.value + '/'
-    : '',
-);
-const pageEditableTitle = computed(() => {
-  const full = pageState.value?.final_title || '';
-  const pref = displayPrefixWithSlash.value;
-  return pref && full.startsWith(pref) ? full.slice(pref.length) : full;
-});
-const pageHasCollision = computed(() => {
-  const full = pageState.value?.final_title;
-  if (!full || !parentName.value) return false;
-  return store.warnings.some((w) => w.includes(full) && w.includes(parentName.value));
-});
-const collisionTooltip = computed(() => {
-  const full = pageState.value?.final_title;
-  if (!full || !parentName.value) return '';
-  return store.warnings.filter((w) => w.includes(full) && w.includes(parentName.value)).join('\n');
-});
-const collisionId = computed(() => `collision-${parentName.value || 'none'}-${props.node.label}`);
+  const action = packState.value?.action
+  const installed = packState.value?.installed
+  return (action === 'install' || action === 'update') || installed
+})
+const prefixInputValue = computed(() => packState.value?.prefix || '')
+const nodePackName = computed(() =>
+  props.node.type === 'pack' ? props.node.label : null
+)
 const canUpdate = computed(() => {
   const ps = packState.value;
   if (!ps) return false;
@@ -593,17 +511,6 @@ const canUpdate = computed(() => {
   if (!ps.target_version) return false;
   return ps?.current_version ? ps.target_version > ps.current_version : false;
 });
-
-if (props.node.type === 'pack') {
-  watch(
-    () => packState.value?.action,
-    (newAction, oldAction) => {
-      console.log(
-        `[TreeNode:${props.node.label}] packState.action changed: "${oldAction}" -> "${newAction}"`,
-      );
-    },
-  );
-}
 
 const subtreeHasAction = computed(() => {
   const check = (n: HierarchyNode) => {
@@ -624,13 +531,9 @@ function toggleExpanded() {
 }
 
 function toggleAction(action: PackStateAction) {
-  const current = packState.value?.action;
-  const next = current === action ? 'unchanged' : action;
-  console.log(
-    `[TreeNode:${props.node.label}] toggleAction: current="${current}", requested="${action}", next="${next}"`,
-  );
-  console.log(`[TreeNode:${props.node.label}] packState:`, packState.value);
-  emit('set-pack-action', { pack_name: props.node.label, action: next });
+  const current = packState.value?.action
+  const next = current === action ? 'unchanged' : action
+  emit('set-pack-action', { pack_name: props.node.label, action: next })
 }
 
 function toggleInstall() {
@@ -649,35 +552,39 @@ function onPrefixChange(e: Event) {
   if (!isPackEditable.value || e.target === null) return;
   const target = e.target as HTMLInputElement;
   const val = target.value;
-  if (prefixTimer) clearTimeout(prefixTimer);
-  prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 400);
-}
-
-// Legacy function for standalone page nodes (edge case)
-function onPageTitleChange(e: Event) {
-  if (!isPageEditable.value) return;
-  const target = e.target as HTMLInputElement;
-  const val = target.value;
-  if (pageTimer) clearTimeout(pageTimer);
-  pageTimer = setTimeout(async () => {
-    const newTitle = displayPrefixWithSlash.value ? displayPrefixWithSlash.value + val : val;
-    await sendRenamePageCommandLegacy(newTitle);
-  }, 400);
+  if (prefixTimer) clearTimeout(prefixTimer)
+  prefixTimer = setTimeout(() => sendSetPackPrefixCommand(val), 200)
 }
 
 async function sendSetPackPrefixCommand(prefix: string) {
-  if (store.busy) return;
+  if (store.busy) return
+
+  const packName = props.node.label
+
   try {
     store.busy = true;
     const response = await packsAction({
       command: 'set_pack_prefix',
       repo_url: store.repoUrl,
       ref: store.ref,
-      data: { pack_name: props.node.label, prefix },
-    });
-    mergeDiff(store.packs, response.diff);
-    store.stateHash = response.state_hash;
-    store.warnings = response.warnings;
+      data: { pack_name: packName, prefix },
+    })
+
+    // Check what's CURRENTLY in the prefix input (user might have typed more)
+    const currentPrefixValue = getCurrentPrefixValue(packName)
+    const responsePrefix = response.diff[packName]?.prefix
+
+    // Only apply if response matches current prefix input value
+    // This prevents stale responses from overwriting newer user input
+    if (currentPrefixValue !== null && responsePrefix !== currentPrefixValue) {
+      console.log('[sendSetPackPrefixCommand] 🚫 Ignoring stale response - would overwrite user input')
+      // Do NOT update anything - any store update triggers re-render which overwrites textbox
+      return
+    }
+
+    mergeDiff(store.packs, response.diff)
+    store.stateHash = response.state_hash
+    store.warnings = response.warnings
   } catch (e) {
     console.error('set_pack_prefix failed:', e);
   } finally {
@@ -685,29 +592,25 @@ async function sendSetPackPrefixCommand(prefix: string) {
   }
 }
 
-// Legacy function for standalone page nodes (edge case)
-async function sendRenamePageCommandLegacy(newTitle: string) {
-  if (store.busy || !parentName.value) return;
-  try {
-    store.busy = true;
-    const response = await packsAction({
-      command: 'rename_page',
-      repo_url: store.repoUrl,
-      ref: store.ref,
-      data: {
-        pack_name: parentName.value,
-        page_name: props.node.label,
-        new_title: newTitle,
-      },
-    });
-    mergeDiff(store.packs, response.diff);
-    store.stateHash = response.state_hash;
-    store.warnings = response.warnings;
-  } catch (e) {
-    console.error('rename_page failed:', e);
-  } finally {
-    store.busy = false;
+/**
+ * Shared helper to handle rename page API calls with stale response detection.
+ * Only applies the response if it matches the current textbox value.
+ */
+async function handleRenamePageResponse(packName, pageName, response) {
+  const currentTextboxValue = getCurrentTextboxValue(packName, pageName)
+  const responseFinalTitle = response.diff[packName]?.pages?.[pageName]?.final_title
+
+  // Only apply if response matches current textbox value
+  // This prevents stale responses from overwriting newer user input
+  if (currentTextboxValue !== null && responseFinalTitle !== currentTextboxValue) {
+    console.log('[handleRenamePageResponse] 🚫 Ignoring stale response - would overwrite user input')
+    // Do NOT update anything - any store update triggers re-render which overwrites textbox
+    return
   }
+
+  mergeDiff(store.packs, response.diff)
+  store.stateHash = response.state_hash
+  store.warnings = response.warnings
 }
 
 onBeforeUnmount(() => {
@@ -796,44 +699,35 @@ function onPageTitleChangeForPage(e: Event, pageName: string) {
   // Check if pack is editable
   const action = packState.value?.action;
   if (action !== 'install' && action !== 'update') {
-    console.log('[onPageTitleChangeForPage] Pack not in install/update mode, ignoring input');
-    return;
+    return
   }
 
   const pageState = getPageState(pageName);
   if (!pageState) {
-    console.log('[onPageTitleChangeForPage] No page state found for', pageName);
-    return;
+    return
   }
 
   // For install action, only allow editing if page is not already installed
   if (action === 'install' && pageState.installed) {
-    console.log('[onPageTitleChangeForPage] Page already installed, cannot rename during install');
-    return;
+    return
   }
 
   const target = e.target as HTMLInputElement;
   const editable = target.value;
-  console.log('[onPageTitleChangeForPage] Page:', pageName, 'New value:', editable);
 
-  if (pageTimer) clearTimeout(pageTimer);
+  if (pageTimer) clearTimeout(pageTimer)
   pageTimer = setTimeout(async () => {
-    const prefix = getDisplayPrefixWithSlash(pageName);
-    const newTitle = prefix ? prefix + editable : editable;
-    console.log(
-      '[onPageTitleChangeForPage] Sending rename command. Pack:',
-      props.node.label,
-      'Page:',
-      pageName,
-      'Title:',
-      newTitle,
-    );
-    await sendRenamePageCommand(pageName, newTitle);
-  }, 400);
+    const prefix = getDisplayPrefixWithSlash(pageName)
+    const newTitle = prefix ? prefix + editable : editable
+    await sendRenamePageCommand(pageName, newTitle)
+  }, 200)
 }
 
 async function sendRenamePageCommand(pageName: string, newTitle: string) {
-  if (store.busy) return;
+  if (store.busy) return
+
+  const packName = props.node.label
+
   try {
     store.busy = true;
     const response = await packsAction({
@@ -841,14 +735,13 @@ async function sendRenamePageCommand(pageName: string, newTitle: string) {
       repo_url: store.repoUrl,
       ref: store.ref,
       data: {
-        pack_name: props.node.label,
+        pack_name: packName,
         page_name: pageName,
         new_title: newTitle,
       },
-    });
-    mergeDiff(store.packs, response.diff);
-    store.stateHash = response.state_hash;
-    store.warnings = response.warnings;
+    })
+
+    await handleRenamePageResponse(packName, pageName, response)
   } catch (e) {
     console.error('rename_page failed:', e);
   } finally {
