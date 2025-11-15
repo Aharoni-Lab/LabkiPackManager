@@ -12,7 +12,7 @@ import type {
   PacksActionResponse,
   OperationsStatusResponse,
   ReposSyncRequest,
-  ReposSyncResponse
+  ReposSyncResponse,
 } from '../state/types';
 
 /**
@@ -57,10 +57,7 @@ export async function reposAdd(repoUrl: string, defaultRef: string): Promise<Rep
  * @param repoUrl - Repository URL
  * @param refs - Optional array of specific refs to sync (if not provided, syncs entire repo)
  */
-export async function reposSync(
-  repoUrl: string,
-  refs?: string[]
-): Promise<ReposSyncResponse> {
+export async function reposSync(repoUrl: string, refs?: string[]): Promise<ReposSyncResponse> {
   return apiCall(async () => {
     const api = getApi();
     console.log('[reposSync] Sending request:', { repo_url: repoUrl, refs });

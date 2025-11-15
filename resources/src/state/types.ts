@@ -94,18 +94,14 @@ export type PacksActionCommandName =
   | 'set_pack_prefix'
   | 'apply';
 
-export type OperationStatus =
-  | 'queued'
-  | 'running'
-  | 'success'
-  | 'failed';
+export type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
 
 /**
  * Payload for labkiPacksAction API.
  * A base type for common properties, sub-interfaces for each specific command,
  * and then a pair of selector types to be able to match types by the value of `command`
  */
-export interface PacksActionCommandBase{
+export interface PacksActionCommandBase {
   /** Command name (init, set_pack_action, rename_page, etc.) */
   command: PacksActionCommandName;
   /** Repository URL */
@@ -121,10 +117,9 @@ export interface PacksActionDataBase {
   pack_name: string;
 }
 
-
 export interface SetPackActionCommand extends PacksActionCommandBase {
-  command:'set_pack_action';
-    pack_name: string;
+  command: 'set_pack_action';
+  pack_name: string;
   data: SetPackActionData;
 }
 
@@ -133,8 +128,8 @@ export interface SetPackActionData extends PacksActionDataBase {
 }
 
 export interface SetPackPrefixCommand extends PacksActionCommandBase {
-  command:'set_pack_prefix';
-    data: SetPackPrefixData;
+  command: 'set_pack_prefix';
+  data: SetPackPrefixData;
 }
 
 export interface SetPackPrefixData extends PacksActionDataBase {
@@ -142,8 +137,8 @@ export interface SetPackPrefixData extends PacksActionDataBase {
 }
 
 export interface RenamePageCommand extends PacksActionCommandBase {
-  command:'rename_page';
-    data: RenamePageData;
+  command: 'rename_page';
+  data: RenamePageData;
 }
 
 export interface RenamePageData extends PacksActionDataBase {
@@ -151,16 +146,11 @@ export interface RenamePageData extends PacksActionDataBase {
   new_title: string;
 }
 
-
 export interface PacksActionRequest extends ActionAPIRequestBase<'labkiPacksAction'> {
   payload: string;
 }
 
-export type PacksActionCommand =
-  | SetPackActionCommand
-  | SetPackPrefixCommand
-  | RenamePageCommand
-
+export type PacksActionCommand = SetPackActionCommand | SetPackPrefixCommand | RenamePageCommand;
 
 export interface PacksActionDataMap {
   set_pack_action: SetPackActionData;
@@ -171,7 +161,6 @@ export interface PacksActionDataMap {
   clear: never;
   apply: never;
 }
-
 
 /**
  * Response from labkiPacksAction API.
@@ -215,8 +204,8 @@ export interface PacksActionWrapper {
 export type StateDifference = Record<string, PackDifference>;
 
 export interface PackDifference {
-    fields?: Record<string, FieldDifference>;
-    pages?: Record<string, Record<string, FieldDifference>>;
+  fields?: Record<string, FieldDifference>;
+  pages?: Record<string, Record<string, FieldDifference>>;
 }
 
 export interface FieldDifference {
@@ -429,9 +418,9 @@ export type ActionAPIRequest<T extends ActionAPIName> = T extends 'labkiReposLis
           ? PacksActionRequest
           : T extends 'labkiOperationsStatus'
             ? OperationsStatusRequest
-              : T extends 'labkiReposSync'
+            : T extends 'labkiReposSync'
               ? ReposSyncRequest
-                : never;
+              : never;
 
 export interface ActionAPIResponseMap {
   labkiReposList: ReposListResponse;

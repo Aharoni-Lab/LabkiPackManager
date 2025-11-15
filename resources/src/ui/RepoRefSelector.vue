@@ -62,7 +62,14 @@
 import { ref, computed, onMounted } from 'vue';
 import { CdxField, CdxSelect, CdxMessage, CdxButton } from '@wikimedia/codex';
 import { store } from '../state/store';
-import { reposList, reposSync, graphGet, hierarchyGet, packsAction, pollOperation } from '../api/endpoints';
+import {
+  reposList,
+  reposSync,
+  graphGet,
+  hierarchyGet,
+  packsAction,
+  pollOperation,
+} from '../api/endpoints';
 import AddRepoModal from './AddRepoModal.vue';
 import AddRefModal from './AddRefModal.vue';
 import { PackGraph } from '../state/types';
@@ -372,7 +379,7 @@ async function onSync() {
           } else if (status.status === 'running') {
             syncMessage.value = `Syncing... (${status.progress || 0}%)`;
           }
-        }
+        },
       );
 
       console.log('[onSync] Sync completed successfully');

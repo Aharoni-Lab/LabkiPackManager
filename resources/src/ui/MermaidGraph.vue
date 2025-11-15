@@ -25,7 +25,7 @@ import { CdxMessage } from '@wikimedia/codex';
 const props = defineProps({
   mermaidSrc: {
     type: String,
-    required: true
+    required: true,
   },
 });
 

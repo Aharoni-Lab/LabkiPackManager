@@ -450,11 +450,7 @@ import { CdxButton } from '@wikimedia/codex';
 import { store } from '../state/store';
 import { packsAction } from '../api/endpoints';
 import { mergeDiff } from '../state/merge';
-import {
-  HierarchyNode,
-  type PacksActionResponse,
-  PackStateAction,
-} from '../state/types';
+import { HierarchyNode, type PacksActionResponse, PackStateAction } from '../state/types';
 
 const props = defineProps<{
   node: HierarchyNode;

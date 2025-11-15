@@ -189,8 +189,7 @@ const diffList = computed(() => {
         .filter((page) => page.fields.length > 0);
 
       const changeCount =
-        fieldChanges.length +
-        pageChanges.reduce((total, page) => total + page.fields.length, 0);
+        fieldChanges.length + pageChanges.reduce((total, page) => total + page.fields.length, 0);
 
       if (changeCount === 0) {
         return null;
@@ -278,10 +277,7 @@ function isValuesEqual(a, b) {
     return true;
   }
 
-  if (
-    (a === undefined && b === null) ||
-    (b === undefined && a === null)
-  ) {
+  if ((a === undefined && b === null) || (b === undefined && a === null)) {
     return true;
   }
 

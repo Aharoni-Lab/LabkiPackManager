@@ -618,7 +618,9 @@ function handleStateOutOfSync(response: PacksActionResponse) {
   stateSyncModal.visible = true;
   stateSyncModal.message = response.message || 'Frontend and backend pack states are out of sync.';
   stateSyncModal.differences = cleanedDifferences;
-  stateSyncModal.serverPacks = response.server_packs ? deepClone(response.server_packs) : {} as PacksState;
+  stateSyncModal.serverPacks = response.server_packs
+    ? deepClone(response.server_packs)
+    : ({} as PacksState);
   stateSyncModal.serverHash = response.state_hash || '';
   stateSyncModal.reconcileCommands = filterReconcileCommands(rawCommands, cleanedDifferences);
   stateSyncModal.clientSnapshot = deepClone(store.packs);

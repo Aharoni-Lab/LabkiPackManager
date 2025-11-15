@@ -47,7 +47,7 @@ const props = defineProps({
   modelValue: Boolean,
   repoUrl: {
     type: String,
-    required: true
+    required: true,
   },
 });
 

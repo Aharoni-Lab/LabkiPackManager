@@ -43,7 +43,7 @@ defineProps({
   },
 });
 
-async function onSetPackAction(payload: SetPackActionData ){
+async function onSetPackAction(payload: SetPackActionData) {
   // Send set_pack_action command to backend
   await sendCommand('set_pack_action', {
     pack_name: payload.pack_name,
@@ -51,7 +51,10 @@ async function onSetPackAction(payload: SetPackActionData ){
   });
 }
 
-async function sendCommand<T extends PacksActionCommandName>(command: T, data: PacksActionDataMap[T]) {
+async function sendCommand<T extends PacksActionCommandName>(
+  command: T,
+  data: PacksActionDataMap[T],
+) {
   if (store.busy) return;
 
   try {
