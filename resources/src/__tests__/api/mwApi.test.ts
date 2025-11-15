@@ -39,4 +39,3 @@ describe('MW API Utilities', () => {
     });
   });
 });
-

@@ -1,6 +1,6 @@
 /**
  * Test setup file for Vitest
- * 
+ *
  * This file is automatically loaded before all tests.
  */
 
@@ -30,4 +30,3 @@ global.mw = {
 
 // Mock i18n for Vue components
 global.$t = (key: string) => key;
-

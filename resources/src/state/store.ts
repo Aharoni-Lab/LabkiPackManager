@@ -1,6 +1,6 @@
 /**
  * Reactive state store for Labki Pack Manager.
- * 
+ *
  * Uses Vue's reactive() for minimal, framework-integrated state management.
  */
 
@@ -41,4 +41,3 @@ export const store = reactive({
   /** All available repositories */
   repos: [] as Repo[],
 });
-

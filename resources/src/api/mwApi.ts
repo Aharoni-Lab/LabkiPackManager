@@ -11,16 +11,17 @@ export function getApi() {
 
 /**
  * Wrap an API call with error handling.
- * 
+ *
  * @param fn - API call function
  * @returns Promise with typed result
  */
 export async function apiCall<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    return await fn();
+    const res = await fn();
+    console.log('API Response', fn, res);
+    return res;
   } catch (error) {
     console.error('API call failed:', error);
     throw error;
   }
 }
-

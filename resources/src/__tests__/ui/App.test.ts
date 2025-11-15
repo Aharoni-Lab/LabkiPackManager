@@ -45,7 +45,7 @@ describe('App Component', () => {
     expect(wrapper.find('h1').exists()).toBe(true);
   });
 
-  it('should show loading overlay when busy', async () => {
+  it('should show loading overlay when busy', () => {
     store.busy = true;
     const wrapper = mount(App, {
       global: {
@@ -76,4 +76,3 @@ describe('App Component', () => {
     expect(wrapper.find('.loading-overlay').exists()).toBe(false);
   });
 });
-

@@ -53,7 +53,10 @@ describe('HierarchyTree Component', () => {
 
     expect(wrapper.exists()).toBe(true);
     // Should render the hierarchy
-    expect(wrapper.findComponent({ name: 'TreeNode' }).exists() || wrapper.find('.tree-content').exists()).toBe(true);
+    expect(
+      wrapper.findComponent({ name: 'TreeNode' }).exists() ||
+        wrapper.find('.tree-content').exists(),
+    ).toBe(true);
   });
 
   it('should handle empty children array', () => {
@@ -77,4 +80,3 @@ describe('HierarchyTree Component', () => {
     expect(wrapper.exists()).toBe(true);
   });
 });
-
