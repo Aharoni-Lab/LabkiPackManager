@@ -66,7 +66,7 @@ export default [
       }
     },
     rules: {
-      'no-console': 'warning',
+      'no-console': 'warn',
     }
   },
   {
@@ -74,7 +74,7 @@ export default [
     files: ['**/*.{js,ts}'],
     rules: {
       // make error after conferring with daniel -jls
-      'no-console': 'warning',
+      'no-console': 'warn',
     }
   },
   {
