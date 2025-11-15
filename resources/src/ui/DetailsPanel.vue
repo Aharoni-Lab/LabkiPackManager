@@ -419,13 +419,8 @@
           >
             ✓ {{ $t('labkipackmanager-apply') }}
           </cdx-button>
-          
-          <cdx-button
-            action="destructive"
-            weight="quiet"
-            :disabled="store.busy"
-            @click="onClear"
-          >
+
+          <cdx-button action="destructive" weight="quiet" :disabled="store.busy" @click="onClear">
             ✕ {{ $t('labkipackmanager-clear') }}
           </cdx-button>
         </div>
@@ -457,18 +452,26 @@ import { store } from '../state/store';
 import { packsAction, pollOperation } from '../api/endpoints';
 import { mergeDiff } from '../state/merge';
 import StateSyncModal from './StateSyncModal.vue';
+import {
+  type FieldDifference,
+  type PacksActionCommand,
+  PacksActionResponse,
+  StateDifference,
+  OperationStatus,
+  type PacksState,
+} from '../state/types';
 
 const operationMessage = ref('');
 const errorMessage = ref('');
-const packStatuses = ref({}); // Track status of each pack during apply
+const packStatuses = ref({} as Record<string, OperationStatus>); // Track status of each pack during apply
 
 const stateSyncModal = reactive({
   visible: false,
   message: '',
   differences: {},
-  serverPacks: {},
+  serverPacks: {} as PacksState,
   serverHash: '',
-  reconcileCommands: [],
+  reconcileCommands: [] as PacksActionCommand[],
   clientSnapshot: {},
   attemptingReconcile: false,
   reconcileMessage: '',
@@ -523,28 +526,28 @@ async function onApply() {
 
     console.log('[onApply] Apply response:', response);
 
-	if (!response.ok) {
-		if (response.error === 'state_out_of_sync') {
-			handleStateOutOfSync(response);
-			operationMessage.value = 'State out of sync detected. Review differences below.';
-			markAllStatuses('failed');
-			return;
-		}
-		throw new Error(response.message || 'Apply command failed');
-	}
+    if (!response.ok) {
+      if (response.error === 'state_out_of_sync') {
+        handleStateOutOfSync(response);
+        operationMessage.value = 'State out of sync detected. Review differences below.';
+        markAllStatuses('failed');
+        return;
+      }
+      throw new Error(response.message || 'Apply command failed');
+    }
 
     // Merge diff (session state is cleared by backend)
-	if (response.diff) {
-    mergeDiff(store.packs, response.diff);
-	} else {
-		// When backend returns no diff (should not happen), ensure packs are cleared
-		for (const key of Object.keys(store.packs)) delete store.packs[key];
-	}
-	if (response.state_hash) {
-    store.stateHash = response.state_hash;
-	}
-	store.warnings = response.warnings ?? [];
-    
+    if (response.diff) {
+      mergeDiff(store.packs, response.diff);
+    } else {
+      // When backend returns no diff (should not happen), ensure packs are cleared
+      for (const key of Object.keys(store.packs)) delete store.packs[key];
+    }
+    if (response.state_hash) {
+      store.stateHash = response.state_hash;
+    }
+    store.warnings = response.warnings ?? [];
+
     // Step 2: If we got an operation_id, poll for completion
     if (response.operation?.operation_id) {
       const operationId = response.operation.operation_id;
@@ -596,26 +599,26 @@ async function onApply() {
     operationMessage.value = '';
 
     // Mark all as failed
-		markAllStatuses('failed');
+    markAllStatuses('failed');
   } finally {
     store.busy = false;
   }
 }
 
-function markAllStatuses(status) {
+function markAllStatuses(status: string) {
   for (const packName in packStatuses.value) {
     packStatuses.value[packName] = status;
   }
 }
 
-function handleStateOutOfSync(response) {
+function handleStateOutOfSync(response: PacksActionResponse) {
   const rawCommands = Array.isArray(response.reconcile_commands) ? response.reconcile_commands : [];
   const cleanedDifferences = sanitizeDifferences(response.differences, rawCommands);
 
   stateSyncModal.visible = true;
   stateSyncModal.message = response.message || 'Frontend and backend pack states are out of sync.';
   stateSyncModal.differences = cleanedDifferences;
-  stateSyncModal.serverPacks = response.server_packs ? deepClone(response.server_packs) : {};
+  stateSyncModal.serverPacks = response.server_packs ? deepClone(response.server_packs) : {} as PacksState;
   stateSyncModal.serverHash = response.state_hash || '';
   stateSyncModal.reconcileCommands = filterReconcileCommands(rawCommands, cleanedDifferences);
   stateSyncModal.clientSnapshot = deepClone(store.packs);
@@ -623,7 +626,7 @@ function handleStateOutOfSync(response) {
   stateSyncModal.reconcileMessage = '';
 }
 
-function replaceStorePacks(newPacks) {
+function replaceStorePacks(newPacks: PacksState) {
   const target = store.packs;
   for (const key of Object.keys(target)) {
     delete target[key];
@@ -687,7 +690,8 @@ async function reconcileAndReapply() {
       }
     }
 
-    stateSyncModal.reconcileMessage = 'Differences reapplied successfully. Attempting apply again...';
+    stateSyncModal.reconcileMessage =
+      'Differences reapplied successfully. Attempting apply again...';
     stateSyncModal.attemptingReconcile = false;
     stateSyncModal.visible = false;
 
@@ -699,15 +703,15 @@ async function reconcileAndReapply() {
   }
 }
 
-function deepClone(value) {
+function deepClone<T>(value: T): T {
   if (value === undefined) {
     return value;
   }
-  return JSON.parse(JSON.stringify(value));
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function sanitizeDifferences(differences, commands = []) {
-  const result = {};
+function sanitizeDifferences(differences: StateDifference, commands: PacksActionCommand[] = []) {
+  const result: StateDifference = {};
   if (!differences || typeof differences !== 'object') {
     return result;
   }
@@ -715,7 +719,7 @@ function sanitizeDifferences(differences, commands = []) {
   const allowedPacks = new Set(
     commands
       .map((command) => command?.data?.pack_name)
-      .filter((packName) => typeof packName === 'string' && packName !== '')
+      .filter((packName) => typeof packName === 'string' && packName !== ''),
   );
   const restrictToAllowed = allowedPacks.size > 0;
 
@@ -729,7 +733,7 @@ function sanitizeDifferences(differences, commands = []) {
 
     const fieldEntries = Object.entries(fields ?? {});
 
-    const filteredPages = {};
+    const filteredPages: Record<string, Record<string, FieldDifference>> = {};
     for (const [pageName, pageDiff] of Object.entries(pages ?? {})) {
       const pageFields = Object.entries(pageDiff ?? {});
       if (pageFields.length > 0) {
@@ -748,7 +752,7 @@ function sanitizeDifferences(differences, commands = []) {
   return result;
 }
 
-function filterReconcileCommands(commands, differences) {
+function filterReconcileCommands(commands: PacksActionCommand[], differences: StateDifference) {
   const packs = new Set(Object.keys(differences));
   return commands.filter((command) => {
     const packName = command?.data?.pack_name;
@@ -767,9 +771,16 @@ function updatePackStatusFromMessage(message: string) {
   const updateMatch = message.match(/Updating pack[:\s]+(.+)/i);
   const removeMatch = message.match(/Removing pack[:\s]+(.+)/i);
   const completeMatch = message.match(/Completed pack[:\s]+(.+)/i);
+  const match = installMatch
+    ? installMatch
+    : updateMatch
+      ? updateMatch
+      : removeMatch
+        ? removeMatch
+        : null;
 
-  if (installMatch || updateMatch || removeMatch) {
-    const packName = (installMatch || updateMatch || removeMatch)[1].trim();
+  if (match !== null) {
+    const packName = match[1].trim();
     if (packStatuses.value[packName] !== undefined) {
       packStatuses.value[packName] = 'running';
     }

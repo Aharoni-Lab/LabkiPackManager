@@ -34,6 +34,23 @@ export default [
       'vue/no-unused-properties': "error",
       'vue/no-unused-refs': "error",
       'vue/no-unused-emit-declarations': "error",
+      "@typescript-eslint/consistent-indexed-object-style": "error",
+      "@typescript-eslint/no-empty-object-type": [
+        "error",
+        {
+          allowInterfaces: 'with-single-extends'
+        }
+        ],
+      '@typescript-eslint/no-restricted-types': [
+        "error",
+        {
+          "types": {
+            "Record<string, unknown>": "Having generic record types is effectively not having types! Define the keys and values specifically." +
+              "In this extension, we do in fact always know what type everything is because we do not interact with external systems.",
+            "unknown": "We always know the types in this extension since we don't interact with external systems. Define what this type actually is."
+          }
+        }
+      ]
     }
   },
   {
@@ -49,7 +66,7 @@ export default [
       }
     },
     rules: {
-      'no-console': 'warn',
+      'no-console': 'warning',
     }
   },
   {
@@ -57,7 +74,7 @@ export default [
     files: ['**/*.{js,ts}'],
     rules: {
       // make error after conferring with daniel -jls
-      'no-console': 'warn',
+      'no-console': 'warning',
     }
   },
   {

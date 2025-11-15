@@ -12,7 +12,8 @@ export type ActionAPIName =
   | 'labkiGraphGet'
   | 'labkiHierarchyGet'
   | 'labkiPacksAction'
-  | 'labkiOperationsStatus';
+  | 'labkiOperationsStatus'
+  | 'labkiReposSync';
 export interface ActionAPIResponseBase {
   meta: {
     schemaVersion: number;
@@ -84,7 +85,7 @@ export type PacksState = Record<string, PackState>;
 // API Request/Response Types
 // ============================================================================
 
-export type PacksActionCommand =
+export type PacksActionCommandName =
   | 'init'
   | 'refresh'
   | 'clear'
@@ -93,34 +94,84 @@ export type PacksActionCommand =
   | 'set_pack_prefix'
   | 'apply';
 
+export type OperationStatus =
+  | 'queued'
+  | 'running'
+  | 'success'
+  | 'failed';
+
 /**
  * Payload for labkiPacksAction API.
+ * A base type for common properties, sub-interfaces for each specific command,
+ * and then a pair of selector types to be able to match types by the value of `command`
  */
-export interface PacksActionPayload {
+export interface PacksActionCommandBase{
   /** Command name (init, set_pack_action, rename_page, etc.) */
-  command: PacksActionCommand;
+  command: PacksActionCommandName;
   /** Repository URL */
   repo_url: string;
   /** Reference (branch/tag) */
   ref: string;
   /** Command-specific data */
-  data: PacksActionPayloadData;
+  data: PacksActionDataBase;
   pack_name?: string;
 }
 
-export interface PacksActionPayloadData {
-  action?: string;
-  pack_name?: string;
-}
-
-export interface SetPackActionPayload extends PacksActionPayload {
-  action: string;
+export interface PacksActionDataBase {
   pack_name: string;
 }
+
+
+export interface SetPackActionCommand extends PacksActionCommandBase {
+  command:'set_pack_action';
+    pack_name: string;
+  data: SetPackActionData;
+}
+
+export interface SetPackActionData extends PacksActionDataBase {
+  action: string;
+}
+
+export interface SetPackPrefixCommand extends PacksActionCommandBase {
+  command:'set_pack_prefix';
+    data: SetPackPrefixData;
+}
+
+export interface SetPackPrefixData extends PacksActionDataBase {
+  prefix: string;
+}
+
+export interface RenamePageCommand extends PacksActionCommandBase {
+  command:'rename_page';
+    data: RenamePageData;
+}
+
+export interface RenamePageData extends PacksActionDataBase {
+  page_name: string;
+  new_title: string;
+}
+
 
 export interface PacksActionRequest extends ActionAPIRequestBase<'labkiPacksAction'> {
   payload: string;
 }
+
+export type PacksActionCommand =
+  | SetPackActionCommand
+  | SetPackPrefixCommand
+  | RenamePageCommand
+
+
+export interface PacksActionDataMap {
+  set_pack_action: SetPackActionData;
+  set_pack_prefix: SetPackPrefixData;
+  rename_page: RenamePageData;
+  init: never;
+  refresh: never;
+  clear: never;
+  apply: never;
+}
+
 
 /**
  * Response from labkiPacksAction API.
@@ -133,23 +184,22 @@ export interface PacksActionResponse extends ActionAPIResponseBase {
   /** Human-friendly message */
   message?: string;
   /** State diff (changed fields only, or full state on init) */
-  diff?: PacksState;
+  diff: PacksState;
   /** Warning messages */
-  warnings?: string[];
+  warnings: string[];
   /** Authoritative server state hash */
-  state_hash?: string;
+  state_hash: string;
   /** Operation info (e.g., from apply command) */
   operation?: {
     operation_id?: string;
-    status?: string;
-    [key: string]: unknown;
+    status?: OperationStatus;
   };
   /** Authoritative server packs (when state is out of sync) */
   server_packs?: PacksState;
   /** Field-level differences for reconciliation */
   differences?: StateDifference;
   /** Suggested commands to reconcile client intent */
-  reconcile_commands?: ReconcileCommand[];
+  reconcile_commands?: PacksActionCommand[];
   /** Response metadata */
   meta: {
     schemaVersion: number;
@@ -162,21 +212,16 @@ export interface PacksActionWrapper {
   labkiPacksAction: PacksActionResponse;
 }
 
-export interface StateDifference {
-  [packName: string]: {
+export type StateDifference = Record<string, PackDifference>;
+
+export interface PackDifference {
     fields?: Record<string, FieldDifference>;
     pages?: Record<string, Record<string, FieldDifference>>;
-  };
 }
 
 export interface FieldDifference {
-  client: unknown;
-  server: unknown;
-}
-
-export interface ReconcileCommand {
-  command: string;
-  data: Record<string, unknown>;
+  client: string;
+  server: string;
 }
 
 // ============================================================================
@@ -307,6 +352,19 @@ export interface ReposAddResponse extends ActionAPIResponseBase {
   refs?: Ref[];
 }
 
+export interface ReposSyncRequest extends ActionAPIRequestBase<'labkiReposSync'> {
+  repo_url: string;
+  refs?: string;
+}
+
+export interface ReposSyncResponse extends ActionAPIResponseBase {
+  success: boolean;
+  operation_id: string;
+  status: OperationStatus;
+  message: string;
+  refs?: Ref[];
+}
+
 // ============================================================================
 // Graph Types
 // ============================================================================
@@ -371,7 +429,9 @@ export type ActionAPIRequest<T extends ActionAPIName> = T extends 'labkiReposLis
           ? PacksActionRequest
           : T extends 'labkiOperationsStatus'
             ? OperationsStatusRequest
-            : never;
+              : T extends 'labkiReposSync'
+              ? ReposSyncRequest
+                : never;
 
 export interface ActionAPIResponseMap {
   labkiReposList: ReposListResponse;
@@ -380,4 +440,5 @@ export interface ActionAPIResponseMap {
   labkiHierarchyGet: HierarchyGetResponse;
   labkiPacksAction: PacksActionWrapper;
   labkiOperationsStatus: OperationsStatusResponse;
+  labkiReposSync: ReposSyncResponse;
 }

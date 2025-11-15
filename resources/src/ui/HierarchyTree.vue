@@ -30,13 +30,20 @@ import { store } from '../state/store';
 import { packsAction } from '../api/endpoints';
 import { mergeDiff } from '../state/merge';
 import TreeNode from './TreeNode.vue';
-import { PacksActionCommand, PacksActionPayloadData, SetPackActionPayload } from '../state/types';
+import {
+  type PacksActionCommandName,
+  type SetPackActionData,
+  type PacksActionDataMap,
+} from '../state/types';
 
 defineProps({
-  hierarchy: Object,
+  hierarchy: {
+    type: Object,
+    required: true,
+  },
 });
 
-async function onSetPackAction(payload: SetPackActionPayload) {
+async function onSetPackAction(payload: SetPackActionData ){
   // Send set_pack_action command to backend
   await sendCommand('set_pack_action', {
     pack_name: payload.pack_name,
@@ -44,7 +51,7 @@ async function onSetPackAction(payload: SetPackActionPayload) {
   });
 }
 
-async function sendCommand(command: PacksActionCommand, data: PacksActionPayloadData) {
+async function sendCommand<T extends PacksActionCommandName>(command: T, data: PacksActionDataMap[T]) {
   if (store.busy) return;
 
   try {

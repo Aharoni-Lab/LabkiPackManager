@@ -45,7 +45,10 @@ import { reposAdd, pollOperation } from '../api/endpoints';
 
 const props = defineProps({
   modelValue: Boolean,
-  repoUrl: String,
+  repoUrl: {
+    type: String,
+    required: true
+  },
 });
 
 const emit = defineEmits(['update:modelValue', 'added']);

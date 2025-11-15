@@ -23,7 +23,10 @@ import { ref, onMounted, watch, nextTick } from 'vue';
 import { CdxMessage } from '@wikimedia/codex';
 
 const props = defineProps({
-  mermaidSrc: String,
+  mermaidSrc: {
+    type: String,
+    required: true
+  },
 });
 
 const hasMermaid = ref(false);

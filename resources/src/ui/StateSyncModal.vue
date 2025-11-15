@@ -14,67 +14,102 @@
         <span class="warning-icon">⚠️</span>
         <div class="warning-copy">
           <strong :style="diffStyles.warningHeading">Heads up</strong>
-          <span :style="diffStyles.warningText">Syncing with the backend will discard the pending changes listed below.</span>
+          <span :style="diffStyles.warningText"
+            >Syncing with the backend will discard the pending changes listed below.</span
+          >
         </div>
       </div>
 
       <div v-if="diffList.length > 0" class="diff-summary" :style="diffStyles.summary">
-        {{ diffList.length === 1 ? '1 pack needs review.' : diffList.length + ' packs need review.' }}
+        {{
+          diffList.length === 1 ? '1 pack needs review.' : diffList.length + ' packs need review.'
+        }}
       </div>
 
       <div class="diff-container">
         <div v-if="diffList.length === 0" class="diff-empty">
-          No detailed differences were detected, but hashes still differ. Consider syncing with the backend.
+          No detailed differences were detected, but hashes still differ. Consider syncing with the
+          backend.
         </div>
         <div v-else class="diff-list">
           <div v-for="pack in diffList" :key="pack.packName" class="diff-pack">
             <div class="diff-pack-header">
               <h4 class="diff-pack-name">{{ pack.packName }}</h4>
-              <span class="diff-chip">{{ pack.changeCount === 1 ? '1 change' : pack.changeCount + ' changes' }}</span>
+              <span class="diff-chip">{{
+                pack.changeCount === 1 ? '1 change' : pack.changeCount + ' changes'
+              }}</span>
             </div>
 
             <div v-if="pack.fieldChanges.length" class="diff-section">
-            <div class="diff-section-title">Pack fields</div>
-              <div
-                v-for="field in pack.fieldChanges"
-                :key="field.name"
-                class="diff-row"
-              >
-                <span class="diff-label" :style="diffStyles.label">{{ formatFieldName(field.name) }}</span>
-                <span class="diff-value diff-client" :style="[diffStyles.valueBase, diffStyles.valueClient]">
-                  <span class="diff-pill diff-pill-old" :style="[diffStyles.pillBase, diffStyles.pillOld]">Was</span>
-                  <span class="diff-text" :style="diffStyles.valueText">{{ formatDifferenceValue(field.client) }}</span>
+              <div class="diff-section-title">Pack fields</div>
+              <div v-for="field in pack.fieldChanges" :key="field.name" class="diff-row">
+                <span class="diff-label" :style="diffStyles.label">{{
+                  formatFieldName(field.name)
+                }}</span>
+                <span
+                  class="diff-value diff-client"
+                  :style="[diffStyles.valueBase, diffStyles.valueClient]"
+                >
+                  <span
+                    class="diff-pill diff-pill-old"
+                    :style="[diffStyles.pillBase, diffStyles.pillOld]"
+                    >Was</span
+                  >
+                  <span class="diff-text" :style="diffStyles.valueText">{{
+                    formatDifferenceValue(field.client)
+                  }}</span>
                 </span>
                 <span class="diff-arrow" :style="diffStyles.arrow">→</span>
-                <span class="diff-value diff-server" :style="[diffStyles.valueBase, diffStyles.valueServer]">
-                  <span class="diff-pill diff-pill-new" :style="[diffStyles.pillBase, diffStyles.pillNew]">Now</span>
-                  <span class="diff-text" :style="diffStyles.valueText">{{ formatDifferenceValue(field.server) }}</span>
+                <span
+                  class="diff-value diff-server"
+                  :style="[diffStyles.valueBase, diffStyles.valueServer]"
+                >
+                  <span
+                    class="diff-pill diff-pill-new"
+                    :style="[diffStyles.pillBase, diffStyles.pillNew]"
+                    >Now</span
+                  >
+                  <span class="diff-text" :style="diffStyles.valueText">{{
+                    formatDifferenceValue(field.server)
+                  }}</span>
                 </span>
               </div>
             </div>
 
-            <div
-              v-for="page in pack.pageChanges"
-              :key="page.pageName"
-              class="diff-section"
-            >
+            <div v-for="page in pack.pageChanges" :key="page.pageName" class="diff-section">
               <div class="diff-section-title">
                 Page: <span class="diff-page-name">{{ page.pageName }}</span>
               </div>
-              <div
-                v-for="pageField in page.fields"
-                :key="pageField.name"
-                class="diff-row"
-              >
-                <span class="diff-label" :style="diffStyles.label">{{ formatFieldName(pageField.name) }}</span>
-                <span class="diff-value diff-client" :style="[diffStyles.valueBase, diffStyles.valueClient]">
-                  <span class="diff-pill diff-pill-old" :style="[diffStyles.pillBase, diffStyles.pillOld]">Was</span>
-                  <span class="diff-text" :style="diffStyles.valueText">{{ formatDifferenceValue(pageField.client) }}</span>
+              <div v-for="pageField in page.fields" :key="pageField.name" class="diff-row">
+                <span class="diff-label" :style="diffStyles.label">{{
+                  formatFieldName(pageField.name)
+                }}</span>
+                <span
+                  class="diff-value diff-client"
+                  :style="[diffStyles.valueBase, diffStyles.valueClient]"
+                >
+                  <span
+                    class="diff-pill diff-pill-old"
+                    :style="[diffStyles.pillBase, diffStyles.pillOld]"
+                    >Was</span
+                  >
+                  <span class="diff-text" :style="diffStyles.valueText">{{
+                    formatDifferenceValue(pageField.client)
+                  }}</span>
                 </span>
                 <span class="diff-arrow" :style="diffStyles.arrow">→</span>
-                <span class="diff-value diff-server" :style="[diffStyles.valueBase, diffStyles.valueServer]">
-                  <span class="diff-pill diff-pill-new" :style="[diffStyles.pillBase, diffStyles.pillNew]">Now</span>
-                  <span class="diff-text" :style="diffStyles.valueText">{{ formatDifferenceValue(pageField.server) }}</span>
+                <span
+                  class="diff-value diff-server"
+                  :style="[diffStyles.valueBase, diffStyles.valueServer]"
+                >
+                  <span
+                    class="diff-pill diff-pill-new"
+                    :style="[diffStyles.pillBase, diffStyles.pillNew]"
+                    >Now</span
+                  >
+                  <span class="diff-text" :style="diffStyles.valueText">{{
+                    formatDifferenceValue(pageField.server)
+                  }}</span>
                 </span>
               </div>
             </div>
@@ -98,18 +133,21 @@
   </cdx-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { CdxDialog, CdxButton } from '@wikimedia/codex';
+import { CdxButton, CdxDialog } from '@wikimedia/codex';
+import { type PacksActionCommand, type StateDifference } from '../state/types.ts';
 
-const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  message: { type: String, default: '' },
-  differences: { type: Object, default: () => ({}) },
-  reconcileCommands: { type: Array, default: () => [] },
-  attemptingReconcile: { type: Boolean, default: false },
-  reconcileMessage: { type: String, default: '' },
-});
+interface Props {
+  modelValue: boolean;
+  message: string;
+  differences: StateDifference;
+  reconcileCommands: PacksActionCommand[];
+  attemptingReconcile: boolean;
+  reconcileMessage: string;
+}
+
+const props = defineProps<Props>();
 
 const emit = defineEmits(['update:modelValue', 'sync', 'cancel', 'reconcile']);
 
@@ -250,7 +288,7 @@ function isValuesEqual(a, b) {
   if (typeof a === 'object' && typeof b === 'object') {
     try {
       return JSON.stringify(a) === JSON.stringify(b);
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -296,21 +334,19 @@ function formatDifferenceValue(value) {
   }
   try {
     return JSON.stringify(value);
-  } catch (e) {
+  } catch {
     return String(value);
   }
 }
 
-function formatFieldName(name) {
+function formatFieldName(name: string) {
   if (!name) {
     return '';
   }
-  return name
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return name.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function $t(key) {
+function $t(key: string) {
   return mw.msg(key);
 }
 </script>
@@ -528,5 +564,3 @@ function $t(key) {
   padding: 10px;
 }
 </style>
-
-

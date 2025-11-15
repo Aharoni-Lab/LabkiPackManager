@@ -8,9 +8,11 @@ import type {
   ReposAddResponse,
   GraphGetResponse,
   HierarchyGetResponse,
-  PacksActionPayload,
+  PacksActionCommandBase,
   PacksActionResponse,
   OperationsStatusResponse,
+  ReposSyncRequest,
+  ReposSyncResponse
 } from '../state/types';
 
 /**
@@ -58,12 +60,12 @@ export async function reposAdd(repoUrl: string, defaultRef: string): Promise<Rep
 export async function reposSync(
   repoUrl: string,
   refs?: string[]
-): Promise<any> {
+): Promise<ReposSyncResponse> {
   return apiCall(async () => {
     const api = getApi();
     console.log('[reposSync] Sending request:', { repo_url: repoUrl, refs });
 
-    const params: any = {
+    const params: ReposSyncRequest = {
       action: 'labkiReposSync',
       format: 'json',
       repo_url: repoUrl,
@@ -78,10 +80,7 @@ export async function reposSync(
     console.log('[reposSync] Raw API response:', response);
 
     // MediaWiki might wrap or not wrap depending on context
-    const data = response.labkiReposSync || response;
-    console.log('[reposSync] Returning data:', data);
-
-    return data;
+    return response;
   });
 }
 
@@ -126,7 +125,7 @@ export async function hierarchyGet(repoUrl: string, ref: string): Promise<Hierar
  *
  * @param payload - Action payload
  */
-export async function packsAction(payload: PacksActionPayload): Promise<PacksActionResponse> {
+export async function packsAction(payload: PacksActionCommandBase): Promise<PacksActionResponse> {
   return apiCall(async () => {
     const api = getApi();
 
