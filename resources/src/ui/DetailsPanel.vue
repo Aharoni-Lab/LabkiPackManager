@@ -455,9 +455,9 @@ import StateSyncModal from './StateSyncModal.vue';
 import {
   type FieldDifference,
   type PacksActionCommand,
-  PacksActionResponse,
-  StateDifference,
-  OperationStatus,
+  type PacksActionResponse,
+  type StateDifference,
+  type OperationStatus,
   type PacksState,
 } from '../state/types';
 

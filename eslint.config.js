@@ -35,6 +35,7 @@ export default [
       'vue/no-unused-refs': "error",
       'vue/no-unused-emit-declarations': "error",
       "@typescript-eslint/consistent-indexed-object-style": "error",
+      "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-empty-object-type": [
         "error",
         {

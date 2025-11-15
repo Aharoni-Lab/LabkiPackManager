@@ -72,7 +72,7 @@ import {
 } from '../api/endpoints';
 import AddRepoModal from './AddRepoModal.vue';
 import AddRefModal from './AddRefModal.vue';
-import { PackGraph } from '../state/types';
+import { type PackGraph } from '../state/types';
 
 const ADD_REPO_VALUE = '__add_new_repo__';
 const ADD_REF_VALUE = '__add_new_ref__';

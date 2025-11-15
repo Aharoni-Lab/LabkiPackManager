@@ -4,7 +4,7 @@
  * Minimal type definitions for MediaWiki global objects.
  */
 
-import {
+import type {
   ActionAPIRequest,
   ActionAPIResponseMap,
   ActionAPIRequest,
