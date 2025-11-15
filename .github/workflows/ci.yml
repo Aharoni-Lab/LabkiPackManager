@@ -24,8 +24,9 @@ jobs:
       - run: npm run build
       - name: Check bundle freshness
         run: |
-          if ! git diff --quiet -- resources/modules/ext.LabkiPackManager/app.bundle.js resources/css/labkipackmanager.css resources/css/lpm-sfc.css; then
+          if ! git diff --quiet -- resources/modules/ext.LabkiPackManager/app.bundle.js resources/css/labkipackmanager.css; then
             echo "::warning ::Built assets are out of date. Please run 'npm run build' and commit the changes."
+            exit 1
           fi
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
