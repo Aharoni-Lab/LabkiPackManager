@@ -11,6 +11,7 @@ use LabkiPackManager\Parser\ManifestParser;
 use LabkiPackManager\Services\HierarchyBuilder;
 use LabkiPackManager\Services\GraphBuilder;
 use LabkiPackManager\Services\ManifestFetcher;
+use LabkiPackManager\Services\LabkiRepoRegistry;
 
 /**
  * ManifestStore
@@ -48,21 +49,46 @@ class ManifestStore {
 
 	private string $repoUrl;
 	private string $ref;
-	private string $cacheKey;
 	private $cache;
 	private ManifestFetcher $fetcher;
+	private LabkiRepoRegistry $repoRegistry;
 
 	public function __construct(
 		string $repoUrl,
 		string $ref,
 		?WANObjectCache $wanObjectCache = null,
-		?ManifestFetcher $fetcher = null
+		?ManifestFetcher $fetcher = null,
+		?LabkiRepoRegistry $repoRegistry = null
 	) {
 		$this->repoUrl = $repoUrl;
 		$this->ref = $ref;
-		$this->cacheKey = 'labki:manifest:' . sha1($repoUrl . ':' . $ref);
 		$this->cache = $wanObjectCache ?? $this->resolveCache();
 		$this->fetcher = $fetcher ?? new ManifestFetcher();
+		$this->repoRegistry = $repoRegistry ?? new LabkiRepoRegistry();
+	}
+
+	/**
+	 * Get or compute the cache key, including last_fetched timestamp.
+	 *
+	 * The cache key includes the last_fetched timestamp so that when a repository
+	 * is refreshed and last_fetched is updated, a new cache key is used,
+	 * invalidating the old cached manifest.
+	 *
+	 * @return string Cache key
+	 */
+	private function getCacheKey(): string {
+		// Fetch last_fetched timestamp from repository registry
+		// Always fetch current value (don't cache) so cache key updates when repo is refreshed
+		$lastFetched = 0;
+		if ($this->repoRegistry !== null) {
+			$repo = $this->repoRegistry->getRepo($this->repoUrl);
+			if ($repo !== null) {
+				$lastFetched = $repo->lastFetched();
+			}
+		}
+
+		// Include last_fetched in cache key so cache is invalidated when repo is refreshed
+		return 'labki:manifest:' . sha1($this->repoUrl . ':' . $this->ref . ':' . $lastFetched);
 	}
 
 	/**
@@ -72,9 +98,10 @@ class ManifestStore {
 	 * @return Status Structured manifest data or fatal error
 	 */
 	public function get(bool $refresh = false): Status {
+		$cacheKey = $this->getCacheKey();
         
 		if (!$refresh) {
-			$cached = $this->cache->get($this->cacheKey);
+			$cached = $this->cache->get($cacheKey);
 			if (is_array($cached) && isset($cached['meta']['schema_version'])) {
 				return Status::newGood($cached + ['from_cache' => true]);
 			}
@@ -124,7 +151,7 @@ class ManifestStore {
 			]
 		];
 
-		$this->cache->set($this->cacheKey, $data, WANObjectCache::TTL_INDEFINITE);
+		$this->cache->set($cacheKey, $data, WANObjectCache::TTL_INDEFINITE);
 		wfDebugLog('labkipack', "ManifestStore: cached new manifest for {$this->repoUrl}@{$this->ref} (hash={$hash})");
 
 		return Status::newGood($data + ['from_cache' => false]);
@@ -191,7 +218,8 @@ class ManifestStore {
 	 * Clear cached manifest.
 	 */
 	public function clear(): void {
-		$this->cache->delete($this->cacheKey);
+		$cacheKey = $this->getCacheKey();
+		$this->cache->delete($cacheKey);
 	}
 
 	/**

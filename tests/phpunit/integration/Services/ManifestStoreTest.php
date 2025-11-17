@@ -2,21 +2,46 @@
 
 declare(strict_types=1);
 
-namespace LabkiPackManager\Tests\Unit\Services;
+namespace LabkiPackManager\Tests\Integration\Services;
 
 use LabkiPackManager\Services\ManifestStore;
 use LabkiPackManager\Services\ManifestFetcher;
+use LabkiPackManager\Services\LabkiRepoRegistry;
+use LabkiPackManager\Domain\ContentRepoId;
 use MediaWiki\Status\Status;
+use MediaWikiIntegrationTestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 use WANObjectCache;
 use HashBagOStuff;
-use PHPUnit\Framework\TestCase;
-use PHPUnit\Framework\MockObject\MockObject;
 
 /**
+ * Integration tests for ManifestStore
+ *
+ * Tests the manifest caching and retrieval with real MediaWiki services.
+ * These tests verify that cache invalidation works correctly when repository
+ * last_fetched timestamp changes.
+ *
  * @covers \LabkiPackManager\Services\ManifestStore
+ * @group Database
+ * @group LabkiPackManager
  */
-class ManifestStoreTest extends TestCase {
+class ManifestStoreTest extends MediaWikiIntegrationTestCase {
 
+	private LabkiRepoRegistry $repoRegistry;
+
+	/** @var string[] Tables used by this test */
+	protected $tablesUsed = [
+		'labki_content_repo',
+	];
+
+	protected function setUp(): void {
+		parent::setUp();
+		$this->repoRegistry = new LabkiRepoRegistry();
+	}
+
+	/**
+	 * Create a test cache for isolated testing.
+	 */
 	private function createTestCache(): WANObjectCache {
 		return new WANObjectCache( [
 			'cache' => new HashBagOStuff(),
@@ -41,6 +66,221 @@ class ManifestStoreTest extends TestCase {
 		return $mock;
 	}
 
+	/**
+	 * Test that cache is invalidated when last_fetched timestamp changes.
+	 *
+	 * This test verifies the fix for the bug where manifest cache was never
+	 * invalidated after a repository refresh, because the cache key didn't
+	 * include the last_fetched timestamp.
+	 */
+	public function testCacheInvalidatedWhenLastFetchedChanges(): void {
+		$yaml = <<<YAML
+schema_version: '1.0.0'
+name: Test Manifest
+packs:
+  test-pack:
+    version: '1.0.0'
+    description: Test pack
+YAML;
+
+		$repoUrl = 'https://github.com/example/test-repo';
+		$ref = 'main';
+		
+		// Create repository with initial last_fetched timestamp
+		$repoId = $this->repoRegistry->ensureRepoEntry( $repoUrl, [
+			'last_fetched' => 1000,
+		] );
+		
+		// Verify repository was created
+		$repo = $this->repoRegistry->getRepo( $repoId );
+		$this->assertNotNull( $repo );
+		$this->assertEquals( 1000, $repo->lastFetched() );
+		
+		/** @var ManifestFetcher&MockObject $fetcher */
+		$fetcher = $this->createFetcherMock( $yaml );
+		
+		$store = new ManifestStore( $repoUrl, $ref, null, $fetcher, $this->repoRegistry );
+		
+		// First call - should fetch and cache (lastFetched = 1000)
+		$status1 = $store->get();
+		$this->assertTrue( $status1->isOK(), 'First get() should succeed' );
+		$data1 = $status1->getValue();
+		$this->assertFalse( $data1['from_cache'], 'First call should not be from cache' );
+		$hash1 = $data1['meta']['hash'];
+		
+		// Second call - should return cached data (same lastFetched = 1000)
+		$status2 = $store->get();
+		$this->assertTrue( $status2->isOK(), 'Second get() should succeed' );
+		$data2 = $status2->getValue();
+		$this->assertTrue( $data2['from_cache'], 'Second call should be from cache' );
+		$this->assertEquals( $hash1, $data2['meta']['hash'] );
+		
+		// Update last_fetched timestamp (simulating a repository refresh)
+		$this->repoRegistry->updateRepoEntry( $repoId, [
+			'last_fetched' => 2000,
+		] );
+		
+		// Verify timestamp was updated
+		$updatedRepo = $this->repoRegistry->getRepo( $repoId );
+		$this->assertEquals( 2000, $updatedRepo->lastFetched() );
+		
+		// Third call - lastFetched changed to 2000, should fetch fresh data
+		// (different cache key due to different lastFetched)
+		$status3 = $store->get();
+		$this->assertTrue( $status3->isOK(), 'Third get() should succeed' );
+		$data3 = $status3->getValue();
+		$this->assertFalse( 
+			$data3['from_cache'], 
+			'Cache should be invalidated when last_fetched timestamp changes'
+		);
+		$this->assertEquals( $hash1, $data3['meta']['hash'] );
+	}
+
+	/**
+	 * Test that different last_fetched timestamps use different cache keys.
+	 *
+	 * Two ManifestStore instances for the same repo/ref but with different
+	 * last_fetched timestamps should not share cache entries.
+	 */
+	public function testCacheKeyIncludesLastFetchedTimestamp(): void {
+		$yaml = <<<YAML
+schema_version: '1.0.0'
+packs:
+  test-pack:
+    version: '1.0.0'
+YAML;
+
+		$repoUrl = 'https://github.com/example/test-repo-2';
+		$ref = 'main';
+		
+		// Create first repository with last_fetched = 1000
+		$repoId1 = $this->repoRegistry->ensureRepoEntry( $repoUrl, [
+			'last_fetched' => 1000,
+		] );
+		
+		/** @var ManifestFetcher&MockObject $fetcher */
+		$fetcher = $this->createFetcherMock( $yaml );
+		
+		$store1 = new ManifestStore( $repoUrl, $ref, null, $fetcher, $this->repoRegistry );
+		
+		// Cache data for store1 (lastFetched = 1000)
+		$status1 = $store1->get();
+		$this->assertFalse( $status1->getValue()['from_cache'] );
+		
+		// Update last_fetched to 2000
+		$this->repoRegistry->updateRepoEntry( $repoId1, [
+			'last_fetched' => 2000,
+		] );
+		
+		// Create a new store instance (will see updated last_fetched = 2000)
+		$store2 = new ManifestStore( $repoUrl, $ref, null, $fetcher, $this->repoRegistry );
+		
+		// store2 should NOT have cached data because it uses a different cache key
+		// (lastFetched = 2000 vs 1000)
+		$status2 = $store2->get();
+		$this->assertFalse( 
+			$status2->getValue()['from_cache'],
+			'Different last_fetched timestamps should use different cache keys'
+		);
+	}
+
+	/**
+	 * Test that cache works correctly when last_fetched is null.
+	 *
+	 * When a repository has no last_fetched timestamp (null), the cache key
+	 * should still be computed correctly (using 0 as the value).
+	 */
+	public function testCacheWorksWithNullLastFetched(): void {
+		$yaml = <<<YAML
+schema_version: '1.0.0'
+packs:
+  test-pack:
+    version: '1.0.0'
+YAML;
+
+		$repoUrl = 'https://github.com/example/test-repo-3';
+		$ref = 'main';
+		
+		// Create repository without last_fetched (null)
+		$repoId = $this->repoRegistry->ensureRepoEntry( $repoUrl );
+		
+		$repo = $this->repoRegistry->getRepo( $repoId );
+		$this->assertNull( $repo->lastFetched(), 'Repository should have null last_fetched' );
+		
+		/** @var ManifestFetcher&MockObject $fetcher */
+		$fetcher = $this->createFetcherMock( $yaml );
+		
+		$store = new ManifestStore( $repoUrl, $ref, null, $fetcher, $this->repoRegistry );
+		
+		// First call - should fetch and cache
+		$status1 = $store->get();
+		$this->assertTrue( $status1->isOK() );
+		$this->assertFalse( $status1->getValue()['from_cache'] );
+		
+		// Second call - should return cached data
+		$status2 = $store->get();
+		$this->assertTrue( $status2->isOK() );
+		$this->assertTrue( $status2->getValue()['from_cache'] );
+		
+		// Set last_fetched to a value
+		$this->repoRegistry->updateRepoEntry( $repoId, [
+			'last_fetched' => 1000,
+		] );
+		
+		// Third call - should fetch fresh data (cache key changed from null/0 to 1000)
+		$status3 = $store->get();
+		$this->assertTrue( $status3->isOK() );
+		$this->assertFalse( 
+			$status3->getValue()['from_cache'],
+			'Cache should be invalidated when last_fetched changes from null to a value'
+		);
+	}
+
+	/**
+	 * Test that cache persists across multiple get() calls with same last_fetched.
+	 *
+	 * Multiple calls to get() with the same last_fetched timestamp should
+	 * return cached data after the first call.
+	 */
+	public function testCachePersistsWithSameLastFetched(): void {
+		$yaml = <<<YAML
+schema_version: '1.0.0'
+packs:
+  test-pack:
+    version: '1.0.0'
+YAML;
+
+		$repoUrl = 'https://github.com/example/test-repo-4';
+		$ref = 'main';
+		
+		$repoId = $this->repoRegistry->ensureRepoEntry( $repoUrl, [
+			'last_fetched' => 1000,
+		] );
+		
+		/** @var ManifestFetcher&MockObject $fetcher */
+		$fetcher = $this->createFetcherMock( $yaml );
+		
+		$store = new ManifestStore( $repoUrl, $ref, null, $fetcher, $this->repoRegistry );
+		
+		// First call - fetch and cache
+		$status1 = $store->get();
+		$this->assertFalse( $status1->getValue()['from_cache'] );
+		
+		// Multiple subsequent calls - all should return cached data
+		for ( $i = 0; $i < 3; $i++ ) {
+			$status = $store->get();
+			$this->assertTrue( $status->isOK() );
+			$this->assertTrue( 
+				$status->getValue()['from_cache'],
+				"Call " . ( $i + 2 ) . " should be from cache"
+			);
+		}
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	// Basic functionality tests (moved from unit tests)
+	// ─────────────────────────────────────────────────────────────────────────────
+
 	public function testGetReturnsManifestOnFirstCall(): void {
 		$yaml = <<<YAML
 schema_version: '1.0.0'
@@ -60,7 +300,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->get();
@@ -79,7 +320,7 @@ YAML;
 		$this->assertEquals( 'https://github.com/example/repo', $data['meta']['repo_url'] );
 		$this->assertEquals( 'main', $data['meta']['ref'] );
 		$this->assertIsString( $data['meta']['hash'] );
-		$this->assertNotEmpty( $data['meta']['parsed_at'] ); // wfTimestampNow() returns string
+		$this->assertNotEmpty( $data['meta']['parsed_at'] );
 		
 		// Check manifest
 		$this->assertArrayHasKey( 'packs', $data['manifest'] );
@@ -109,7 +350,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		// First call - fetch and cache
@@ -143,7 +385,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		// First call - cache it
@@ -165,7 +408,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->get();
@@ -185,7 +429,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->get();
@@ -211,7 +456,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->getManifest();
@@ -247,7 +493,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->getHierarchy();
@@ -283,7 +530,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->getGraph();
@@ -316,7 +564,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		// Cache data
@@ -351,14 +600,16 @@ YAML;
 			'https://github.com/example/repo1',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$store2 = new ManifestStore(
 			'https://github.com/example/repo2',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		// Cache data for repo1
@@ -385,14 +636,16 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$store2 = new ManifestStore(
 			'https://github.com/example/repo',
 			'dev',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		// Cache data for main
@@ -430,7 +683,8 @@ YAML;
 			'https://github.com/example/repo',
 			'main',
 			$cache,
-			$fetcher
+			$fetcher,
+			$this->repoRegistry
 		);
 		
 		$status = $store->get();
