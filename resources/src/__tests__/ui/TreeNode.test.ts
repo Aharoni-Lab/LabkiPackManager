@@ -9,7 +9,7 @@ import TreeNode from '../../ui/TreeNode.vue';
 describe('TreeNode Component', () => {
   const mockNode = {
     name: 'test-pack',
-    label: 'Test Pack',  // TreeNode uses 'label' not 'display_name'
+    label: 'Test Pack', // TreeNode uses 'label' not 'display_name'
     version: '1.0.0',
     type: 'pack',
     children: [],
@@ -75,8 +75,7 @@ describe('TreeNode Component', () => {
         depth: 0,
       },
     });
-    
+
     expect(wrapper.text()).toContain('Child Pack');
   });
 });
-

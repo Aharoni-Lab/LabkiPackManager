@@ -123,13 +123,13 @@ describe('API Endpoints', () => {
   describe('Error Handling', () => {
     it('should handle missing response data', () => {
       const emptyResponse = {};
-      
+
       expect(emptyResponse).toEqual({});
     });
 
     it('should handle null responses', () => {
       const nullResponse = null;
-      
+
       expect(nullResponse).toBeNull();
     });
 
@@ -148,4 +148,3 @@ describe('API Endpoints', () => {
     });
   });
 });
-

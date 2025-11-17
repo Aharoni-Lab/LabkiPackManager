@@ -1,6 +1,6 @@
 /**
  * Tests for TypeScript types and interfaces.
- * 
+ *
  * These tests verify that our type definitions work correctly.
  */
 
@@ -43,4 +43,3 @@ describe('Type Definitions', () => {
     });
   });
 });
-

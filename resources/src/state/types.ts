@@ -1,8 +1,36 @@
 /**
  * TypeScript type definitions for Labki Pack Manager state management.
- * 
+ *
  * These types mirror the PHP PackSessionState domain model and API response structures.
  */
+
+// base types
+
+export type ActionAPIName =
+  | 'labkiReposList'
+  | 'labkiReposAdd'
+  | 'labkiGraphGet'
+  | 'labkiHierarchyGet'
+  | 'labkiPacksAction'
+  | 'labkiOperationsStatus'
+  | 'labkiReposSync';
+export interface ActionAPIResponseBase {
+  meta: {
+    schemaVersion: number;
+    timestamp: string;
+    from_cache?: boolean;
+  };
+}
+
+export interface ActionAPIRequestBase<T extends ActionAPIName> {
+  action: T;
+  format: 'json';
+}
+
+export interface RepoRefRequest<T extends ActionAPIName> extends ActionAPIRequestBase<T> {
+  repo_url: string;
+  ref: string;
+}
 
 // ============================================================================
 // Pack Session State Types
@@ -26,12 +54,14 @@ export interface PackPageState {
   installed?: boolean;
 }
 
+export type PackStateAction = 'install' | 'update' | 'remove' | 'unchanged';
+
 /**
  * State for a pack including all its pages.
  */
 export interface PackState {
   /** Action type: install|update|remove|unchanged */
-  action?: 'install' | 'update' | 'remove' | 'unchanged';
+  action?: PackStateAction;
   /** Reason for auto-action (null if manually set by user, otherwise explains why) */
   auto_selected_reason?: string | null;
   /** Version currently installed (null if not installed) */
@@ -55,24 +85,87 @@ export type PacksState = Record<string, PackState>;
 // API Request/Response Types
 // ============================================================================
 
+export type PacksActionCommandName =
+  | 'init'
+  | 'refresh'
+  | 'clear'
+  | 'set_pack_action'
+  | 'rename_page'
+  | 'set_pack_prefix'
+  | 'apply';
+
+export type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
+
 /**
  * Payload for labkiPacksAction API.
+ * A base type for common properties, sub-interfaces for each specific command,
+ * and then a pair of selector types to be able to match types by the value of `command`
  */
-export interface PacksActionPayload {
+export interface PacksActionCommandBase {
   /** Command name (init, set_pack_action, rename_page, etc.) */
-  command: string;
+  command: PacksActionCommandName;
   /** Repository URL */
   repo_url: string;
   /** Reference (branch/tag) */
   ref: string;
   /** Command-specific data */
-  data: Record<string, unknown>;
+  data: PacksActionDataBase;
+  pack_name?: string;
+}
+
+export interface PacksActionDataBase {
+  pack_name: string;
+}
+
+export interface SetPackActionCommand extends PacksActionCommandBase {
+  command: 'set_pack_action';
+  pack_name: string;
+  data: SetPackActionData;
+}
+
+export interface SetPackActionData extends PacksActionDataBase {
+  action: string;
+}
+
+export interface SetPackPrefixCommand extends PacksActionCommandBase {
+  command: 'set_pack_prefix';
+  data: SetPackPrefixData;
+}
+
+export interface SetPackPrefixData extends PacksActionDataBase {
+  prefix: string;
+}
+
+export interface RenamePageCommand extends PacksActionCommandBase {
+  command: 'rename_page';
+  data: RenamePageData;
+}
+
+export interface RenamePageData extends PacksActionDataBase {
+  page_name: string;
+  new_title: string;
+}
+
+export interface PacksActionRequest extends ActionAPIRequestBase<'labkiPacksAction'> {
+  payload: string;
+}
+
+export type PacksActionCommand = SetPackActionCommand | SetPackPrefixCommand | RenamePageCommand;
+
+export interface PacksActionDataMap {
+  set_pack_action: SetPackActionData;
+  set_pack_prefix: SetPackPrefixData;
+  rename_page: RenamePageData;
+  init: never;
+  refresh: never;
+  clear: never;
+  apply: never;
 }
 
 /**
  * Response from labkiPacksAction API.
  */
-export interface PacksActionResponse {
+export interface PacksActionResponse extends ActionAPIResponseBase {
   /** Success flag */
   ok: boolean;
   /** Optional error code when ok === false */
@@ -80,23 +173,22 @@ export interface PacksActionResponse {
   /** Human-friendly message */
   message?: string;
   /** State diff (changed fields only, or full state on init) */
-  diff?: PacksState;
+  diff: PacksState;
   /** Warning messages */
-  warnings?: string[];
+  warnings: string[];
   /** Authoritative server state hash */
-  state_hash?: string;
+  state_hash: string;
   /** Operation info (e.g., from apply command) */
   operation?: {
     operation_id?: string;
-    status?: string;
-    [key: string]: unknown;
+    status?: OperationStatus;
   };
   /** Authoritative server packs (when state is out of sync) */
   server_packs?: PacksState;
   /** Field-level differences for reconciliation */
   differences?: StateDifference;
   /** Suggested commands to reconcile client intent */
-  reconcile_commands?: ReconcileCommand[];
+  reconcile_commands?: PacksActionCommand[];
   /** Response metadata */
   meta: {
     schemaVersion: number;
@@ -104,21 +196,21 @@ export interface PacksActionResponse {
   };
 }
 
-export interface StateDifference {
-  [packName: string]: {
-    fields?: Record<string, FieldDifference>;
-    pages?: Record<string, Record<string, FieldDifference>>;
-  };
+// idk why but this is nested???
+export interface PacksActionWrapper {
+  labkiPacksAction: PacksActionResponse;
+}
+
+export type StateDifference = Record<string, PackDifference>;
+
+export interface PackDifference {
+  fields?: Record<string, FieldDifference>;
+  pages?: Record<string, Record<string, FieldDifference>>;
 }
 
 export interface FieldDifference {
-  client: unknown;
-  server: unknown;
-}
-
-export interface ReconcileCommand {
-  command: string;
-  data: Record<string, unknown>;
+  client: string;
+  server: string;
 }
 
 // ============================================================================
@@ -226,26 +318,40 @@ export interface Repo {
 /**
  * Response from labkiReposList API.
  */
-export interface ReposListResponse {
+export interface ReposListResponse extends ActionAPIResponseBase {
   repos: Repo[];
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-  };
 }
 
 /**
  * Response from labkiReposAdd API.
  */
-export interface ReposAddResponse {
-  ok: boolean;
+export interface ReposAddRequest extends ActionAPIRequestBase<'labkiReposAdd'> {
+  repo_url: string;
+  default_ref?: string;
+  refs?: string[];
+}
+
+export interface ReposAddResponse extends ActionAPIResponseBase {
+  success: boolean;
   operation_id: string;
   repo_url: string;
   default_ref: string;
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-  };
+  status?: string;
+  message?: string;
+  refs?: Ref[];
+}
+
+export interface ReposSyncRequest extends ActionAPIRequestBase<'labkiReposSync'> {
+  repo_url: string;
+  refs?: string;
+}
+
+export interface ReposSyncResponse extends ActionAPIResponseBase {
+  success: boolean;
+  operation_id: string;
+  status: OperationStatus;
+  message: string;
+  refs?: Ref[];
 }
 
 // ============================================================================
@@ -255,35 +361,73 @@ export interface ReposAddResponse {
 /**
  * Response from labkiGraphGet API.
  */
-export interface GraphGetResponse {
+
+export interface PackGraphEdge {
+  from: string;
+  to: string;
+}
+
+export interface PackGraph {
+  containsEdges: PackGraphEdge[];
+  dependsEdges: PackGraphEdge[];
+  roots: string[];
+  hasCycle: boolean;
+}
+
+export interface GraphGetResponse extends ActionAPIResponseBase {
   repo_url: string;
   ref: string;
   hash: string;
-  graph: {
-    containsEdges: Array<{ from: string; to: string }>;
-    dependsEdges: Array<{ from: string; to: string }>;
-    roots: string[];
-    hasCycle: boolean;
-  };
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-    from_cache: boolean;
-  };
+  graph: PackGraph;
 }
 
 /**
  * Response from labkiHierarchyGet API.
  */
-export interface HierarchyGetResponse {
+export interface HierarchyGetResponse extends ActionAPIResponseBase {
   repo_url: string;
   ref: string;
   hash: string;
   hierarchy: Hierarchy;
-  meta: {
-    schemaVersion: number;
-    timestamp: string;
-    from_cache: boolean;
-  };
 }
 
+export interface OperationsStatusRequest extends ActionAPIRequestBase<'labkiOperationsStatus'> {
+  operation_id: string;
+}
+
+export interface OperationsStatusResponse extends ActionAPIResponseBase {
+  status: string;
+  operation_id: string;
+  message: string;
+  progress: number;
+}
+
+// Type unions for api.get and api.post methods
+// using a combination of conditional types with a generic and a mapping
+// so that the `action` within the request can be linked to the response type
+
+export type ActionAPIRequest<T extends ActionAPIName> = T extends 'labkiReposList'
+  ? ActionAPIRequestBase<T>
+  : T extends 'labkiReposAdd'
+    ? ReposAddRequest
+    : T extends 'labkiGraphGet'
+      ? RepoRefRequest<T>
+      : T extends 'labkiHierarchyGet'
+        ? RepoRefRequest<T>
+        : T extends 'labkiPacksAction'
+          ? PacksActionRequest
+          : T extends 'labkiOperationsStatus'
+            ? OperationsStatusRequest
+            : T extends 'labkiReposSync'
+              ? ReposSyncRequest
+              : never;
+
+export interface ActionAPIResponseMap {
+  labkiReposList: ReposListResponse;
+  labkiReposAdd: ReposAddResponse;
+  labkiGraphGet: GraphGetResponse;
+  labkiHierarchyGet: HierarchyGetResponse;
+  labkiPacksAction: PacksActionWrapper;
+  labkiOperationsStatus: OperationsStatusResponse;
+  labkiReposSync: ReposSyncResponse;
+}

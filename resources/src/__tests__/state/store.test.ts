@@ -86,8 +86,20 @@ describe('Store', () => {
 
     it('should allow setting repos', () => {
       const testRepos = [
-        { repo_id: 1, url: 'https://github.com/test/repo1', default_ref: 'main', refs: [], ref_count: 0 },
-        { repo_id: 2, url: 'https://github.com/test/repo2', default_ref: 'main', refs: [], ref_count: 0 },
+        {
+          repo_id: 1,
+          url: 'https://github.com/test/repo1',
+          default_ref: 'main',
+          refs: [],
+          ref_count: 0,
+        },
+        {
+          repo_id: 2,
+          url: 'https://github.com/test/repo2',
+          default_ref: 'main',
+          refs: [],
+          ref_count: 0,
+        },
       ];
       store.repos = testRepos;
       expect(store.repos).toHaveLength(2);
@@ -95,4 +107,3 @@ describe('Store', () => {
     });
   });
 });
-
